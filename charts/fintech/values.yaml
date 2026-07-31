@@ -1,0 +1,31 @@
+global:
+  repository: local
+  tag: latest
+  pullPolicy: Never
+
+redis:
+  enabled: true
+
+mongo:
+  enabled: true
+
+ingress:
+  enabled: true
+  host: fintech.local
+
+services:
+  auth:
+    replicas: 2
+    port: 8000
+  core:
+    replicas: 2
+    port: 8000
+  investments:
+    replicas: 2
+    port: 8000
+  family:
+    replicas: 2
+    port: 8000
+  frontend:
+    replicas: 1
+    port: 80

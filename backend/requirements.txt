@@ -1,0 +1,16 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pyjwt==2.8.0
+motor==3.3.2
+cryptography==41.0.7
+slowapi==0.1.9
+python-multipart==0.0.6
+pydantic==2.5.0
+pymongo==4.6.1
+pydantic-settings
+email-validator==2.1.0
+passlib[bcrypt]
+bcrypt==4.0.1
+pytest
+pytest-asyncio
+httpx

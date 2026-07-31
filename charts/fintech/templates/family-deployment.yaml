@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-family
+  labels:
+    app: {{ .Chart.Name }}-family
+spec:
+  replicas: {{ .Values.services.family.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}-family
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}-family
+    spec:
+      containers:
+        - name: family
+          image: "{{ .Values.global.repository }}/family-service:{{ .Values.global.tag }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.family.port }}
+          env:
+            - name: MONGO_URL
+              value: "mongodb://{{ .Chart.Name }}-mongo:27017"
+            - name: DB_NAME
+              value: "fintrack"
+            - name: SECRET_KEY
+              value: "kubernetes-secret-key"
+          livenessProbe:
+            httpGet:
+              path: /docs
+              port: {{ .Values.services.family.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: {{ .Values.services.family.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}-family
+spec:
+  selector:
+    app: {{ .Chart.Name }}-family
+  ports:
+    - port: 80
+      targetPort: {{ .Values.services.family.port }}

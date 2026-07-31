@@ -1,0 +1,63 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Chart.Name }}-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api/auth/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-auth
+                port:
+                  number: 80
+          - path: /api/accounts/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-core
+                port:
+                  number: 80
+          - path: /api/transactions/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-core
+                port:
+                  number: 80
+          - path: /api/status
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Chart.Name }}-core
+                port:
+                  number: 80
+          - path: /api/investments/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-investments
+                port:
+                  number: 80
+          - path: /api/family/(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-family
+                port:
+                  number: 80
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ .Chart.Name }}-frontend
+                port:
+                  number: 80
+{{- end }}
