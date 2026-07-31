@@ -1,9 +1,0 @@
-node_modules
-.git
-.expo
-.venv
-dist
-tmp
-android
-ios
-web-build
