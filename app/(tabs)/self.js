@@ -181,23 +181,127 @@ export default function SelfScreen() {
 
     // Interactive Calculator & Add Loan State
     const [showCalculator, setShowCalculator] = useState(false);
-    const [calculatorInput, setCalculatorInput] = useState('');
-    const [calculatorResult, setCalculatorResult] = useState('');
+    const [calcActiveTab, setCalcActiveTab] = useState('inputs'); // 'inputs' | 'amortization'
+    
+    // P2P Pre-Checking Loan Calculator Inputs
+    const [calcPrincipal, setCalcPrincipal] = useState('100000');
+    const [calcInterestRate, setCalcInterestRate] = useState('12');
+    const [calcTermValue, setCalcTermValue] = useState('12');
+    const [calcTermUnit, setCalcTermUnit] = useState('Months'); // 'Months' | 'Years'
+    const [calcFrequency, setCalcFrequency] = useState('Monthly'); // 'Monthly' | 'Bi-weekly' | 'Weekly' | 'Bullet'
+    const [calcPlatformFeePct, setCalcPlatformFeePct] = useState('2');
+    const [calcDefaultRatePct, setCalcDefaultRatePct] = useState('3');
+    const [calcRiskGrade, setCalcRiskGrade] = useState('B'); // 'A' | 'B' | 'C' | 'Custom'
 
-    const handleCalcPress = (val) => {
-        if (val === 'C') {
-            setCalculatorInput('');
-            setCalculatorResult('');
-        } else if (val === '⌫') {
-            setCalculatorInput(prev => prev.slice(0, -1));
-        } else if (val === '=') {
-            try {
-                // Safe basic evaluation for numbers & arithmetic math operators
-                const cleanInput = calculatorInput.replace(/×/g, '*').replace(/÷/g, '/');
-                if (!cleanInput.trim()) return;
-                // Evaluate mathematical expression safely
-                const sanitized = cleanInput.replace(/[^0-9+\-*/.]/g, '');
-                const res = Function(`"use strict"; return (${sanitized})`)();
+    const handleApplyRiskGrade = (grade) => {
+        setCalcRiskGrade(grade);
+        if (grade === 'A') {
+            setCalcInterestRate('8.5');
+            setCalcDefaultRatePct('1.0');
+        } else if (grade === 'B') {
+            setCalcInterestRate('13.5');
+            setCalcDefaultRatePct('3.5');
+        } else if (grade === 'C') {
+            setCalcInterestRate('21.0');
+            setCalcDefaultRatePct('8.0');
+        }
+    };
+
+    // Calculate Comprehensive P2P Loan Metrics
+    const computeP2PLoanMetrics = () => {
+        const P = Math.max(0, parseFloat(calcPrincipal) || 0);
+        const annualRate = Math.max(0, parseFloat(calcInterestRate) || 0) / 100;
+        const termVal = Math.max(1, parseFloat(calcTermValue) || 1);
+        const feePct = Math.max(0, parseFloat(calcPlatformFeePct) || 0) / 100;
+        const defaultRate = Math.max(0, parseFloat(calcDefaultRatePct) || 0) / 100;
+
+        let ppy = 12; // payments per year
+        if (calcFrequency === 'Bi-weekly') ppy = 26;
+        else if (calcFrequency === 'Weekly') ppy = 52;
+        else if (calcFrequency === 'Bullet') ppy = 1;
+
+        const totalMonths = calcTermUnit === 'Years' ? termVal * 12 : termVal;
+        const n = calcFrequency === 'Bullet' ? 1 : Math.max(1, Math.round((totalMonths / 12) * ppy));
+
+        const r = ppy > 0 ? annualRate / ppy : annualRate;
+
+        let periodicInstallment = 0;
+        let totalRepayment = 0;
+        let totalInterest = 0;
+
+        if (calcFrequency === 'Bullet') {
+            // Lump-sum repayment at end with simple/compound interest for duration
+            const durationYears = totalMonths / 12;
+            totalInterest = P * annualRate * durationYears;
+            totalRepayment = P + totalInterest;
+            periodicInstallment = totalRepayment;
+        } else {
+            if (r > 0) {
+                periodicInstallment = (P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+            } else {
+                periodicInstallment = P / n;
+            }
+            totalRepayment = periodicInstallment * n;
+            totalInterest = Math.max(0, totalRepayment - P);
+        }
+
+        const platformFeeAmount = P * feePct;
+        const netHandAmount = Math.max(0, P - platformFeeAmount);
+        
+        // Net Annualized Yield & Risk-Adjusted Return
+        const rawYieldPct = P > 0 ? ((totalInterest - platformFeeAmount) / P) / (totalMonths / 12) * 100 : 0;
+        const riskAdjustedYieldPct = rawYieldPct - (defaultRate * 100);
+
+        // Generate Amortization Schedule
+        const amortizationSchedule = [];
+        let balance = P;
+        
+        for (let i = 1; i <= n; i++) {
+            let interestPaid = 0;
+            let principalPaid = 0;
+            let feePaid = 0;
+            let pmtAmount = 0;
+
+            if (calcFrequency === 'Bullet') {
+                interestPaid = totalInterest;
+                principalPaid = P;
+                feePaid = platformFeeAmount;
+                pmtAmount = totalRepayment;
+                balance = 0;
+            } else {
+                interestPaid = balance * r;
+                pmtAmount = periodicInstallment;
+                principalPaid = pmtAmount - interestPaid;
+                feePaid = (platformFeeAmount / n);
+                balance = Math.max(0, balance - principalPaid);
+            }
+
+            amortizationSchedule.push({
+                num: i,
+                payment: pmtAmount,
+                principal: principalPaid,
+                interest: interestPaid,
+                fee: feePaid,
+                balance: balance
+            });
+        }
+
+        return {
+            P,
+            annualRate,
+            termMonths: totalMonths,
+            periodicInstallment,
+            totalInterest,
+            totalRepayment,
+            platformFeeAmount,
+            netHandAmount,
+            rawYieldPct,
+            riskAdjustedYieldPct,
+            amortizationSchedule
+        };
+    };
+
+    const loanMetrics = computeP2PLoanMetrics();
                 if (res !== undefined && !isNaN(res)) {
                     setCalculatorResult(String(res));
                 } else {
@@ -572,10 +676,14 @@ export default function SelfScreen() {
     // Date range states for Personal Spending Table
     const calculateDateRange = (timeframe) => {
         const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const toDate = `${year}-${month}-${day}`;
+        const formatDate = (d) => {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const toDate = formatDate(today);
         let fromDate = toDate;
 
         if (timeframe === 'Daily') {
@@ -585,22 +693,50 @@ export default function SelfScreen() {
             const dayOfWeek = d.getDay();
             const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
             d.setDate(d.getDate() - diffToMonday);
-            const wYear = d.getFullYear();
-            const wMonth = String(d.getMonth() + 1).padStart(2, '0');
-            const wDay = String(d.getDate()).padStart(2, '0');
-            fromDate = `${wYear}-${wMonth}-${wDay}`;
+            fromDate = formatDate(d);
         } else if (timeframe === 'Monthly') {
-            fromDate = `${year}-${month}-01`;
+            const d = new Date(today.getFullYear(), today.getMonth(), 1);
+            fromDate = formatDate(d);
         } else if (timeframe === 'Yearly') {
-            fromDate = `${year}-01-01`;
+            const d = new Date(today.getFullYear(), 0, 1);
+            fromDate = formatDate(d);
         } else if (timeframe === 'All Time') {
-            fromDate = '2000-01-01';
+            let earliest = toDate;
+            if (transactions && transactions.length > 0) {
+                transactions.forEach(t => {
+                    if (t.date && t.date < earliest) {
+                        earliest = t.date;
+                    }
+                });
+            } else {
+                earliest = '2020-01-01';
+            }
+            fromDate = earliest;
+        } else if (timeframe === 'Custom') {
+            return { from: spendFromDate || '2020-01-01', to: spendToDate || toDate };
         }
         return { from: fromDate, to: toDate };
     };
-    const [spendTimeframe, setSpendTimeframe] = useState('Monthly');
-    const [spendFromDate, setSpendFromDate] = useState(() => calculateDateRange('Monthly').from);
-    const [spendToDate, setSpendToDate] = useState(() => calculateDateRange('Monthly').to);
+    const [spendTimeframe, setSpendTimeframe] = useState('All Time');
+    const [spendFromDate, setSpendFromDate] = useState(() => {
+        const today = new Date();
+        const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        let earliest = formatDate(today);
+        if (transactions && transactions.length > 0) {
+            transactions.forEach(t => {
+                if (t.date && t.date < earliest) {
+                    earliest = t.date;
+                }
+            });
+        } else {
+            earliest = '2020-01-01';
+        }
+        return earliest;
+    });
+    const [spendToDate, setSpendToDate] = useState(() => {
+        const today = new Date();
+        return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    });
     // Timeframe dropdown states
     const timeframeOptions = ['Daily', 'Weekly', 'Monthly', 'Yearly', 'All Time', 'Custom'];
     const [showSpendTimeframeDropdown, setShowSpendTimeframeDropdown] = useState(false);
@@ -2218,25 +2354,25 @@ export default function SelfScreen() {
                             </View>
                         </View>
                         {/* Selected Period Metrics Card */}
-                        <View style={{ backgroundColor: '#101012', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 10, marginBottom: 16, borderWidth: 1, borderColor: '#27272A' }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Earnings</Text>
-                                    <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        <View style={{ backgroundColor: '#101012', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, marginBottom: 16, borderWidth: 1, borderColor: '#27272A' }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch' }}>
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Earnings</Text>
+                                    <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                         ₹{Math.round(flow.income).toLocaleString()}
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, height: 32, backgroundColor: '#27272A' }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Spendings</Text>
-                                    <Text style={{ color: '#EF4444', fontSize: 14, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                <View style={{ width: 1, backgroundColor: '#27272A', marginVertical: 2 }} />
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Spendings</Text>
+                                    <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                         ₹{Math.round(flow.expense).toLocaleString()}
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, height: 32, backgroundColor: '#27272A' }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 11, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Net Balance</Text>
-                                    <Text style={{ color: flow.net >= 0 ? '#10B981' : '#EF4444', fontSize: 14, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                <View style={{ width: 1, backgroundColor: '#27272A', marginVertical: 2 }} />
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Net Balance</Text>
+                                    <Text style={{ color: flow.net >= 0 ? '#10B981' : '#EF4444', fontSize: 13, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                         ₹{Math.round(flow.net).toLocaleString()}
                                     </Text>
                                 </View>
