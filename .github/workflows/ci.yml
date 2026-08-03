@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint-and-test:
+    name: Lint & E2E Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Expo CLI
+        run: npm install -g @expo/cli
+
+      # Start Expo web in the background on port 8081
+      - name: Start Expo web (background)
+        run: |
+          npx expo export --platform web --output-dir dist/ --no-minify
+          npx serve dist/ --listen 8081 &
+          # Wait until the dev server is ready
+          npx wait-on http://localhost:8081 --timeout 120000
+        env:
+          CI: true
+          EXPO_NO_TELEMETRY: 1
+
+      - name: Run E2E test suite
+        run: npm run test:e2e-ci
+        env:
+          HEADLESS: true
+          BASE_URL: http://localhost:8081
+
+      - name: Upload screenshots on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: tests/e2e/screenshots/
+          retention-days: 7

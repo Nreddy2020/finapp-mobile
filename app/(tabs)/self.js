@@ -302,18 +302,7 @@ export default function SelfScreen() {
     };
 
     const loanMetrics = computeP2PLoanMetrics();
-                if (res !== undefined && !isNaN(res)) {
-                    setCalculatorResult(String(res));
-                } else {
-                    setCalculatorResult('Error');
-                }
-            } catch (err) {
-                setCalculatorResult('Error');
-            }
-        } else {
-            setCalculatorInput(prev => prev + val);
-        }
-    };
+
 
     // Add Loan Modal & Wizard State
     const [showAddLoanModal, setShowAddLoanModal] = useState(false);
@@ -674,8 +663,7 @@ export default function SelfScreen() {
     const [isWhereMoneyExpanded, setIsWhereMoneyExpanded] = useState(false);
     const [isLoggerExpanded, setIsLoggerExpanded] = useState(false);
     // Date range states for Personal Spending Table
-    const calculateDateRange = (timeframe) => {
-        const today = new Date();
+    const calculateDateRange = (timeframe, txs = transactions) => {
         const formatDate = (d) => {
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -683,27 +671,29 @@ export default function SelfScreen() {
             return `${y}-${m}-${day}`;
         };
 
-        const toDate = formatDate(today);
+        // Reference date: current system date (today)
+        let refDate = new Date();
+        const toDate = formatDate(refDate);
         let fromDate = toDate;
 
         if (timeframe === 'Daily') {
             fromDate = toDate;
         } else if (timeframe === 'Weekly') {
-            const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const d = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
             const dayOfWeek = d.getDay();
             const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
             d.setDate(d.getDate() - diffToMonday);
             fromDate = formatDate(d);
         } else if (timeframe === 'Monthly') {
-            const d = new Date(today.getFullYear(), today.getMonth(), 1);
+            const d = new Date(refDate.getFullYear(), refDate.getMonth(), 1);
             fromDate = formatDate(d);
         } else if (timeframe === 'Yearly') {
-            const d = new Date(today.getFullYear(), 0, 1);
+            const d = new Date(refDate.getFullYear(), 0, 1);
             fromDate = formatDate(d);
         } else if (timeframe === 'All Time') {
             let earliest = toDate;
-            if (transactions && transactions.length > 0) {
-                transactions.forEach(t => {
+            if (txs && txs.length > 0) {
+                txs.forEach(t => {
                     if (t.date && t.date < earliest) {
                         earliest = t.date;
                     }
@@ -751,7 +741,7 @@ export default function SelfScreen() {
         setSpendTimeframe(tf);
         setShowSpendTimeframeDropdown(false);
         if (tf !== 'Custom') {
-            const { from, to } = calculateDateRange(tf);
+            const { from, to } = calculateDateRange(tf, transactions);
             setSpendFromDate(from);
             setSpendToDate(to);
         }
@@ -2280,25 +2270,26 @@ export default function SelfScreen() {
                             <Text style={{ color: '#F4F4F5', fontSize: 13, fontWeight: '800', letterSpacing: 0.3, marginBottom: 10 }}>Active Period</Text>
                             
                             {/* Segmented Control Pill Bar */}
-                            <View style={{ flexDirection: 'row', backgroundColor: '#09090B', padding: 3, borderRadius: 10, borderWidth: 1, borderColor: '#27272A', marginBottom: 14 }}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ flexDirection: 'row', backgroundColor: '#09090B', padding: 4, borderRadius: 10, borderWidth: 1, borderColor: '#27272A', minWidth: '100%' }}>
                                 {['Daily', 'Weekly', 'Monthly', 'Yearly', 'All Time', 'Custom'].map(preset => (
                                     <Pressable
                                         key={preset}
                                         onPress={() => handleSpendTimeframeSelect(preset)}
                                         style={{
-                                            flex: 1,
+                                            paddingHorizontal: 14,
+                                            paddingVertical: 8,
                                             backgroundColor: spendTimeframe === preset ? '#6366F1' : 'transparent',
-                                            paddingVertical: 6,
                                             borderRadius: 7,
-                                            alignItems: 'center'
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
                                         }}
                                     >
-                                        <Text style={{ color: spendTimeframe === preset ? '#FFFFFF' : '#A1A1AA', fontSize: 9, fontWeight: spendTimeframe === preset ? '800' : '600' }} numberOfLines={1}>
+                                        <Text style={{ color: spendTimeframe === preset ? '#FFFFFF' : '#A1A1AA', fontSize: 11, fontWeight: spendTimeframe === preset ? '800' : '600' }}>
                                             {preset}
                                         </Text>
                                     </Pressable>
                                 ))}
-                            </View>
+                            </ScrollView>
 
                             {/* Editable Date Range Inputs */}
                             <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
@@ -2354,25 +2345,25 @@ export default function SelfScreen() {
                             </View>
                         </View>
                         {/* Selected Period Metrics Card */}
-                        <View style={{ backgroundColor: '#101012', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, marginBottom: 16, borderWidth: 1, borderColor: '#27272A' }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'stretch' }}>
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                        <View style={{ backgroundColor: '#101012', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 10, marginBottom: 16, borderWidth: 1, borderColor: '#27272A' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
                                     <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Earnings</Text>
-                                    <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                    <Text style={{ color: '#10B981', fontSize: 15, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
                                         ₹{Math.round(flow.income).toLocaleString()}
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, backgroundColor: '#27272A', marginVertical: 2 }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                                <View style={{ width: 1, height: 28, backgroundColor: '#27272A' }} />
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
                                     <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Spendings</Text>
-                                    <Text style={{ color: '#EF4444', fontSize: 13, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                    <Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
                                         ₹{Math.round(flow.expense).toLocaleString()}
                                     </Text>
                                 </View>
-                                <View style={{ width: 1, backgroundColor: '#27272A', marginVertical: 2 }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 2, justifyContent: 'center' }}>
+                                <View style={{ width: 1, height: 28, backgroundColor: '#27272A' }} />
+                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
                                     <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Net Balance</Text>
-                                    <Text style={{ color: flow.net >= 0 ? '#10B981' : '#EF4444', fontSize: 13, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                    <Text style={{ color: flow.net >= 0 ? '#10B981' : '#EF4444', fontSize: 15, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
                                         ₹{Math.round(flow.net).toLocaleString()}
                                     </Text>
                                 </View>

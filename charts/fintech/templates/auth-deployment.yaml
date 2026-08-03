@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-auth
+  labels:
+    app: {{ .Chart.Name }}-auth
+spec:
+  replicas: {{ .Values.services.auth.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}-auth
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}-auth
+    spec:
+      containers:
+        - name: auth
+          image: "{{ .Values.global.repository }}/auth-service:{{ .Values.global.tag }}"
+          imagePullPolicy: {{ .Values.global.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.auth.port }}
+          env:
+            - name: MONGO_URL
+              value: "mongodb://{{ .Chart.Name }}-mongo:27017"
+            - name: DB_NAME
+              value: "fintrack"
+            - name: SECRET_KEY
+              value: "kubernetes-secret-key"
+          livenessProbe:
+            httpGet:
+              path: /docs
+              port: {{ .Values.services.auth.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: {{ .Values.services.auth.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}-auth
+spec:
+  selector:
+    app: {{ .Chart.Name }}-auth
+  ports:
+    - port: 80
+      targetPort: {{ .Values.services.auth.port }}
