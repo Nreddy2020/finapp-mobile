@@ -1,10 +1,7 @@
 import React, { useState, createContext, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Tabs, useRouter, usePathname, useNavigation } from 'expo-router';
-import {
-    LayoutDashboard, User, Users, Building2, TrendingUp, X, ChevronDown, ChevronUp,
-    Wallet, Landmark, Calendar, MessageSquare, ShieldCheck, Heart, CreditCard, Activity, GraduationCap, Wrench, PieChart, CheckSquare
-} from 'lucide-react-native';
+import { LayoutDashboard, User, Users, Building2, TrendingUp, X, ChevronDown, ChevronUp, Wallet, Landmark, CalendarDays as Calendar, MessageSquare, ShieldCheck, Heart, CreditCard, Activity, GraduationCap, Wrench, PieChart, CheckSquare } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DrawerContext = createContext();
@@ -14,82 +11,80 @@ export function useDrawer() {
 }
 
 function CustomDrawerOverlay({ onClose, state, navigation }) {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [isPersonalExpanded, setIsPersonalExpanded] = useState(true);
-    const [isFamilyExpanded, setIsFamilyExpanded] = useState(false);
+    const [isMoneyExpanded, setIsMoneyExpanded] = useState(false);
+    const [isWealthExpanded, setIsWealthExpanded] = useState(false);
+    const [isLifeExpanded, setIsLifeExpanded] = useState(false);
     const [isBusinessExpanded, setIsBusinessExpanded] = useState(false);
-    const [isMarketsExpanded, setIsMarketsExpanded] = useState(false);
+    const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(false);
+    const [isSecurityExpanded, setIsSecurityExpanded] = useState(false);
 
     const activeRouteIndex = state?.index ?? 0;
     const activeRouteName = state?.routes[activeRouteIndex]?.name ?? 'index';
 
-    const navigateTab = (name, params) => {
-        console.log('[DRAWER] navigateTab called for name:', name, 'params:', params);
-        const targetRoute = state?.routes?.find(r => r.name === name);
-        console.log('[DRAWER] targetRoute found:', targetRoute?.key);
-        if (!targetRoute) return;
-
-        const event = navigation.emit({
-            type: 'tabPress',
-            target: targetRoute.key,
-            canPreventDefault: true,
-        });
-
-        if (!event.defaultPrevented) {
-            navigation.navigate({ name: targetRoute.name, merge: true, params: params });
-        }
+    const toggleGroup = (setter, currentVal) => {
+        setIsMoneyExpanded(false);
+        setIsWealthExpanded(false);
+        setIsLifeExpanded(false);
+        setIsBusinessExpanded(false);
+        setIsIntelligenceExpanded(false);
+        setIsSecurityExpanded(false);
+        setter(!currentVal);
     };
 
-    const personalSubTabs = [
-        { id: 'flow', name: 'Money Flow', icon: Wallet },
-        { id: 'financial_hub', name: 'Financial Hub', icon: CreditCard },
-        { id: 'banking', name: 'Banking & Loans', icon: CreditCard, parent: 'financial_hub' },
-        { id: 'p2p', name: 'P2P Loans', icon: Users, parent: 'financial_hub' },
-        { id: 'splitwise', name: 'Splitwise', icon: PieChart, parent: 'financial_hub' },
-        { id: 'renewals', name: 'Renewals', icon: Calendar },
-        { id: 'meds', name: 'Health Hub', icon: Activity },
-        { id: 'school', name: 'Family Security Hub', icon: ShieldCheck },
-        { id: 'services', name: 'Services', icon: Wrench },
-        { id: 'budgets', name: 'Budgets', icon: PieChart },
-        { id: 'todo', name: 'To Do', icon: CheckSquare },
-        { id: 'properties', name: 'Property Vault', icon: Building2 },
-        { id: 'crisis', name: 'Volatility Shield', icon: ShieldCheck }
+    const moneySubTabs = [
+        { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/money' },
+        { id: 'expenses', name: 'Expenses', icon: PieChart, route: '/transactions' },
+        { id: 'income', name: 'Income', icon: TrendingUp, route: '/income' },
+        { id: 'budgets', name: 'Budget', icon: PieChart, route: '/budgets' },
+        { id: 'recurring', name: 'Recurring', icon: Calendar, route: '/recurring' },
+        { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/cashbooks' },
+        { id: 'group-expenses', name: 'Group Exp', icon: Users, route: '/group-expenses' },
+        { id: 'savings', name: 'Savings', icon: Landmark, route: '/savings' },
+        { id: 'reports', name: 'Reports', icon: TrendingUp, route: '/reports' }
     ];
 
-    const familySubTabs = [
-        { id: 'tree', name: 'Family Tree', icon: Users },
-        { id: 'savings', name: 'Shared Savings', icon: Wallet },
-        { id: 'insurance', name: 'Insurance Hub', icon: ShieldCheck },
-        { id: 'assets', name: 'Family Assets', icon: Building2 },
-        { id: 'health', name: 'Health Vault', icon: Heart },
-        { id: 'childcare', name: 'Child Care', icon: Calendar },
-        { id: 'eldercare', name: 'Parents Care', icon: Calendar }
+    const wealthSubTabs = [
+        { id: 'banking', name: 'Banking', icon: Landmark, route: '/wealth/banking' },
+        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/wealth/loans' },
+        { id: 'emis', name: 'EMI Tracker', icon: Calendar, route: '/emis' },
+        { id: 'p2p', name: 'P2P Network', icon: Users, route: '/wealth/p2p' },
+        { id: 'assets', name: 'Assets', icon: Building2, route: '/assets' },
+        { id: 'properties', name: 'Property', icon: Building2, route: '/properties' },
+        { id: 'investments', name: 'Investments', icon: TrendingUp, route: '/investments' }
     ];
 
-    const businessSubTabs = [
-        { id: 'kirana', name: 'Kirana Shop', icon: Building2 },
-        { id: 'hostel', name: 'Hostel Lodging', icon: Building2 },
-        { id: 'apartment', name: 'Apartment CRM', icon: Building2 },
-        { id: 'sweet', name: 'Sweet Shop', icon: Building2 },
-        { id: 'farmer', name: 'Farmer Yield', icon: Landmark },
-        { id: 'fruits', name: 'Fruit Trade', icon: Landmark },
-        { id: 'clothes', name: 'Boutique CRM', icon: Landmark },
-        { id: 'milk', name: 'Milk Dairy', icon: Landmark },
-        { id: 'realestate', name: 'Real Estate', icon: Landmark },
-        { id: 'hospital', name: 'Hospital OP', icon: Landmark }
+    const lifeSubTabs = [
+        { id: 'family', name: 'Family', icon: Users, route: '/life/family' },
+        { id: 'time-management', name: 'Time Mgmt', icon: CheckSquare, route: '/time-management' },
+        { id: 'todos', name: 'Tasks / Goals', icon: CheckSquare, route: '/todos' },
+        { id: 'career', name: 'Career', icon: Wrench, route: '/career' },
+        { id: 'travel', name: 'Travel', icon: Heart, route: '/travel' }
     ];
-
-    const marketsSubTabs = [
-        { id: 'sentiment', name: 'Sentiment Advisor', icon: TrendingUp },
-        { id: 'leverage', name: 'Leverage Guard', icon: ShieldCheck }
+    
+    const intelligenceSubTabs = [
+        { id: 'insights', name: 'Insights', icon: TrendingUp, route: '/insights' },
+        { id: 'markets', name: 'Markets', icon: TrendingUp, route: '/markets' },
+        { id: 'financial-health', name: 'Fin Health', icon: Heart, route: '/financial-health' },
+        { id: 'tax', name: 'Tax', icon: Wallet, route: '/tax' }
+    ];
+    
+    const securitySubTabs = [
+        { id: 'validity', name: 'Validity/Docs', icon: ShieldCheck, route: '/validity' },
+        { id: 'emergency', name: 'Emergency', icon: ShieldCheck, route: '/emergency' },
+        { id: 'profile', name: 'Profile', icon: User, route: '/profile' },
+        { id: 'more', name: 'More', icon: Wrench, route: '/more' }
     ];
 
     const drawerRoutes = [
         { name: 'index', label: 'Dashboard', icon: LayoutDashboard },
-        { name: 'self', label: 'Personal Details', icon: User },
-        { name: 'family', label: 'Family Circle', icon: Users },
-        { name: 'business', label: 'Business CRM', icon: Building2 },
-        { name: 'markets', label: 'Markets & Guard', icon: TrendingUp }
+        { name: 'money', label: 'Money', icon: Wallet, state: isMoneyExpanded, setState: setIsMoneyExpanded, subTabs: moneySubTabs },
+        { name: 'wealth', label: 'Wealth', icon: Landmark, state: isWealthExpanded, setState: setIsWealthExpanded, subTabs: wealthSubTabs },
+        { name: 'life', label: 'Life', icon: Heart, state: isLifeExpanded, setState: setIsLifeExpanded, subTabs: lifeSubTabs },
+        { name: 'business', label: 'Business', icon: Building2 },
+        { name: 'intelligence', label: 'Intelligence', icon: Activity, state: isIntelligenceExpanded, setState: setIsIntelligenceExpanded, subTabs: intelligenceSubTabs, isGroup: true },
+        { name: 'security', label: 'Security', icon: ShieldCheck, state: isSecurityExpanded, setState: setIsSecurityExpanded, subTabs: securitySubTabs, isGroup: true }
     ];
 
     return (
@@ -102,7 +97,8 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.drawerHeader}>
-                        <Text style={styles.logoText}>WealthWise</Text>
+                        <Text style={styles.logoText}>FinLife</Text>
+                        <Text style={styles.logoSubtitle}>Your financial life, connected</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                             <X size={24} color="#FFF" />
                         </TouchableOpacity>
@@ -110,16 +106,16 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
 
                     <View style={styles.drawerMenu}>
                         {drawerRoutes.map((route) => {
-                            const isFocused = activeRouteName === route.name;
+                            const isFocused = activeRouteName === route.name && !route.isGroup;
                             const IconComponent = route.icon;
                             const label = route.label;
 
-                            // Accordion Expanders for Subcategories
-                            if (route.name === 'self') {
+                            // If route has subTabs (Accordion)
+                            if (route.subTabs) {
                                 return (
                                     <View key={route.name}>
                                         <TouchableOpacity
-                                            onPress={() => setIsPersonalExpanded(!isPersonalExpanded)}
+                                            onPress={() => toggleGroup(route.setState, route.state)}
                                             style={[styles.menuItem, isFocused && styles.menuItemActive, { justifyContent: 'space-between' }]}
                                         >
                                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -128,72 +124,19 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
                                                     {label}
                                                 </Text>
                                             </View>
-                                            {isPersonalExpanded ? (
+                                            {route.state ? (
                                                 <ChevronUp size={16} color="#71717A" />
                                             ) : (
                                                 <ChevronDown size={16} color="#71717A" />
                                             )}
                                         </TouchableOpacity>
 
-                                        {isPersonalExpanded && (
+                                        {route.state && (
                                             <View style={styles.subItemsContainer}>
-                                                {personalSubTabs.map(sub => {
-                                                    const SubIcon = sub.icon;
-                                                    const isChild = !!sub.parent;
-                                                    const onSubPress = () => {
-                                                        console.log('[DRAWER] onSubPress clicked for personal sub:', sub.id);
-                                                        navigateTab('self', { tab: sub.id });
-                                                        onClose();
-                                                    };
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={sub.id}
-                                                            onPress={onSubPress}
-                                                            style={[styles.subMenuItem, isChild && { paddingLeft: 34 }]}
-                                                        >
-                                                            {isChild ? (
-                                                                <Text style={{ color: '#6366F1', fontSize: 12, marginRight: 6, fontWeight: '700' }}>└</Text>
-                                                            ) : null}
-                                                            <SubIcon size={16} color={isChild ? '#818CF8' : '#71717A'} />
-                                                            <Text style={[styles.subMenuLabel, isChild && { color: '#E4E4E7', fontSize: 12, fontWeight: '600' }]}>
-                                                                {sub.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
-                                            </View>
-                                        )}
-                                    </View>
-                                );
-                            }
-
-                            if (route.name === 'family') {
-                                return (
-                                    <View key={route.name}>
-                                        <TouchableOpacity
-                                            onPress={() => setIsFamilyExpanded(!isFamilyExpanded)}
-                                            style={[styles.menuItem, isFocused && styles.menuItemActive, { justifyContent: 'space-between' }]}
-                                        >
-                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                <IconComponent size={22} color={isFocused ? '#FFF' : '#71717A'} strokeWidth={2.5} />
-                                                <Text style={[styles.menuLabel, isFocused && styles.menuLabelActive]}>
-                                                    {label}
-                                                </Text>
-                                            </View>
-                                            {isFamilyExpanded ? (
-                                                <ChevronUp size={16} color="#71717A" />
-                                            ) : (
-                                                <ChevronDown size={16} color="#71717A" />
-                                            )}
-                                        </TouchableOpacity>
-
-                                        {isFamilyExpanded && (
-                                            <View style={styles.subItemsContainer}>
-                                                {familySubTabs.map(sub => {
+                                                {route.subTabs.map(sub => {
                                                     const SubIcon = sub.icon;
                                                     const onSubPress = () => {
-                                                        console.log('[DRAWER] onSubPress clicked for family sub:', sub.id);
-                                                        navigateTab('family', { tab: sub.id });
+                                                        router.push(sub.route);
                                                         onClose();
                                                     };
                                                     return (
@@ -215,104 +158,9 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
                                 );
                             }
 
-                            if (route.name === 'business') {
-                                return (
-                                    <View key={route.name}>
-                                        <TouchableOpacity
-                                            onPress={() => setIsBusinessExpanded(!isBusinessExpanded)}
-                                            style={[styles.menuItem, isFocused && styles.menuItemActive, { justifyContent: 'space-between' }]}
-                                        >
-                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                <IconComponent size={22} color={isFocused ? '#FFF' : '#71717A'} strokeWidth={2.5} />
-                                                <Text style={[styles.menuLabel, isFocused && styles.menuLabelActive]}>
-                                                    {label}
-                                                </Text>
-                                            </View>
-                                            {isBusinessExpanded ? (
-                                                <ChevronUp size={16} color="#71717A" />
-                                            ) : (
-                                                <ChevronDown size={16} color="#71717A" />
-                                            )}
-                                        </TouchableOpacity>
-
-                                        {isBusinessExpanded && (
-                                            <View style={styles.subItemsContainer}>
-                                                {businessSubTabs.map(sub => {
-                                                    const SubIcon = sub.icon;
-                                                    const onSubPress = () => {
-                                                        console.log('[DRAWER] onSubPress clicked for business sub:', sub.id);
-                                                        navigateTab('business', { tab: sub.id });
-                                                        onClose();
-                                                    };
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={sub.id}
-                                                            onPress={onSubPress}
-                                                            style={styles.subMenuItem}
-                                                        >
-                                                            <SubIcon size={16} color="#71717A" />
-                                                            <Text style={styles.subMenuLabel}>
-                                                                {sub.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
-                                            </View>
-                                        )}
-                                    </View>
-                                );
-                            }
-
-                            if (route.name === 'markets') {
-                                return (
-                                    <View key={route.name}>
-                                        <TouchableOpacity
-                                            onPress={() => setIsMarketsExpanded(!isMarketsExpanded)}
-                                            style={[styles.menuItem, isFocused && styles.menuItemActive, { justifyContent: 'space-between' }]}
-                                        >
-                                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                <IconComponent size={22} color={isFocused ? '#FFF' : '#71717A'} strokeWidth={2.5} />
-                                                <Text style={[styles.menuLabel, isFocused && styles.menuLabelActive]}>
-                                                    {label}
-                                                </Text>
-                                            </View>
-                                            {isMarketsExpanded ? (
-                                                <ChevronUp size={16} color="#71717A" />
-                                            ) : (
-                                                <ChevronDown size={16} color="#71717A" />
-                                            )}
-                                        </TouchableOpacity>
-
-                                        {isMarketsExpanded && (
-                                            <View style={styles.subItemsContainer}>
-                                                {marketsSubTabs.map(sub => {
-                                                    const SubIcon = sub.icon;
-                                                    const onSubPress = () => {
-                                                        console.log('[DRAWER] onSubPress clicked for markets sub:', sub.id);
-                                                        navigateTab('markets', { tab: sub.id });
-                                                        onClose();
-                                                    };
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={sub.id}
-                                                            onPress={onSubPress}
-                                                            style={styles.subMenuItem}
-                                                        >
-                                                            <SubIcon size={16} color="#71717A" />
-                                                            <Text style={styles.subMenuLabel}>
-                                                                {sub.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
-                                            </View>
-                                        )}
-                                    </View>
-                                );
-                            }
-
+                            // Standard non-accordion items (Dashboard, Business)
                             const onPress = () => {
-                                navigateTab(route.name);
+                                router.push(`/(tabs)/${route.name === 'index' ? '' : route.name}`);
                                 onClose();
                             };
 
@@ -366,10 +214,10 @@ export default function TabLayout() {
                     }}
                 >
                     <Tabs.Screen name="index" />
-                    <Tabs.Screen name="self" />
-                    <Tabs.Screen name="family" />
+                    <Tabs.Screen name="money" />
+                    <Tabs.Screen name="wealth" />
+                    <Tabs.Screen name="life" />
                     <Tabs.Screen name="business" />
-                    <Tabs.Screen name="markets" />
 
                     {/* Hidden tab screens */}
                     <Tabs.Screen name="profile" options={{ href: null }} />
@@ -452,6 +300,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 30
+    },
+    logoSubtitle: {
+        color: '#71717A',
+        fontSize: 10,
+        marginTop: 2,
+        fontWeight: '600',
     },
     logoText: {
         color: '#6366F1',
