@@ -62,6 +62,7 @@ export const STORAGE_KEYS = {
     INVESTMENT_HOLDINGS: 'finlife_investment_holdings_v1',
     INVESTMENT_EVENTS: 'finlife_investment_events_v1',
     SIP_SCHEDULES: 'finlife_sip_schedules_v1',
+    INVESTMENT_MARKET_QUOTES: 'finlife_investment_market_quotes_v1',
     INCOME_SOURCES: 'user_income_sources',
     ACCOUNTS: 'user_bank_accounts',
     METALS_HISTORY: 'metals_price_history_v1',
@@ -306,3 +307,7 @@ export const saveInvestmentEvents = async (events) => await saveData(STORAGE_KEY
 
 export const loadSipSchedules = async () => (await loadData(STORAGE_KEYS.SIP_SCHEDULES, [])) || [];
 export const saveSipSchedules = async (schedules) => await saveData(STORAGE_KEYS.SIP_SCHEDULES, schedules);
+
+export const loadMarketQuotes = async () => (await loadData(STORAGE_KEYS.INVESTMENT_MARKET_QUOTES, [])) || [];
+export const saveMarketQuotes = async (quotes) => await saveData(STORAGE_KEYS.INVESTMENT_MARKET_QUOTES, quotes);
+

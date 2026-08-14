@@ -167,12 +167,54 @@ export const calculateHoldingSummary = (holding = {}, events = []) => {
  * @param {number} quantity 
  * @param {number} averageCost 
  * @param {number} currentPrice 
- * @returns {Object} { currentMarketValue, costBasis, unrealizedGain, percentageReturn }
+/**
+ * Calculates current market value for a holding given a quote.
+ * Pure investment mathematics. Owns P&L calculation.
  */
-export const calculateUnrealizedGain = (quantity = 0, averageCost = 0, currentPrice = 0) => {
-    const qty = parseNumericField(quantity, 'quantity', 0, false);
-    const avgCost = parseNumericField(averageCost, 'averageCost', 0, false);
-    const mktPrice = parseNumericField(currentPrice, 'currentPrice', 0, false);
+export const calculateMarketValue = (holding = {}, quote = null) => {
+    const qty = parseNumericField(holding.quantity || 0, 'quantity', 0, false);
+    const avgCost = parseNumericField(holding.averageCost || 0, 'averageCost', 0, false);
+    const costBasis = Number((qty * avgCost).toFixed(2));
+
+    if (!quote || quote.quoteStatus === 'UNAVAILABLE' || typeof quote.price !== 'number' || isNaN(quote.price)) {
+        return {
+            marketValue: costBasis,
+            costBasis,
+            unrealizedGain: 0,
+            percentageReturn: 0,
+            valuationBasis: 'COST_BASIS_FALLBACK',
+            quoteStatus: quote ? quote.quoteStatus : 'UNAVAILABLE'
+        };
+    }
+
+    const price = parseNumericField(quote.price, 'price', 0, false);
+    const marketValue = Number((qty * price).toFixed(2));
+    const unrealizedGain = Number((marketValue - costBasis).toFixed(2));
+    const percentageReturn = costBasis > 0 ? Number(((unrealizedGain / costBasis) * 100).toFixed(2)) : 0;
+
+    return {
+        marketValue,
+        costBasis,
+        unrealizedGain,
+        percentageReturn,
+        valuationBasis: 'MARKET_QUOTE',
+        quoteStatus: quote.quoteStatus || 'LIVE'
+    };
+};
+
+/**
+ * Pure Mathematical Unrealized P&L Helper.
+ * Supports both (holding, quote) and (quantity, averageCost, currentPrice).
+ */
+export const calculateUnrealizedGain = (param1 = 0, param2 = 0, param3 = 0) => {
+    if (typeof param1 === 'object' && param1 !== null) {
+        // Called as (holding, quote)
+        return calculateMarketValue(param1, param2);
+    }
+
+    const qty = parseNumericField(param1, 'quantity', 0, false);
+    const avgCost = parseNumericField(param2, 'averageCost', 0, false);
+    const mktPrice = parseNumericField(param3, 'currentPrice', 0, false);
 
     const costBasis = qty * avgCost;
     const currentMarketValue = qty * mktPrice;
@@ -183,9 +225,11 @@ export const calculateUnrealizedGain = (quantity = 0, averageCost = 0, currentPr
         costBasis: Number(costBasis.toFixed(2)),
         currentMarketValue: Number(currentMarketValue.toFixed(2)),
         unrealizedGain: Number(unrealizedGain.toFixed(2)),
-        percentageReturn: Number(percentageReturn.toFixed(2))
+        percentageReturn: Number(percentageReturn.toFixed(2)),
+        valuationBasis: 'MARKET_QUOTE'
     };
 };
+
 
 /**
  * Verification Suite for Stage C.3.1
