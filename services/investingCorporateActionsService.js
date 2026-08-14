@@ -10,6 +10,7 @@
  * 4. Multi-Portfolio Holding Protection: Scope holding updates strictly by portfolioId + holdingId/symbol.
  * 5. State-Aware Idempotency & Recovery: Re-evaluates BEFORE/AFTER holding state for PENDING/FAILED events before mutating.
  * 6. Audit Metadata Logging: Records before & after snapshot in event.metadata.
+ * 7. Storage Failure Result Inspection: Wraps save operations in throw-on-false helpers.
  * 
  * STRICT INVARIANTS:
  * - ZERO MONEYFLOW CALLS (Delta Cash = ₹0, Delta Lifestyle Expenses = ₹0).
@@ -18,6 +19,28 @@
 
 import { loadHoldings, saveHoldings, loadInvestmentEvents, saveInvestmentEvents } from './storage.js';
 import { createInvestmentEvent, EventType, InvestmentEventStatus } from './investingSchemas.js';
+
+/**
+ * Storage safe wrapper to throw if storage returns { success: false }
+ */
+async function safeSaveInvestmentEvents(events) {
+    const res = await saveInvestmentEvents(events);
+    if (res && res.success === false) {
+        throw new Error(`[Storage] Failed to save investment events: ${res.error || 'Unknown storage error'}`);
+    }
+    return res;
+}
+
+/**
+ * Storage safe wrapper to throw if storage returns { success: false }
+ */
+async function safeSaveHoldings(holdings) {
+    const res = await saveHoldings(holdings);
+    if (res && res.success === false) {
+        throw new Error(`[Storage] Failed to save holdings: ${res.error || 'Unknown storage error'}`);
+    }
+    return res;
+}
 
 export const InvestingCorporateActionsService = {
     /**
@@ -50,7 +73,6 @@ export const InvestingCorporateActionsService = {
             throw new Error('[InvestingCorporateActionsService] bonusRatio must be a positive finite number');
         }
 
-
         const normSymbol = symbol.trim().toUpperCase();
         const allEvents = await loadInvestmentEvents();
         const existingEvent = allEvents.find(e => e.id === eventId);
@@ -80,7 +102,6 @@ export const InvestingCorporateActionsService = {
         }
         const oldCostBasis = Number((oldQty * oldWAC).toFixed(2));
 
-
         const bonusShares = Number((oldQty * ratio).toFixed(4));
         const newQty = Number((oldQty + bonusShares).toFixed(4));
         const newWAC = Number((oldCostBasis / newQty).toFixed(4));
@@ -96,7 +117,7 @@ export const InvestingCorporateActionsService = {
                 // Recovery: Holding mutation already happened! Confirm event directly without re-applying.
                 console.log(`[InvestingCorporateActionsService] Recovery: Event ${eventId} holding already mutated. Confirming event.`);
                 const updatedEvents = allEvents.map(e => e.id === eventId ? { ...e, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() } : e);
-                await saveInvestmentEvents(updatedEvents);
+                await safeSaveInvestmentEvents(updatedEvents);
                 return {
                     status: 'SUCCESS',
                     recovered: true,
@@ -143,7 +164,7 @@ export const InvestingCorporateActionsService = {
 
         const pendingEvent = { ...pendingSchemaEvent, metadata };
         const eventsList = existingEvent ? allEvents.map(e => e.id === eventId ? pendingEvent : e) : [...allEvents, pendingEvent];
-        await saveInvestmentEvents(eventsList);
+        await safeSaveInvestmentEvents(eventsList);
 
         try {
             // Step 2: Persist Updated Holding
@@ -154,12 +175,12 @@ export const InvestingCorporateActionsService = {
                 updatedAt: new Date().toISOString()
             };
             holdings[holdingIndex] = updatedHolding;
-            await saveHoldings(holdings);
+            await safeSaveHoldings(holdings);
 
             // Step 3: Persist CONFIRMED Event Status
             const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
             const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
-            await saveInvestmentEvents(confirmedEvents);
+            await safeSaveInvestmentEvents(confirmedEvents);
 
             return {
                 status: 'SUCCESS',
@@ -180,7 +201,7 @@ export const InvestingCorporateActionsService = {
             };
             try {
                 const currentEvts = await loadInvestmentEvents();
-                await saveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
+                await safeSaveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
             } catch (e) {}
             return {
                 status: 'FAILED',
@@ -189,7 +210,6 @@ export const InvestingCorporateActionsService = {
                 event: failedEvent
             };
         }
-
     },
 
     /**
@@ -221,7 +241,6 @@ export const InvestingCorporateActionsService = {
             throw new Error('[InvestingCorporateActionsService] splitFactor must be a finite number greater than 1');
         }
 
-
         const normSymbol = symbol.trim().toUpperCase();
         const allEvents = await loadInvestmentEvents();
         const existingEvent = allEvents.find(e => e.id === eventId);
@@ -251,7 +270,6 @@ export const InvestingCorporateActionsService = {
         }
         const oldCostBasis = Number((oldQty * oldWAC).toFixed(2));
 
-
         const newQty = Number((oldQty * factor).toFixed(4));
         const newWAC = Number((oldWAC / factor).toFixed(4));
         const newCostBasis = Number((newQty * newWAC).toFixed(2));
@@ -265,7 +283,7 @@ export const InvestingCorporateActionsService = {
             if (isAlreadyApplied) {
                 console.log(`[InvestingCorporateActionsService] Recovery: Event ${eventId} holding already mutated. Confirming event.`);
                 const updatedEvents = allEvents.map(e => e.id === eventId ? { ...e, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() } : e);
-                await saveInvestmentEvents(updatedEvents);
+                await safeSaveInvestmentEvents(updatedEvents);
                 return {
                     status: 'SUCCESS',
                     recovered: true,
@@ -312,7 +330,7 @@ export const InvestingCorporateActionsService = {
 
         const pendingEvent = { ...pendingSchemaEvent, metadata };
         const eventsList = existingEvent ? allEvents.map(e => e.id === eventId ? pendingEvent : e) : [...allEvents, pendingEvent];
-        await saveInvestmentEvents(eventsList);
+        await safeSaveInvestmentEvents(eventsList);
 
         try {
             // Step 2: Persist Updated Holding
@@ -323,12 +341,12 @@ export const InvestingCorporateActionsService = {
                 updatedAt: new Date().toISOString()
             };
             holdings[holdingIndex] = updatedHolding;
-            await saveHoldings(holdings);
+            await safeSaveHoldings(holdings);
 
             // Step 3: Persist CONFIRMED Event Status
             const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
             const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
-            await saveInvestmentEvents(confirmedEvents);
+            await safeSaveInvestmentEvents(confirmedEvents);
 
             return {
                 status: 'SUCCESS',
@@ -348,7 +366,7 @@ export const InvestingCorporateActionsService = {
             };
             try {
                 const currentEvts = await loadInvestmentEvents();
-                await saveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
+                await safeSaveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
             } catch (e) {}
             return {
                 status: 'FAILED',
@@ -357,7 +375,6 @@ export const InvestingCorporateActionsService = {
                 event: failedEvent
             };
         }
-
     },
 
     /**
