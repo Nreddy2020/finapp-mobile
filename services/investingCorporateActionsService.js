@@ -46,9 +46,10 @@ export const InvestingCorporateActionsService = {
             throw new Error('[InvestingCorporateActionsService] symbol is required');
         }
         const ratio = Number(bonusRatio);
-        if (isNaN(ratio) || ratio <= 0) {
-            throw new Error('[InvestingCorporateActionsService] bonusRatio must be a positive number');
+        if (!Number.isFinite(ratio) || ratio <= 0) {
+            throw new Error('[InvestingCorporateActionsService] bonusRatio must be a positive finite number');
         }
+
 
         const normSymbol = symbol.trim().toUpperCase();
         const allEvents = await loadInvestmentEvents();
@@ -73,7 +74,12 @@ export const InvestingCorporateActionsService = {
         const currentHolding = holdings[holdingIndex];
         const oldQty = Number(currentHolding.quantity);
         const oldWAC = Number(currentHolding.averageCost);
+
+        if (!Number.isFinite(oldQty) || oldQty <= 0 || !Number.isFinite(oldWAC) || oldWAC <= 0) {
+            throw new Error(`[InvestingCorporateActionsService] Invalid holding quantity or averageCost for '${normSymbol}'`);
+        }
         const oldCostBasis = Number((oldQty * oldWAC).toFixed(2));
+
 
         const bonusShares = Number((oldQty * ratio).toFixed(4));
         const newQty = Number((oldQty + bonusShares).toFixed(4));
@@ -139,27 +145,51 @@ export const InvestingCorporateActionsService = {
         const eventsList = existingEvent ? allEvents.map(e => e.id === eventId ? pendingEvent : e) : [...allEvents, pendingEvent];
         await saveInvestmentEvents(eventsList);
 
-        // Step 2: Persist Updated Holding
-        const updatedHolding = {
-            ...currentHolding,
-            quantity: newQty,
-            averageCost: newWAC,
-            updatedAt: new Date().toISOString()
-        };
-        holdings[holdingIndex] = updatedHolding;
-        await saveHoldings(holdings);
+        try {
+            // Step 2: Persist Updated Holding
+            const updatedHolding = {
+                ...currentHolding,
+                quantity: newQty,
+                averageCost: newWAC,
+                updatedAt: new Date().toISOString()
+            };
+            holdings[holdingIndex] = updatedHolding;
+            await saveHoldings(holdings);
 
-        // Step 3: Persist CONFIRMED Event Status
-        const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
-        const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
-        await saveInvestmentEvents(confirmedEvents);
+            // Step 3: Persist CONFIRMED Event Status
+            const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
+            const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
+            await saveInvestmentEvents(confirmedEvents);
 
-        return {
-            status: 'SUCCESS',
-            event: confirmedEvent,
-            holding: updatedHolding,
-            bonusShares
-        };
+            return {
+                status: 'SUCCESS',
+                event: confirmedEvent,
+                holding: updatedHolding,
+                bonusShares
+            };
+        } catch (err) {
+            console.error('[InvestingCorporateActionsService] Persistence error post-PENDING:', err);
+            const failedEvent = {
+                ...pendingEvent,
+                status: InvestmentEventStatus.FAILED,
+                metadata: {
+                    ...pendingEvent.metadata,
+                    reconciliationNote: `Persistence error: ${err.message}`
+                },
+                updatedAt: new Date().toISOString()
+            };
+            try {
+                const currentEvts = await loadInvestmentEvents();
+                await saveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
+            } catch (e) {}
+            return {
+                status: 'FAILED',
+                reconciliationRequired: true,
+                error: err.message,
+                event: failedEvent
+            };
+        }
+
     },
 
     /**
@@ -187,9 +217,10 @@ export const InvestingCorporateActionsService = {
             throw new Error('[InvestingCorporateActionsService] symbol is required');
         }
         const factor = Number(splitFactor);
-        if (isNaN(factor) || factor <= 1) {
-            throw new Error('[InvestingCorporateActionsService] splitFactor must be greater than 1');
+        if (!Number.isFinite(factor) || factor <= 1) {
+            throw new Error('[InvestingCorporateActionsService] splitFactor must be a finite number greater than 1');
         }
+
 
         const normSymbol = symbol.trim().toUpperCase();
         const allEvents = await loadInvestmentEvents();
@@ -214,7 +245,12 @@ export const InvestingCorporateActionsService = {
         const currentHolding = holdings[holdingIndex];
         const oldQty = Number(currentHolding.quantity);
         const oldWAC = Number(currentHolding.averageCost);
+
+        if (!Number.isFinite(oldQty) || oldQty <= 0 || !Number.isFinite(oldWAC) || oldWAC <= 0) {
+            throw new Error(`[InvestingCorporateActionsService] Invalid holding quantity or averageCost for '${normSymbol}'`);
+        }
         const oldCostBasis = Number((oldQty * oldWAC).toFixed(2));
+
 
         const newQty = Number((oldQty * factor).toFixed(4));
         const newWAC = Number((oldWAC / factor).toFixed(4));
@@ -278,26 +314,50 @@ export const InvestingCorporateActionsService = {
         const eventsList = existingEvent ? allEvents.map(e => e.id === eventId ? pendingEvent : e) : [...allEvents, pendingEvent];
         await saveInvestmentEvents(eventsList);
 
-        // Step 2: Persist Updated Holding
-        const updatedHolding = {
-            ...currentHolding,
-            quantity: newQty,
-            averageCost: newWAC,
-            updatedAt: new Date().toISOString()
-        };
-        holdings[holdingIndex] = updatedHolding;
-        await saveHoldings(holdings);
+        try {
+            // Step 2: Persist Updated Holding
+            const updatedHolding = {
+                ...currentHolding,
+                quantity: newQty,
+                averageCost: newWAC,
+                updatedAt: new Date().toISOString()
+            };
+            holdings[holdingIndex] = updatedHolding;
+            await saveHoldings(holdings);
 
-        // Step 3: Persist CONFIRMED Event Status
-        const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
-        const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
-        await saveInvestmentEvents(confirmedEvents);
+            // Step 3: Persist CONFIRMED Event Status
+            const confirmedEvent = { ...pendingEvent, status: InvestmentEventStatus.CONFIRMED, updatedAt: new Date().toISOString() };
+            const confirmedEvents = (await loadInvestmentEvents()).map(e => e.id === eventId ? confirmedEvent : e);
+            await saveInvestmentEvents(confirmedEvents);
 
-        return {
-            status: 'SUCCESS',
-            event: confirmedEvent,
-            holding: updatedHolding
-        };
+            return {
+                status: 'SUCCESS',
+                event: confirmedEvent,
+                holding: updatedHolding
+            };
+        } catch (err) {
+            console.error('[InvestingCorporateActionsService] Persistence error post-PENDING:', err);
+            const failedEvent = {
+                ...pendingEvent,
+                status: InvestmentEventStatus.FAILED,
+                metadata: {
+                    ...pendingEvent.metadata,
+                    reconciliationNote: `Persistence error: ${err.message}`
+                },
+                updatedAt: new Date().toISOString()
+            };
+            try {
+                const currentEvts = await loadInvestmentEvents();
+                await saveInvestmentEvents(currentEvts.map(e => e.id === eventId ? failedEvent : e));
+            } catch (e) {}
+            return {
+                status: 'FAILED',
+                reconciliationRequired: true,
+                error: err.message,
+                event: failedEvent
+            };
+        }
+
     },
 
     /**
