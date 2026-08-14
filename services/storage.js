@@ -293,3 +293,16 @@ export default {
     getItem,
     STORAGE_KEYS
 };
+
+// C.3 Investing Module Additive Storage Helpers
+export const loadPortfolios = async () => (await loadData(STORAGE_KEYS.INVESTMENT_PORTFOLIOS, [])) || [];
+export const savePortfolios = async (portfolios) => await saveData(STORAGE_KEYS.INVESTMENT_PORTFOLIOS, portfolios);
+
+export const loadHoldings = async () => (await loadData(STORAGE_KEYS.INVESTMENT_HOLDINGS, [])) || [];
+export const saveHoldings = async (holdings) => await saveData(STORAGE_KEYS.INVESTMENT_HOLDINGS, holdings);
+
+export const loadInvestmentEvents = async () => (await loadData(STORAGE_KEYS.INVESTMENT_EVENTS, [])) || [];
+export const saveInvestmentEvents = async (events) => await saveData(STORAGE_KEYS.INVESTMENT_EVENTS, events);
+
+export const loadSipSchedules = async () => (await loadData(STORAGE_KEYS.SIP_SCHEDULES, [])) || [];
+export const saveSipSchedules = async (schedules) => await saveData(STORAGE_KEYS.SIP_SCHEDULES, schedules);
