@@ -32,6 +32,14 @@ export const SipScheduleStatus = Object.freeze({
     CANCELLED: 'CANCELLED'
 });
 
+export const SipFrequency = Object.freeze({
+    DAILY: 'DAILY',
+    WEEKLY: 'WEEKLY',
+    MONTHLY: 'MONTHLY',
+    QUARTERLY: 'QUARTERLY'
+});
+
+
 export const AssetType = Object.freeze({
     STOCK: 'STOCK',
     MUTUAL_FUND: 'MUTUAL_FUND',
@@ -204,8 +212,9 @@ export const createInvestmentEvent = (data = {}) => {
  */
 export const createSipSchedule = (data = {}) => {
     const amount = parseNumericField(data.amount, 'amount', 0, false);
-    const frequency = ['MONTHLY', 'WEEKLY', 'QUARTERLY'].includes(data.frequency) ? data.frequency : 'MONTHLY';
+    const frequency = Object.values(SipFrequency).includes(data.frequency) ? data.frequency : SipFrequency.MONTHLY;
     const status = Object.values(SipScheduleStatus).includes(data.status) ? data.status : SipScheduleStatus.ACTIVE;
+
     const now = new Date().toISOString();
 
     return Object.freeze({

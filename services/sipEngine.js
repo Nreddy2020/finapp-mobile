@@ -1,35 +1,49 @@
 /**
  * services/sipEngine.js
  * 
- * Stage C.3.4 SIP Schedule & Automation Engine.
+ * Stage C.3.4 SIP Schedule & Automation Engine (ADR-005 Compliant).
  * 
  * ARCHITECTURAL RESPONSIBILITIES:
  * 1. SIP schedule lifecycle management (ACTIVE, PAUSED, COMPLETED, CANCELLED).
  * 2. Frequency mathematics and next due date calculation (DAILY, WEEKLY, MONTHLY, QUARTERLY).
  * 3. Due-date detection, idempotency enforcement, and duplicate run protection.
  * 4. Delegation of automated buy orders strictly to InvestingLedgerService.executeBuyOrder().
- * 5. Failure-path recovery: Failed buy orders do NOT advance schedule due dates.
+ * 5. PRICE_UNAVAILABLE Deferral Invariant: Missing/error market quotes do NOT execute orders or advance due dates.
+ * 6. Failure-path recovery: Failed buy orders do NOT advance schedule due dates.
  * 
  * STRICT INVARIANTS:
+ * - NO FABRICATED PRICE FALLBACKS (Zero unitPrice = 100 fallback).
  * - Does NOT own investment accounting or custom transaction creation.
  * - Does NOT mutate cash or bank balances directly (delegates to ledger service).
  * - Zero MoneyFlow modifications (uses standard ledger transfer calls).
  */
 
 import { loadSipSchedules, saveSipSchedules } from './storage.js';
-import { createSipSchedule as buildSipSchema } from './investingSchemas.js';
+import { createSipSchedule as buildSipSchema, SipFrequency } from './investingSchemas.js';
 import InvestingLedgerService from './investingLedgerService.js';
 import MarketDataService from './marketDataService.js';
+
+/**
+ * Strict ISO Date string validator.
+ */
+const validateIsoDate = (dateInput, label = 'date') => {
+    if (!dateInput) {
+        throw new Error(`[SipEngine] ${label} is required`);
+    }
+    const dateStr = typeof dateInput === 'string' ? dateInput.split('T')[0] : new Date(dateInput).toISOString().split('T')[0];
+    const parsedDate = new Date(dateStr);
+    if (isNaN(parsedDate.getTime()) || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        throw new Error(`[SipEngine] Invalid ${label} input: '${dateInput}'. Expected valid YYYY-MM-DD format.`);
+    }
+    return dateStr;
+};
 
 /**
  * Pure date calculation helper for frequency intervals.
  */
 export const calculateNextDueDate = (currentDateInput, frequency = 'MONTHLY') => {
-    const date = new Date(currentDateInput);
-    if (isNaN(date.getTime())) {
-        throw new Error(`[SipEngine] Invalid date input for calculateNextDueDate: ${currentDateInput}`);
-    }
-
+    const dateStr = validateIsoDate(currentDateInput, 'currentDateInput');
+    const date = new Date(dateStr);
     const freq = (frequency || 'MONTHLY').trim().toUpperCase();
     const day = date.getDate();
 
@@ -57,7 +71,7 @@ export const calculateNextDueDate = (currentDateInput, frequency = 'MONTHLY') =>
 
 export const SipEngine = {
     /**
-     * Creates a canonical SIP schedule.
+     * Creates a canonical SIP schedule with strict validations.
      */
     async createSipSchedule(params = {}) {
         const {
@@ -74,34 +88,49 @@ export const SipEngine = {
         } = params;
 
         if (!portfolioId) throw new Error('[SipEngine] portfolioId is required');
-        if (!symbol) throw new Error('[SipEngine] symbol is required');
+        if (!symbol || typeof symbol !== 'string' || !symbol.trim()) {
+            throw new Error('[SipEngine] symbol is required');
+        }
         if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
             throw new Error('[SipEngine] amount must be a positive number');
         }
 
+        // Validate totalInstallments: null/undefined = unlimited; otherwise positive integer only
+        let parsedInstallments = null;
+        if (totalInstallments !== null && totalInstallments !== undefined) {
+            const num = Number(totalInstallments);
+            if (isNaN(num) || num <= 0 || !Number.isInteger(num)) {
+                throw new Error(`[SipEngine] totalInstallments must be a positive integer or null/undefined, received: ${totalInstallments}`);
+            }
+            parsedInstallments = num;
+        }
+
+        // Validate startDate
+        const validStartDate = validateIsoDate(startDate, 'startDate');
         const normSymbol = symbol.trim().toUpperCase();
-        const initialDueDate = startDate.split('T')[0];
+        const normFreq = Object.values(SipFrequency).includes(frequency) ? frequency : SipFrequency.MONTHLY;
 
         const schemaBase = buildSipSchema({
             portfolioId,
             holdingId: null,
             amount: Number(amount),
-            frequency,
-            startDate: initialDueDate,
-            nextRunDate: initialDueDate,
+            frequency: normFreq,
+            startDate: validStartDate,
+            nextRunDate: validStartDate,
             sourceAccountId,
             status: 'ACTIVE'
         });
 
-        // Extend schema with domain fields
+        // Extend schema with domain execution projection
         const fullSchedule = {
             ...schemaBase,
             symbol: normSymbol,
             name: name || normSymbol,
             assetType,
             exchange,
-            nextDueDate: initialDueDate,
-            totalInstallments: totalInstallments ? Number(totalInstallments) : null,
+            frequency: normFreq,
+            nextDueDate: validStartDate,
+            totalInstallments: parsedInstallments,
             executedInstallments: 0,
             lastExecutedDate: null,
             executionHistory: []
@@ -118,9 +147,7 @@ export const SipEngine = {
      * Evaluates all active SIP schedules and executes due automated buy orders.
      */
     async processDueSips(currentDateInput = new Date()) {
-        const targetDateISO = typeof currentDateInput === 'string' 
-            ? currentDateInput.split('T')[0] 
-            : new Date(currentDateInput).toISOString().split('T')[0];
+        const targetDateISO = validateIsoDate(currentDateInput, 'currentDateInput');
 
         const schedules = await loadSipSchedules();
         const executionResults = [];
@@ -146,25 +173,36 @@ export const SipEngine = {
                 continue;
             }
 
-            // Determine unit price (from MarketDataService or fallback to 100 for test determinism)
-            let unitPrice = 100;
+            // PRICE_UNAVAILABLE INVARIANT: Fetch market quote from MarketDataService. NO FABRICATED PRICE FALLBACK!
+            let quote = null;
             try {
-                const quote = await MarketDataService.getQuote(schedule.symbol || 'NIFTYBEES');
-                if (quote && typeof quote.price === 'number' && quote.price > 0) {
-                    unitPrice = quote.price;
-                }
+                quote = await MarketDataService.getQuote(schedule.symbol);
             } catch (err) {
-                console.warn(`[SipEngine] Market quote unavailable for ${schedule.symbol}, using fallback unit price 100.`);
+                console.warn(`[SipEngine] Market quote provider error for ${schedule.symbol}:`, err.message);
             }
 
+            if (!quote || quote.quoteStatus === 'UNAVAILABLE' || quote.providerStatus === 'ERROR' || typeof quote.price !== 'number' || isNaN(quote.price) || quote.price <= 0) {
+                console.warn(`[SipEngine] Market quote unavailable for ${schedule.symbol}. Deferring execution.`);
+                executionResults.push({
+                    sipId: schedule.id,
+                    status: 'PRICE_UNAVAILABLE',
+                    message: `Market price quote unavailable for ${schedule.symbol}. SIP remains ACTIVE and unadvanced.`,
+                    schedule
+                });
+                updatedSchedules.push(schedule); // Keep schedule 100% UNCHANGED (lastExecutedDate and nextDueDate unadvanced)!
+                continue;
+            }
+
+            const unitPrice = quote.price;
+            // Explicit Fractional Quantity Policy: 4 decimal places
             const quantity = Number((schedule.amount / unitPrice).toFixed(4));
 
             try {
                 // DELEGATION INVARIANT: Delegate buy execution strictly to InvestingLedgerService
                 const buyResult = await InvestingLedgerService.executeBuyOrder({
                     portfolioId: schedule.portfolioId,
-                    symbol: schedule.symbol || 'NIFTYBEES',
-                    name: schedule.name || schedule.symbol || 'SIP Holding',
+                    symbol: schedule.symbol,
+                    name: schedule.name || schedule.symbol,
                     assetType: schedule.assetType || 'MUTUAL_FUND',
                     exchange: schedule.exchange || 'MUTUAL_FUND',
                     quantity,
