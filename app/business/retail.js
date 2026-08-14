@@ -41,15 +41,16 @@ export default function RetailShopModule() {
 
     const loadData = async () => {
         const data = await BusinessService.getData();
-        setBusinessData(data);
-        calculateTodaySales(data.sales);
+        const safeData = data || { profile: { name: 'My Business' }, sales: [] };
+        setBusinessData(safeData);
+        calculateTodaySales(safeData.sales);
     };
 
     const calculateTodaySales = (sales) => {
         const today = new Date().toDateString();
-        const total = sales
-            .filter(s => new Date(s.date).toDateString() === today)
-            .reduce((sum, s) => sum + parseFloat(s.amount), 0);
+        const total = (sales || [])
+            .filter(s => s && s.date && new Date(s.date).toDateString() === today)
+            .reduce((sum, s) => sum + parseFloat(s.amount || 0), 0);
         setTodaySalesAmount(total);
     };
 
@@ -69,8 +70,9 @@ export default function RetailShopModule() {
         };
 
         const updatedData = await BusinessService.addEntry(newSale);
-        setBusinessData(updatedData);
-        calculateTodaySales(updatedData.sales);
+        const safeUpdated = updatedData || { profile: { name: 'My Business' }, sales: [] };
+        setBusinessData(safeUpdated);
+        calculateTodaySales(safeUpdated.sales);
 
         // Update local inventory mock
         updateInventory(billItems);
@@ -117,11 +119,13 @@ export default function RetailShopModule() {
     const stats = useMemo(() => {
         const totalValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
         const lowStockCount = products.filter(p => p.stock < 5).length;
+        const salesList = businessData?.sales || [];
+        const todayStr = new Date().toDateString();
         return {
             inventoryValue: totalValue,
             lowStockItems: lowStockCount,
             totalSalesToday: todaySalesAmount,
-            transactionsToday: businessData.sales.filter(s => new Date(s.date).toDateString() === new Date().toDateString()).length
+            transactionsToday: salesList.filter(s => s && s.date && new Date(s.date).toDateString() === todayStr).length
         };
     }, [products, todaySalesAmount, businessData]);
 
