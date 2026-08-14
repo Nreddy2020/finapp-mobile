@@ -55,17 +55,21 @@ export const GroupService = {
 
     // Calculate balances (Simplified Splitwise logic)
     calculateBalances: (group) => {
-        // 1. Calculate net balance for each member
-        const balances = {};
-        group.members.forEach(m => balances[m] = 0);
+        if (!group) return {};
+        const members = Array.isArray(group.members) ? group.members : [];
+        const expenses = Array.isArray(group.expenses) ? group.expenses : [];
 
-        group.expenses.forEach(exp => {
-            const splitAmount = exp.amount / group.members.length;
-            balances[exp.paidBy] += exp.amount; // They paid this much
+        const balances = {};
+        members.forEach(m => balances[m] = 0);
+
+        expenses.forEach(exp => {
+            if (!exp || !exp.amount || members.length === 0) return;
+            const splitAmount = exp.amount / members.length;
+            if (exp.paidBy) balances[exp.paidBy] = (balances[exp.paidBy] || 0) + exp.amount;
 
             // Everyone (including payer) "owes" the split amount
-            group.members.forEach(m => {
-                balances[m] -= splitAmount;
+            members.forEach(m => {
+                balances[m] = (balances[m] || 0) - splitAmount;
             });
         });
 

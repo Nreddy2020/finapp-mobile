@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { ShieldCheck, Plus, Clock, Trash2, Camera, FileText, Search, Filter, Calendar as CalendarIcon, Download, Upload as UploadIcon } from 'lucide-react-native';
+import { ShieldCheck, Plus, Clock, Trash2, Camera, FileText, Search, Filter, CalendarDays as CalendarIcon, Download, Upload as UploadIcon } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getValidityItems } from '../../services/api';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
@@ -72,14 +72,15 @@ export default function ValidityScreen() {
     };
 
     // Filter logic
-    const filteredItems = items.filter(item => {
-        const matchesSearch = item.item.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesCategory = categoryFilter === 'All' || item.category === categoryFilter;
-        const matchesExpiry = expiryFilter === 'All' || (expiryFilter === 'Expiring Soon' && item.days_left <= 30);
+    const filteredItems = (items || []).filter(item => {
+        const itemName = String(item?.item || item?.title || item?.name || '');
+        const matchesSearch = itemName.toLowerCase().includes(String(searchQuery || '').toLowerCase());
+        const matchesCategory = categoryFilter === 'All' || item?.category === categoryFilter;
+        const matchesExpiry = expiryFilter === 'All' || (expiryFilter === 'Expiring Soon' && (item?.days_left ?? 999) <= 30);
         return matchesSearch && matchesCategory && matchesExpiry;
     });
 
-    const expiringSoon = filteredItems.filter(i => i.days_left <= 30);
+    const expiringSoon = filteredItems.filter(i => (i?.days_left ?? 999) <= 30);
     const urgentItem = expiringSoon.length > 0 ? expiringSoon[0] : null;
 
     const THEME_COLOR = '#06B6D4'; // Cyan

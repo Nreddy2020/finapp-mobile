@@ -12,29 +12,32 @@ const ICON_MAP = {
     CreditCard: CreditCard
 };
 
-export default function BankCard({ account, onPress }) {
+export default function BankCard({ account = {}, onPress }) {
     const { formatAmount, privacyMode } = useGlobalFinance();
-    const [liveBalance, setLiveBalance] = useState(account.balance);
+    const balance = account?.balance || 0;
+    const [liveBalance, setLiveBalance] = useState(balance);
     const [localPrivacy, setLocalPrivacy] = useState(true);
 
-    const Icon = ICON_MAP[account.logo] || Landmark;
+    const logoKey = account?.logo;
+    const Icon = ICON_MAP[logoKey] || Landmark;
+    const rawAccNum = String(account?.account_number || account?.accountNumber || '0000');
 
     // Real-time Interest Simulation
     useEffect(() => {
-        if (!account.interest_rate || account.interest_rate === 0) return;
+        if (!account?.interest_rate || account?.interest_rate === 0) return;
 
         // Interest per second = Principal * (Rate/100) / 365 / 24 / 3600
-        const ratePerSecond = (account.balance * (account.interest_rate / 100)) / 31536000;
+        const ratePerSecond = (balance * (account.interest_rate / 100)) / 31536000;
 
         const interval = setInterval(() => {
             setLiveBalance(prev => prev + ratePerSecond);
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [account.balance, account.interest_rate]);
+    }, [balance, account?.interest_rate]);
 
     const displayBalance = (privacyMode || localPrivacy) ? '••••••' : formatAmount(liveBalance, 2);
-    const accountNumber = (privacyMode || localPrivacy) ? `•••• ${account.account_number.slice(-4)}` : account.account_number;
+    const accountNumber = (privacyMode || localPrivacy) ? `•••• ${rawAccNum.slice(-4)}` : rawAccNum;
 
     return (
         <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
