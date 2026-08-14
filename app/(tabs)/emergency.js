@@ -265,10 +265,10 @@ export default function EmergencyScreen() {
                 {/* Recent Transactions */}
                 <View style={styles.infoSection}>
                     <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    {emergencyFund.transactions.length === 0 ? (
+                    {(!emergencyFund?.transactions || emergencyFund.transactions.length === 0) ? (
                         <Text style={{ color: '#555', fontStyle: 'italic' }}>No transactions yet.</Text>
                     ) : (
-                        emergencyFund.transactions.slice(0, 5).map((tx) => (
+                        (emergencyFund?.transactions || []).slice(0, 5).map((tx) => (
                             <LuxuryCard key={tx.id} style={styles.txCard}>
                                 <View style={styles.txRow}>
                                     <View style={[styles.txIcon, { backgroundColor: tx.type === 'DEPOSIT' ? '#10B98120' : '#EF444420' }]}>

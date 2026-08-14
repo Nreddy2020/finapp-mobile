@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Text, StyleSheet, Pressable } from 'react-native';
-import { Home, Users, UtensilsCrossed, Wrench, UserPlus, Calendar, Shield } from 'lucide-react-native';
+import { Home, Users, UtensilsCrossed, Wrench, UserPlus, CalendarDays as Calendar, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { HostelService } from '../../services/hostel';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
@@ -111,12 +111,12 @@ export default function HostelScreen() {
                                 />
                                 <View style={styles.heroContent}>
                                     <Text style={styles.heroLabel}>Next Payment Due</Text>
-                                    <Text style={styles.heroAmount}>₹{hostelData.nextPayment.amount.toLocaleString('en-IN')}</Text>
+                                    <Text style={styles.heroAmount}>₹{(hostelData?.nextPayment?.amount || 0).toLocaleString('en-IN')}</Text>
                                     <View style={styles.heroFooter}>
                                         <View style={styles.daysLeftBadge}>
-                                            <Text style={styles.daysLeftText}>{hostelData.nextPayment.daysLeft} days left</Text>
+                                            <Text style={styles.daysLeftText}>{hostelData?.nextPayment?.daysLeft || 0} days left</Text>
                                         </View>
-                                        <Text style={styles.dueDateText}>Due: {hostelData.nextPayment.dueDate}</Text>
+                                        <Text style={styles.dueDateText}>Due: {hostelData?.nextPayment?.dueDate || 'End of month'}</Text>
                                     </View>
                                 </View>
                             </View>

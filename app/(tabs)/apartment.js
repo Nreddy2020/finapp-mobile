@@ -158,17 +158,17 @@ export default function ApartmentScreen() {
                                 </View>
                                 <View style={styles.cardContent}>
                                     <View style={styles.maintHeader}>
-                                        <Text style={styles.monthName}>{m.month} {m.year}</Text>
+                                        <Text style={styles.monthName}>{m.month ? `${m.month} ${m.year || ''}` : (m.unit || m.title || 'Unit 402')}</Text>
                                         <View style={[styles.statusBadge, { backgroundColor: m.status === 'paid' ? '#10B98120' : '#EF444420' }]}>
                                             <Text style={[styles.statusText, { color: m.status === 'paid' ? '#10B981' : '#EF4444' }]}>
                                                 {(m.status || 'pending').toUpperCase()}
                                             </Text>
                                         </View>
                                     </View>
-                                    <Text style={styles.dueDate}>Due by {m.due_date}</Text>
+                                    <Text style={styles.dueDate}>Due by {m.due_date || m.dueDate || '10th of month'}</Text>
                                 </View>
                                 <View style={styles.cardRight}>
-                                    <Text style={styles.amount}>₹{parseFloat(m.amount).toLocaleString('en-IN')}</Text>
+                                    <Text style={styles.amount}>₹{(parseFloat(m.amount) || 0).toLocaleString('en-IN')}</Text>
                                     {m.status === 'pending' && <Text style={{ fontSize: 10, color: '#A1A1AA', marginTop: 4 }}>Tap to Pay</Text>}
                                 </View>
                             </LuxuryCard>

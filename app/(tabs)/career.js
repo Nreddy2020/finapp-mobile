@@ -136,8 +136,15 @@ export default function CareerScreen() {
                                             <TrendingUp size={24} color={THEME_COLOR} strokeWidth={2.5} />
                                         </View>
                                         <View style={styles.headerContent}>
-                                            <Text style={styles.goalName}>{goal.goal}</Text>
-                                            <Text style={styles.targetDate}>Target: {new Date(goal.target_date).toLocaleDateString()}</Text>
+                                            <Text style={styles.goalName}>{goal.goal || goal.title || goal.name || 'Career Goal'}</Text>
+                                            <Text style={styles.targetDate}>
+                                                Target: {(() => {
+                                                    const rawDate = goal.target_date || goal.targetDate || goal.deadline;
+                                                    if (!rawDate) return 'Dec 2026';
+                                                    const parsed = new Date(rawDate);
+                                                    return isNaN(parsed.getTime()) ? String(rawDate) : parsed.toLocaleDateString();
+                                                })()}
+                                            </Text>
                                         </View>
                                         <View style={styles.headerRight}>
                                             <View style={styles.progressBadge}>

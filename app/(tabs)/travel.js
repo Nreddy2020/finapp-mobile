@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Text, StyleSheet } from 'react-native';
-import { Plane, Plus, Calendar, Sparkles, MapPin, Wallet, TrendingUp } from 'lucide-react-native';
+import { Plane, Plus, CalendarDays as Calendar, Sparkles, MapPin, Wallet, TrendingUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getTravelPlans } from '../../services/api';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
@@ -165,7 +165,15 @@ export default function TravelScreen() {
                                             <View style={styles.dateRow}>
                                                 <Calendar size={12} color="#71717A" />
                                                 <Text style={styles.dateText}>
-                                                    {new Date(trip.start_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(trip.end_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                                                    {(() => {
+                                                        const s = trip.start_date || trip.startDate;
+                                                        const e = trip.end_date || trip.endDate;
+                                                        const sDate = s ? new Date(s) : null;
+                                                        const eDate = e ? new Date(e) : null;
+                                                        const sStr = sDate && !isNaN(sDate.getTime()) ? sDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Flexible';
+                                                        const eStr = eDate && !isNaN(eDate.getTime()) ? eDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '2026';
+                                                        return `${sStr} - ${eStr}`;
+                                                    })()}
                                                 </Text>
                                             </View>
                                         </View>

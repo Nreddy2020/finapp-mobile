@@ -93,10 +93,10 @@ export default function TaxScreen() {
                             style={styles.heroGlow}
                         />
                         <View style={styles.heroContent}>
-                            <Text style={styles.heroLabel}>Estimated Liability ({profile.regime} Regime)</Text>
-                            <Text style={styles.heroAmount}>₹{calculation.totalTax.toLocaleString('en-IN')}</Text>
+                            <Text style={styles.heroLabel}>Estimated Liability ({(profile?.regime || 'Old')} Regime)</Text>
+                            <Text style={styles.heroAmount}>₹{(calculation?.totalTax || 0).toLocaleString('en-IN')}</Text>
                             <View style={styles.heroFooter}>
-                                <Text style={styles.heroSubtext}>Taxable Income: ₹{calculation.taxableIncome.toLocaleString()}</Text>
+                                <Text style={styles.heroSubtext}>Taxable Income: ₹{(calculation?.taxableIncome || 0).toLocaleString('en-IN')}</Text>
                             </View>
                         </View>
                     </View>
@@ -108,23 +108,23 @@ export default function TaxScreen() {
                     <LuxuryCard style={styles.detailsCard}>
                         <View style={styles.row}>
                             <Text style={styles.label}>Gross Income</Text>
-                            <Text style={styles.value}>₹{profile.income.toLocaleString()}</Text>
+                            <Text style={styles.value}>₹{(profile?.income || 0).toLocaleString('en-IN')}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>80C Deduction</Text>
-                            <Text style={styles.value}>₹{profile.deductions['80C'].toLocaleString()}</Text>
+                            <Text style={styles.value}>₹{(profile?.deductions?.['80C'] || 0).toLocaleString('en-IN')}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>80D Deduction</Text>
-                            <Text style={styles.value}>₹{profile.deductions['80D'].toLocaleString()}</Text>
+                            <Text style={styles.value}>₹{(profile?.deductions?.['80D'] || 0).toLocaleString('en-IN')}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={[styles.label, { color: THEME_COLOR }]}>Tax Payload</Text>
-                            <Text style={[styles.value, { color: THEME_COLOR }]}>₹{calculation.taxPayload.toLocaleString()}</Text>
+                            <Text style={[styles.value, { color: THEME_COLOR }]}>₹{(calculation?.taxPayload || 0).toLocaleString('en-IN')}</Text>
                         </View>
                         <View style={styles.row}>
                             <Text style={styles.label}>Cess (4%)</Text>
-                            <Text style={styles.value}>₹{calculation.cess.toLocaleString()}</Text>
+                            <Text style={styles.value}>₹{(calculation?.cess || 0).toLocaleString('en-IN')}</Text>
                         </View>
                     </LuxuryCard>
                 </View>

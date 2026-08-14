@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { CheckSquare, Plus, Calendar, Sparkles, Circle, Trash2, X } from 'lucide-react-native';
+import { CheckSquare, Plus, CalendarDays as Calendar, Sparkles, Circle, Trash2, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TodoService } from '../../services/todos';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
@@ -18,7 +18,7 @@ export default function TodosScreen() {
 
     const fetchTodos = async () => {
         const data = await TodoService.getTodos();
-        setTodos(data);
+        setTodos(Array.isArray(data) ? data : []);
         setRefreshing(false);
     };
 
@@ -44,15 +44,15 @@ export default function TodosScreen() {
 
     const handleToggle = async (id) => {
         const updated = await TodoService.toggleStatus(id);
-        setTodos(updated);
+        setTodos(Array.isArray(updated) ? updated : []);
     };
 
     const handleDelete = async (id) => {
         const updated = await TodoService.deleteTodo(id);
-        setTodos(updated);
+        setTodos(Array.isArray(updated) ? updated : []);
     };
 
-    const pendingCount = todos.filter(t => t.status === 'pending').length;
+    const pendingCount = (todos || []).filter(t => t && t.status === 'pending').length;
     const THEME_COLOR = '#8B5CF6'; // Violet
 
     return (
@@ -145,7 +145,7 @@ export default function TodosScreen() {
                                     <View style={styles.cardRight}>
                                         <View style={[styles.priorityBadge, { backgroundColor: isHighPri ? '#EF444420' : '#10B98120' }]}>
                                             <Text style={[styles.priorityText, { color: isHighPri ? '#EF4444' : '#10B981' }]}>
-                                                {todo.priority.toUpperCase()}
+                                                {String(todo?.priority || 'NORMAL').toUpperCase()}
                                             </Text>
                                         </View>
                                         <TouchableOpacity

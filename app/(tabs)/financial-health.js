@@ -169,23 +169,23 @@ export default function FinancialHealthScreen() {
                     <View style={styles.grid}>
                         <LuxuryCard style={styles.metricCard} index={0}>
                             <Text style={styles.metricLabel}>Net Worth</Text>
-                            <Text style={styles.metricValue}>{formatAmount(metrics.totalAssets - metrics.totalDebt, 0)}</Text>
+                            <Text style={styles.metricValue}>{formatAmount((metrics?.totalAssets || 0) - (metrics?.totalDebt || 0), 0)}</Text>
                         </LuxuryCard>
                         <LuxuryCard style={styles.metricCard} index={1}>
                             <Text style={styles.metricLabel}>Savings Rate</Text>
-                            <Text style={[styles.metricValue, { color: metrics.savingsRate > 0 ? '#10B981' : '#EF4444' }]}>
-                                {metrics.savingsRate.toFixed(1)}%
+                            <Text style={[styles.metricValue, { color: (metrics.savingsRate || 0) > 0 ? '#10B981' : '#EF4444' }]}>
+                                {(metrics.savingsRate || 0).toFixed(1)}%
                             </Text>
                         </LuxuryCard>
                         <LuxuryCard style={styles.metricCard} index={2}>
                             <Text style={styles.metricLabel}>Debt-to-Income</Text>
-                            <Text style={[styles.metricValue, { color: metrics.dti < 35 ? '#10B981' : '#F59E0B' }]}>
-                                {metrics.dti.toFixed(1)}%
+                            <Text style={[styles.metricValue, { color: (metrics.dti || 0) < 35 ? '#10B981' : '#F59E0B' }]}>
+                                {(metrics.dti || 0).toFixed(1)}%
                             </Text>
                         </LuxuryCard>
                         <LuxuryCard style={styles.metricCard} index={3}>
                             <Text style={styles.metricLabel}>Monthly Burn</Text>
-                            <Text style={styles.metricValue}>{formatAmount(metrics.monthlyExpenses + metrics.monthlyDebtService, 0)}</Text>
+                            <Text style={styles.metricValue}>{formatAmount((metrics?.monthlyExpenses || 0) + (metrics?.monthlyDebtService || 0), 0)}</Text>
                         </LuxuryCard>
                     </View>
                 )}
