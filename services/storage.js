@@ -58,9 +58,14 @@ export const STORAGE_KEYS = {
     FAMILY_EXPENSES: 'user_family_expenses_v2',
     CAREER_GOALS: 'user_career_goals_v3',
     CAREER_DOI: 'user_career_roi_history_v2',
+    INVESTMENT_PORTFOLIOS: 'finlife_investment_portfolios_v1',
+    INVESTMENT_HOLDINGS: 'finlife_investment_holdings_v1',
+    INVESTMENT_EVENTS: 'finlife_investment_events_v1',
+    SIP_SCHEDULES: 'finlife_sip_schedules_v1',
     INCOME_SOURCES: 'user_income_sources',
     ACCOUNTS: 'user_bank_accounts',
-    METALS_HISTORY: 'metals_price_history_v1'
+    METALS_HISTORY: 'metals_price_history_v1',
+    FINLIFE_SCHEMA: 'finlife_schema_version'
 };
 
 /**
@@ -191,6 +196,15 @@ export const clearAllData = async () => {
 /**
  * Get all keys (For debugging)
  */
+export const getStorageSchemaVersion = async () => {
+    const version = await loadData(STORAGE_KEYS.FINLIFE_SCHEMA, 1);
+    return Number(version) || 1;
+};
+
+export const setStorageSchemaVersion = async (version) => {
+    return saveData(STORAGE_KEYS.FINLIFE_SCHEMA, Number(version) || 1);
+};
+
 export const getAllKeys = async () => {
     try {
         if (isWeb) {
@@ -264,7 +278,9 @@ export const StorageService = {
     save: saveData,
     delete: deleteData,
     clear: clearAllData,
-    getAllKeys
+    getAllKeys,
+    getStorageSchemaVersion,
+    setStorageSchemaVersion
 };
 
 export default {
