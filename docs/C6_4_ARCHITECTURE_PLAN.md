@@ -1,7 +1,7 @@
 # Stage C.6.4 Architecture Plan
 ## Rebalancing Visualizer & Order Preview UI
 
-**Status**: SUBMITTED FOR ARCHITECTURE GATE APPROVAL  
+**Status**: HARDENED & RECONCILED / PENDING FINAL GATE APPROVAL  
 **Certified Baseline Commit**: [`82663e5`](https://github.com/Nreddy2020/finapp-mobile/commit/82663e5)  
 **Execution Branch**: `fintech-using-chatgpt`  
 **Author**: Lead Architecture & Implementation Agent  
@@ -12,7 +12,7 @@
 
 **Stage C.6.4** is the final presentation stage of **Phase C.6 (Intelligent Rebalancing & Decision Engine)**. It brings the mathematical calculations of **C.6.1 (Target Allocation Policy)**, **C.6.2 (Drift & Rebalancing Delta)**, and **C.6.3 (Tax-Efficient Optimizer)** into a modern, tactile, and auditable mobile user experience.
 
-### The Pure Read-Only Presentation Flow
+### The Pure Read-Only Presentation Pipeline
 $$\begin{matrix}
 \text{C.6.1 Policy} \\
 + \\
@@ -28,11 +28,12 @@ $$\begin{matrix}
 \end{matrix}$$
 
 ### Core Architectural Invariants
-1. **100% Read-Only Decision Support**: Provides executable trade preview and tax impact analysis with **zero ledger or holding mutations** (Strict Zero-Execution Guard).
-2. **Deterministic Composition**: Directly consumes certified `TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing(...)` without recalculating drift, rounding, or tax logic.
-3. **Auditability**: Exposes transparent explanations for every recommended trade, rounding residual, quote freshness warning, and selected tax lot.
-4. **Interactive Fresh Cash Simulator**: Allows user to adjust available cash ($C_{\text{avail}}$) to preview how fresh cash absorbs rebalancing needs without triggering asset sales.
-5. **Aesthetic Excellence**: Built with curated semantic tokens, balanced whitespace, micro-badges, and zero forbidden design tropes.
+1. **100% Read-Only Decision Support**: Provides executable trade preview and tax impact analysis with **zero ledger, storage, or wallet mutations** (Strict Zero-Execution Guard).
+2. **Zero UI Financial Calculations (Blocker C6.4-02)**: The UI performs **only presentation transformations** (`formatCurrency()`, `formatPercent()`, `mapStatusToBadge()`, `truncateText()`). It is strictly prohibited from computing drift, target values, buy/sell notionals, taxes, exemptions, or post-cash allocations in component code.
+3. **Service-Driven Fresh Cash Simulation (Blocker C6.4-02)**: Every cash slider or input change delegates directly to `TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing(...)` and renders the returned immutable DTO.
+4. **Latest-Request-Wins Concurrency Guard**: Interactive simulation uses an incrementing sequence ID to prevent out-of-order asynchronous responses from overwriting newer simulation states.
+5. **Zero Simulated State Persistence**: Simulation is 100% ephemeral. It never calls `saveHoldings()`, `saveInvestmentEvents()`, `saveMarketQuotes()`, or `MoneyFlowEngine`.
+6. **Strict Semantic Theme-Token Compliance (Blocker C6.4-01)**: Strictly consumes `constants/theme.js` (`COLORS.*`). Direct hex literals, raw `rgb()`, `rgba()`, or local color palettes are strictly prohibited.
 
 ---
 
@@ -62,7 +63,7 @@ interface RebalancingVisualizerCardProps {
   - `Executable Notionals` & `Rounding Residual`
   - `Estimated Tax Liability` & `Tax Drag %`
   - `Tax Savings vs Naive`
-- **Interactive Fresh Cash Slider / Input**: Simulates $C_{\text{avail}}$ injection, dynamically displaying how fresh cash reduces sell needs.
+- **Interactive Fresh Cash Simulator**: Sliders/inputs to dynamically simulate how injected cash ($C_{\text{avail}}$) satisfies buy deltas without triggering asset sales. Driven strictly via `TaxOptimizedRebalancingService`.
 - **Action Button**: `"Preview Optimized Orders"` triggering `OrderPreviewModal`.
 
 ---
@@ -108,37 +109,29 @@ interface OrderPreviewModalProps {
 
 ---
 
-## 3. Design System & Semantic Theme Tokens
+## 3. Strict Semantic Theme Token Usage (Blocker C6.4-01)
 
-Adheres strictly to the certified FinLife dark theme palette without forbidden cliché tropes:
-```javascript
-export const REBALANCING_THEME = Object.freeze({
-    background: '#0a0f1d',
-    cardBackground: '#131b2e',
-    cardBorder: '#1e293b',
-    headerBackground: '#162035',
-    textPrimary: '#f8fafc',
-    textSecondary: '#94a3b8',
-    textMuted: '#64748b',
-    accentBlue: '#3b82f6',
-    buyGreen: '#10b981',
-    buyGreenBg: 'rgba(16, 185, 129, 0.12)',
-    sellRed: '#ef4444',
-    sellRedBg: 'rgba(239, 68, 68, 0.12)',
-    warningAmber: '#f59e0b',
-    warningAmberBg: 'rgba(245, 158, 11, 0.12)',
-    ltcgBlue: '#38bdf8',
-    ltcgBlueBg: 'rgba(56, 189, 248, 0.12)',
-    lossHarvestPurple: '#a855f7',
-    lossHarvestPurpleBg: 'rgba(168, 85, 247, 0.12)'
-});
-```
+All UI elements must exclusively reference semantic tokens from `constants/theme.js` (`COLORS.*`):
+
+| UI Role | Authoritative Semantic Token | Usage |
+| :--- | :--- | :--- |
+| Backgrounds | `COLORS.background`, `COLORS.cardBackground`, `COLORS.headerBackground` | Screen & card containers |
+| Borders | `COLORS.cardBorder`, `COLORS.border` | Card & separator lines |
+| Text | `COLORS.textPrimary`, `COLORS.textSecondary`, `COLORS.textMuted` | Hierarchical typography |
+| Primary Accent | `COLORS.accentBlue` | Buttons, active policy pills |
+| Positive / Buy | `COLORS.buyGreen`, `COLORS.buyGreenBg` | Buy badges, zero-tax badges |
+| Negative / Sell | `COLORS.sellRed`, `COLORS.sellRedBg` | Sell badges, short-term gain warnings |
+| Warning / Drift | `COLORS.warningAmber`, `COLORS.warningAmberBg` | Drift warnings, fallback quotes |
+| LTCG Category | `COLORS.ltcgBlue`, `COLORS.ltcgBlueBg` | Tier 2 LTCG lot badges |
+| Loss Harvesting | `COLORS.lossHarvestPurple`, `COLORS.lossHarvestPurpleBg` | Tier 1 Loss lot badges |
+
+*Direct hex color literals, `rgb()`, `rgba()`, and custom component color objects are strictly forbidden.*
 
 ---
 
-## 4. Stage C.6.4 20-Point Acceptance Test Plan (`tests/test_c64.mjs`)
+## 4. Stage C.6.4 23-Point Acceptance Test Plan (`tests/test_c64.mjs`)
 
-The acceptance test suite covers **20 explicit UI and contract scenarios**:
+The acceptance test suite covers **23 explicit UI and contract scenarios**:
 1. **Component Module Integrity**: `RebalancingVisualizerCard` and `OrderPreviewModal` exports verified.
 2. **Rebalancing Summary Binding**: Renders complete C.6.3 summary data cleanly.
 3. **Drift Status Badge Rendering**: Correct status mapping (`BALANCED`, `ACTION_RECOMMENDED`, `PRICE_REFRESH_REQUIRED`).
@@ -158,11 +151,14 @@ The acceptance test suite covers **20 explicit UI and contract scenarios**:
 17. **Non-Tradeable Asset Warning**: Renders notice for `REAL_ESTATE` and `OTHER` asset classes.
 18. **Multi-Portfolio Scope Switching**: Correctly binds portfolio-specific or global summary.
 19. **Read-Only Safety Guard**: Verified 0 mutations triggered by rendering or modal interactions.
-20. **Full System Regression Matrix**: 100% test suite passing $\to$ **251/251 Total System Tests Passing**.
+20. **Full System Regression Matrix**: 100% test suite passing.
+21. **Semantic Token Compliance (Blocker C6.4-01)**: Static audit verifying 0 hex/rgba literals in C.6.4 components.
+22. **Service-Driven Fresh Cash Simulation (Blocker C6.4-02)**: Verifies fresh-cash simulation delegates strictly to `TaxOptimizedRebalancingService`.
+23. **Latest-Request-Wins Concurrency Guard**: Verifies that stale asynchronous simulation responses cannot overwrite the latest simulation state.
 
 ---
 
 ## 5. Gate Approval Request
 
-This document is submitted for formal **Stage C.6.4 Architecture Gate Review**.  
-Implementation is **LOCKED 🔒** until authorized.
+All blockers (`C6.4-01` and `C6.4-02`) and concurrency controls are locked in this plan.  
+We respectfully request the **Stage C.6.4 Architecture Gate Approval & Implementation Authorization**.

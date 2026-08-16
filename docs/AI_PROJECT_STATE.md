@@ -39,7 +39,7 @@ Current Stage:
 C.6.4_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.6.4_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
+C.6.4_ARCHITECTURE_AMENDED_PENDING_GATE_AUTHORIZATION
 
 
 ## 2. MASTER ROADMAP
@@ -60,7 +60,7 @@ C.6.4_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
-| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟡 ARCHITECTURE IN REVIEW |
+| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟡 ARCHITECTURE AMENDED |
 
 
 ## 3. CURRENT STAGE
@@ -69,10 +69,10 @@ Stage:
 C.6.4
 
 Objective:
-Rebalancing Visualizer Card and Order Preview Modal UI Presentation
+Rebalancing Visualizer Card and Order Preview Modal UI Presentation (Blockers C6.4-01 & C6.4-02 Resolved)
 
 Architecture:
-SUBMITTED_FOR_GATE_REVIEW (`docs/C6_4_ARCHITECTURE_PLAN.md`)
+AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_4_ARCHITECTURE_PLAN.md`)
 
 Implementation:
 LOCKED 🔒
@@ -141,16 +141,18 @@ PASS (emulator-5554 operational) 🟢
 
 ## 6. BLOCKERS LOG
 
-All prior blockers through Stage C.6.3 are 100% resolved and certified.
+- Stage C.6.4 Hardening Resolutions:
+  - C6.4-01 (Semantic Theme-Token Compliance): 🟢 RESOLVED in `docs/C6_4_ARCHITECTURE_PLAN.md`
+  - C6.4-02 (Service-Driven Simulation & Concurrency Guard): 🟢 RESOLVED in `docs/C6_4_ARCHITECTURE_PLAN.md`
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Stand by under Zero-Code Gate. Await Architect review of `docs/C6_4_ARCHITECTURE_PLAN.md`.
+Stand by under Zero-Code Gate. Await Architect review of amended `docs/C6_4_ARCHITECTURE_PLAN.md`.
 
 Architect:
-Review Stage C.6.4 architecture plan and issue implementation authorization.
+Review Stage C.6.4 amended architecture plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -161,7 +163,7 @@ Review Stage C.6.4 architecture plan and issue implementation authorization.
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
 - **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
 - **Stage C.6.3**: 🟢 CERTIFIED (`82663e5`)
-- **Stage C.6.4**: 🟡 ARCHITECTURE PROPOSED — IMPLEMENTATION LOCKED
+- **Stage C.6.4**: 🟡 ARCHITECTURE AMENDED — IMPLEMENTATION LOCKED
 - **Zero-Code Gate**: ACTIVE 🔒 (for C.6.4+)
 
 
