@@ -19,7 +19,14 @@ import PerformanceGrowthTimelineCard from '../../components/investments/Performa
 import MasterStatementCard from '../../components/investments/MasterStatementCard';
 import RebalancingVisualizerCard from '../../components/investments/RebalancingVisualizerCard';
 import OrderPreviewModal from '../../components/investments/OrderPreviewModal';
+import RiskIntelligenceDashboard from '../../components/investments/RiskIntelligenceDashboard';
 import TaxOptimizedRebalancingService from '../../services/taxOptimizedRebalancingService';
+import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
+import { evaluatePortfolioStressScenarios } from '../../services/scenarioStressEngine';
+import { calculateConcentration } from '../../services/concentrationEngine';
+import { calculateVolatilityMetrics } from '../../services/volatilityDrawdownEngine';
+import { calculateCorrelationMatrix } from '../../services/correlationEngine';
+import { calculateLiquidityBreakdown } from '../../services/liquidityEngine';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -42,6 +49,8 @@ export default function InvestmentsScreen() {
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
     const [orderModalVisible, setOrderModalVisible] = useState(false);
     const [rebalancingSummary, setRebalancingSummary] = useState(null);
+    const [riskHealthDTO, setRiskHealthDTO] = useState(null);
+    const [riskStressDTO, setRiskStressDTO] = useState(null);
     const requestIdRef = useRef(0);
 
     // Modal State
@@ -160,6 +169,35 @@ export default function InvestmentsScreen() {
             // Load legacy holdings for bottom list view
             const currentHoldings = await InvestmentsService.getInvestments();
 
+            // 4. Compute Stage C.7 Risk Intelligence, Health Score & Stress Test
+            const evalDate = tNow.toISOString();
+            const relevantHoldings = targetPortfolioId
+                ? allHoldings.filter(h => h.portfolioId === targetPortfolioId)
+                : allHoldings;
+
+            let healthResult = null;
+            let stressResult = null;
+            if (relevantHoldings.length > 0) {
+                try {
+                    const conc = calculateConcentration(relevantHoldings);
+                    const vol = calculateVolatilityMetrics(relevantHoldings, evalDate);
+                    const corr = calculateCorrelationMatrix(relevantHoldings, evalDate);
+                    const liq = calculateLiquidityBreakdown(relevantHoldings, { monthlyIncome: 0, totalMonthlyBurn: 0 }, evalDate);
+                    stressResult = evaluatePortfolioStressScenarios({ holdings: relevantHoldings, cashFlow: { monthlyIncome: 0, totalMonthlyBurn: 0 } }, evalDate);
+                    healthResult = evaluatePortfolioHealthScore({
+                        portfolioId: targetPortfolioId,
+                        holdings: relevantHoldings,
+                        concentration: conc,
+                        volatility: vol,
+                        correlation: corr,
+                        liquidity: liq,
+                        stress: stressResult
+                    }, evalDate);
+                } catch (err) {
+                    console.error('[InvestmentsScreen] Error computing risk health score:', err);
+                }
+            }
+
             // Guard against race conditions: discard out-of-order async responses
             if (currentReqId !== requestIdRef.current) {
                 return;
@@ -173,6 +211,8 @@ export default function InvestmentsScreen() {
             setPortfolioStatement(statement);
             setLastRefreshTime(latestQuoteTime);
             setHoldings(currentHoldings);
+            setRiskHealthDTO(healthResult);
+            setRiskStressDTO(stressResult);
 
             const investValue = summary.totalMarketValue || 0;
             setPortfolioValue(investValue);
@@ -457,6 +497,14 @@ export default function InvestmentsScreen() {
                             fetchData(selectedPortfolioId, p);
                         }}
                         loading={loading}
+                    />
+
+                    {/* Stage C.7.8 Risk Intelligence Dashboard & Stress UI */}
+                    <RiskIntelligenceDashboard
+                        healthDTO={riskHealthDTO}
+                        stressDTO={riskStressDTO}
+                        isLoading={loading}
+                        onRefresh={onRefresh}
                     />
                 </View>
 

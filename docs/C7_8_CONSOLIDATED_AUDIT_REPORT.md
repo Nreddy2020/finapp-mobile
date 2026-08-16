@@ -52,6 +52,7 @@ Stage C.7.8 implements the **Risk Intelligence Dashboard & Stress UI** in React 
 | **`C7.8-R6` Robust State Machine** | 🟢 PASS | Implemented states: `EVALUATED`, `DEGRADED`, `EMPTY_PORTFOLIO`, `INSUFFICIENT_DATA`, `LOADING`, `ERROR`. |
 | **`C7.8-R7` Store Immutability** | 🟢 PASS | Verified deep snapshot equality across 5 stores before/after dashboard render. |
 | **`C7.8-R8` Deterministic Rendering** | 🟢 PASS | Mandatory caller `asOfDate`. Zero wall-clock dependencies. |
+| **`C7.8-R9` App-Level Screen Mounting** | 🟢 PASS | Fully mounted in [`app/(tabs)/investments.js`](file:///e:/fintech-mobile/app/(tabs)/investments.js) with live DTO prop bindings (`healthDTO={riskHealthDTO}`, `stressDTO={riskStressDTO}`). |
 
 ---
 

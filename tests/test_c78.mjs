@@ -751,9 +751,14 @@ console.log('\n--- Group 7: Determinism, AST Zero-Recalculation Scan & Read-Only
     console.log('✅ Test 46 PASS: End-to-end integration between C.7.6, C.7.7, and C.7.8 UI adapter verified.');
 }
 
-// Test 47: Frozen Services Boundary Verified
+// Test 47: App-Level Integration & Screen Mounting Verified
 {
-    console.log('✅ Test 47 PASS: Frozen services boundary preserved.');
+    const screenSource = fs.readFileSync('app/(tabs)/investments.js', 'utf8');
+    assert(screenSource.includes("import RiskIntelligenceDashboard from '../../components/investments/RiskIntelligenceDashboard'"), 'App screen missing RiskIntelligenceDashboard import');
+    assert(screenSource.includes('<RiskIntelligenceDashboard'), 'App screen JSX missing <RiskIntelligenceDashboard /> element');
+    assert(screenSource.includes('healthDTO={riskHealthDTO}'), 'App screen missing healthDTO prop binding');
+    assert(screenSource.includes('stressDTO={riskStressDTO}'), 'App screen missing stressDTO prop binding');
+    console.log('✅ Test 47 PASS: App-Level Screen Mounting in app/(tabs)/investments.js fully verified.');
 }
 
 // Test 48: Full System Acceptance Complete
