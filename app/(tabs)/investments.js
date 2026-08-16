@@ -14,6 +14,7 @@ import MarketDataService from '../../services/marketDataService';
 import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
 import PortfolioOverviewCard from '../../components/investments/PortfolioOverviewCard';
 import PortfolioHeader from '../../components/investments/PortfolioHeader';
+import AssetAllocationCard from '../../components/investments/AssetAllocationCard';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -24,10 +25,11 @@ export default function InvestmentsScreen() {
     const [isCrisisMode, setIsCrisisMode] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Stage C.5.1 Portfolio Analytics State
+    // Stage C.5.1 & C.5.2 Portfolio Analytics State
     const [selectedPortfolioId, setSelectedPortfolioId] = useState(null); // null = ALL_PORTFOLIOS
     const [availablePortfolios, setAvailablePortfolios] = useState([]);
     const [portfolioSummary, setPortfolioSummary] = useState(null);
+    const [allocationSummary, setAllocationSummary] = useState(null);
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
     const requestIdRef = useRef(0);
 
@@ -64,10 +66,15 @@ export default function InvestmentsScreen() {
                 name: id === 'default' ? 'Main Account' : (id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '))
             }));
 
-            // 2. Compute C.4.1 Portfolio Summary
-            const summary = await InvestingAnalyticsEngine.getPortfolioSummary({
-                portfolioId: targetPortfolioId
-            });
+            // 2. Compute C.4.1 Portfolio Summary & C.4.2 Allocation Summary
+            const [summary, allocSummary] = await Promise.all([
+                InvestingAnalyticsEngine.getPortfolioSummary({
+                    portfolioId: targetPortfolioId
+                }),
+                InvestingAnalyticsEngine.getAssetAllocationSummary({
+                    portfolioId: targetPortfolioId
+                })
+            ]);
 
             // 3. Sourced Quote Timestamps
             const cachedQuotes = await loadMarketQuotes();
@@ -89,6 +96,7 @@ export default function InvestmentsScreen() {
 
             setAvailablePortfolios(discoveredPortfolios);
             setPortfolioSummary(summary);
+            setAllocationSummary(allocSummary);
             setLastRefreshTime(latestQuoteTime);
             setHoldings(currentHoldings);
 
@@ -98,6 +106,14 @@ export default function InvestmentsScreen() {
 
         } catch (error) {
             console.error('[InvestmentsScreen] Error loading portfolio summary:', error);
+        } finally {
+            if (currentReqId === requestIdRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
+        }
+    };
+
         } finally {
             if (currentReqId === requestIdRef.current) {
                 setLoading(false);
@@ -326,7 +342,14 @@ export default function InvestmentsScreen() {
                         onAddHolding={() => setModalVisible(true)}
                         onRefresh={onRefresh}
                     />
+
+                    {/* Stage C.5.2 Asset Allocation & Risk Concentration Visualizer */}
+                    <AssetAllocationCard
+                        allocationSummary={allocationSummary}
+                        loading={loading}
+                    />
                 </View>
+
 
 
                 {/* Quick Actions */}
