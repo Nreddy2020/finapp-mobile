@@ -30,7 +30,7 @@ Last Certified Commit:
 30e4b8a
 
 Current HEAD:
-30e4b8a
+PENDING_COMMIT
 
 Current Phase:
 C.7
@@ -39,7 +39,7 @@ Current Stage:
 C.7.8_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.7_MASTER_CERTIFIED_C7.8_ZERO_CODE_GATE_LOCKED
+C.7.8_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -69,7 +69,7 @@ C.7.7_MASTER_CERTIFIED_C7.8_ZERO_CODE_GATE_LOCKED
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟢 **MASTER CERTIFIED** (`d0f337c`) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
-| ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ ARCHITECTURE PLANNING (Gate Locked 🔒) |
+| ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒) |
 
 
 ## 3. CURRENT STAGE
@@ -78,7 +78,7 @@ Stage:
 C.7.8 (Risk Intelligence Dashboard & Stress UI)
 
 Objective:
-Architectural planning for Stage C.7.8 Risk Intelligence Dashboard & Stress UI (`docs/C7_8_ARCHITECTURE_PLAN.md`). Zero-Code Gate is ACTIVE 🔒. No UI implementation files, components, or test suites may be created until the architecture plan is authored, reviewed, hardened, and explicitly authorized by the Architect.
+Architectural plan authored and submitted for Stage C.7.8 Risk Intelligence Dashboard & Stress UI (`docs/C7_8_ARCHITECTURE_PLAN.md`). Core architectural principle: *"C.7.8 visualizes and interacts with certified intelligence; it does not calculate financial intelligence."* Information architecture answers 5 core user questions: 1. "How healthy is my portfolio?" (`HealthScoreHeroCard`), 2. "Why is my score this way?" (`RiskDimensionsCard`), 3. "What is good and what is dangerous?" (`RiskDriversStrengthsCard`), 4. "What happens if the market gets worse?" (`ScenarioStressVisualizerCard`), 5. "What should I understand from this?" (Factual explanation callouts). Enforces zero financial recalculation, zero store mutations, single source of truth, and 48 acceptance scenarios in `tests/test_c78.mjs`.
 
 Implementation Status:
 GATE LOCKED 🔒 (Zero-Code Gate Active)
@@ -161,17 +161,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.7 Master Certified at `30e4b8a`.
-- Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.8.
+- Stage C.7.8 Architecture Plan Submitted.
+- Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.8 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Wait for Stage C.7.8 Architecture Directives from the Architect. Do NOT write UI code or components.
+Submitted Stage C.7.8 Architecture Plan (`docs/C7_8_ARCHITECTURE_PLAN.md`) to the Architect for Gate Review.
 
 Architect:
-Issue Stage C.7.8 Architecture Directives (Risk Intelligence Dashboard & Stress UI).
+Perform Stage C.7.8 Architecture Gate Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -187,7 +187,7 @@ Issue Stage C.7.8 Architecture Directives (Risk Intelligence Dashboard & Stress 
 - **Stage C.7.5**: 🟢 MASTER CERTIFIED (`d0f337c`)
 - **Stage C.7.6**: 🟢 MASTER CERTIFIED (`64c00a1`)
 - **Stage C.7.7**: 🟢 MASTER CERTIFIED (`30e4b8a`)
-- **Stage C.7.8**: ⚪ ARCHITECTURE PLANNING (Gate Locked 🔒)
+- **Stage C.7.8**: ⚪ ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.8+)
 
 
