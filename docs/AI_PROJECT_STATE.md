@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-398b99c
+3269cbc
 
 Last Certified Commit:
-398b99c
+3269cbc
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.5
 
 Current Stage:
-C.5.3
+C.5.4
 
 Overall Status:
-C.5.3_HARDENED_IMPLEMENTATION_PENDING_CERTIFICATION
+C.5.4_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -52,38 +52,40 @@ C.5.3_HARDENED_IMPLEMENTATION_PENDING_CERTIFICATION
 | **C.4.4** | Master Portfolio Statement & FIFO Tax | 🟢 CERTIFIED (`012d0f7`) |
 | **C.5.1** | Portfolio Overview & Executive Dashboard | 🟢 CERTIFIED (`6a734f1`) |
 | **C.5.2** | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
-| **C.5.3** | Performance & XIRR Growth Timeline | 🟡 IN REVIEW |
-| **C.5.4** | Master Statement & Tax Report View / Export | ⚪ NOT STARTED |
+| **C.5.3** | Performance & XIRR Growth Timeline | 🟢 CERTIFIED (`3269cbc`) |
+| **C.5.4** | Master Statement & Tax Report View / Export | 🟡 IN ARCHITECTURE REVIEW |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.5.3
+C.5.4
 
 Objective:
-Performance & XIRR Growth Timeline Visualizer
+Master Portfolio Statement & Tax Report Viewer with Export Engine
 
 Architecture:
-LOCKED & APPROVED
+SUBMITTED FOR ARCHITECT REVIEW (`docs/C5_4_ARCHITECTURE_PLAN.md`)
 
 Implementation:
-COMPLETE & HARDENED (All blockers C5.3-01 & C5.3-02 resolved)
+LOCKED 🔒 (Zero implementation code written until Architecture Gate is approved)
 
 Stage Baseline:
-398b99c
+3269cbc
 
 Previous Certified Baseline:
-398b99c
+3269cbc
 
 
-## 4. CURRENT IMPLEMENTATION
+## 4. CURRENT ARCHITECTURAL SCOPE & BOUNDARIES
 
-Files modified/created:
-- `app/(tabs)/investments.js`
-- `components/investments/PerformanceGrowthTimelineCard.js`
-- `tests/test_c53.mjs`
-- `docs/C5_3_CONSOLIDATED_AUDIT_REPORT.md`
+Planned Files:
+- `components/investments/MasterStatementCard.js` (NEW Presentation Card)
+- `components/investments/TaxReportModal.js` (NEW Tax Lot Breakdown Modal)
+- `services/statementExportService.js` (NEW Export Formatters: JSON, CSV, ShareText)
+- `app/(tabs)/investments.js` (Mounting Master Statement Card below C.5.3)
+- `tests/test_c54.mjs` (20-Scenario Hardened Acceptance Test Suite with strict exit 1 enforcement)
+- `docs/C5_4_ARCHITECTURE_PLAN.md` (Locked Specification & Acceptance Contract)
 
 Frozen contracts:
 - `services/investingAnalyticsEngine.js` 🔒 (100% Frozen)
@@ -94,7 +96,7 @@ Frozen contracts:
 
 ## 5. ACCEPTANCE STATUS
 
-C.5.3 Tests (`tests/test_c53.mjs`):
+C.5.3 Certified Tests (`tests/test_c53.mjs`):
 20/20 PASS (Strict exit 0) 🟢
 
 C.5.2 Regression (`tests/test_c52.mjs`):
@@ -106,31 +108,25 @@ C.5.1 Regression (`tests/test_c51.mjs`):
 C.4 Regression (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
-Total Committed System Tests:
-137/137 PASS (100%, Strict exit 0) 🟢
+Total Committed Baseline Tests:
+137/137 PASS (100%) 🟢
 
 Android Runtime Proof:
-PASS (emulator-5554, screen_c53_proof.png) 🟢
-
-Git Boundary Audit:
-PASS (pure presentation UI components & tests only) 🟢
+PASS (emulator-5554 operational) 🟢
 
 
 ## 6. BLOCKERS LOG
 
-- C5.3-01 (Timeline deduplication): 🟢 RESOLVED (Explicit date/timestamp deduplication implemented in screen and component)
-- C5.3-02 (Semantic theme tokens): 🟢 RESOLVED (All hardcoded hex colors replaced with semantic tokens from COLORS)
+No active blockers. Stages C.4.1–C.4.4, C.5.1–C.5.3 fully certified.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed hardening of Stage C.5.3, resolved all blockers, verified 137/137 tests, and pushed to GitHub. Awaiting Architect consolidated review.
+Submitted Stage C.5.4 Master Architecture Plan. Awaiting Architect review. Do NOT write UI code until authorized.
 
 Architect:
-Review Stage C.5.3 implementation commit and issue consolidated certification decision.
-
-Do NOT start C.5.4 until C.5.3 is CERTIFIED.
+Review `docs/C5_4_ARCHITECTURE_PLAN.md` and issue Stage C.5.4 Architecture Gate decision (Authorize / Block).
 
 
 ## 8. CERTIFICATION STATUS
@@ -141,20 +137,17 @@ Stage C.5.1:
 Stage C.5.2:
 🟢 CERTIFIED (`398b99c`)
 
-Stage C.5.3 Architecture Gate:
-PASS 🟢
+Stage C.5.3:
+🟢 CERTIFIED (`3269cbc`)
 
-Stage C.5.3 Implementation Gate:
-AUTHORIZED 🔓
+Stage C.5.4 Architecture Gate:
+PENDING ARCHITECT REVIEW ⏳
 
-Stage C.5.3 Verification Gate:
-PASS (20/20 acceptance, 117/117 prior regression, exit 0 enforced) 🟢
-
-Live Proof:
-PASS (Android emulator-5554 operational) 🟢
+Stage C.5.4 Implementation Gate:
+LOCKED 🔒
 
 Final Certification:
-PENDING ARCHITECT REVIEW ⏳
+NOT STARTED
 
 
 ## 9. AGENT PROTOCOL RULES
