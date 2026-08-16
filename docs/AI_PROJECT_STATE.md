@@ -24,22 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-6a734f1
+398b99c
 
 Last Certified Commit:
-6a734f1
+398b99c
 
 Current HEAD:
-2db6a30
+398b99c
 
 Current Phase:
 C.5
 
 Current Stage:
-C.5.2
+C.5.3
 
 Overall Status:
-C.5.2_BLOCKERS_RESOLVED_PENDING_RE_AUDIT
+C.5.3_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -51,114 +51,95 @@ C.5.2_BLOCKERS_RESOLVED_PENDING_RE_AUDIT
 | **C.4.3** | Money-Weighted Returns (XIRR / CAGR) | 🟢 CERTIFIED (`6199c65`) |
 | **C.4.4** | Master Portfolio Statement & FIFO Tax | 🟢 CERTIFIED (`012d0f7`) |
 | **C.5.1** | Portfolio Overview & Executive Dashboard | 🟢 CERTIFIED (`6a734f1`) |
-| **C.5.2** | Asset Allocation Visualizer & Risk Gauges | 🟡 RE-AUDIT PENDING |
-| **C.5.3** | Performance & XIRR Growth Timeline | ⚪ NOT STARTED |
+| **C.5.2** | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
+| **C.5.3** | Performance & XIRR Growth Timeline | 🟡 IN ARCHITECTURE REVIEW |
 | **C.5.4** | Master Statement & Tax Report View / Export | ⚪ NOT STARTED |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.5.2
+C.5.3
 
 Objective:
-Asset Allocation Visualizer & Risk Concentration Gauges
+Performance & XIRR Growth Timeline Visualizer
 
 Architecture:
-LOCKED & APPROVED
+SUBMITTED FOR ARCHITECT REVIEW (`docs/C5_3_ARCHITECTURE_PLAN.md`)
 
 Implementation:
-COMPLETE & HARDENED
+LOCKED 🔒 (Zero implementation code written until Architecture Gate is approved)
 
-Stage Implementation Baseline:
-6a734f1
+Stage Baseline:
+398b99c
 
 Previous Certified Baseline:
-6a734f1
+398b99c
 
 
-## 4. CURRENT IMPLEMENTATION & BLOCKER RESOLUTIONS
+## 4. CURRENT ARCHITECTURAL SCOPE & BOUNDARIES
 
-Files modified/created:
-- `app/(tabs)/investments.js` (Resolved C5.2-B01: Valid single try/catch/finally)
-- `components/investments/AssetAllocationCard.js` (Removed unused imports, added fallback metadata presentation)
-- `components/investments/ConcentrationRiskGauge.js`
-- `tests/test_c52.mjs` (Resolved C5.2-B02: Committed executable 20-test acceptance suite with hardened non-zero exit enforcement)
-- `tests/test_c51.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
-- `tests/test_c44.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
-- `tests/test_c43.mjs` (Committed 30-test suite with hardened non-zero exit enforcement)
-- `tests/test_c42.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
-- `tests/test_c41.mjs` (Committed 7-test suite with hardened non-zero exit enforcement)
-- `tests/mock_rn.mjs` & `tests/mock_rn_module.mjs`
-- `scratch/test_c52.mjs`
-- `docs/C5_2_CONSOLIDATED_AUDIT_REPORT.md`
+Planned Files:
+- `components/investments/PerformanceGrowthTimelineCard.js` (NEW Presentation Card)
+- `app/(tabs)/investments.js` (Mounting Performance Card directly below `AssetAllocationCard`)
+- `tests/test_c53.mjs` (20-Scenario Hardened Acceptance Test Suite)
+- `docs/C5_3_ARCHITECTURE_PLAN.md` (Locked Specification & Acceptance Contract)
 
 Frozen contracts:
-- `services/investingAnalyticsEngine.js` 🔒
-- `services/storage.js` 🔒
-- `services/moneyFlowEngine.js` 🔒
-- `services/investingSchemas.js` 🔒
+- `services/investingAnalyticsEngine.js` 🔒 (100% Frozen)
+- `services/storage.js` 🔒 (100% Frozen)
+- `services/moneyFlowEngine.js` 🔒 (100% Frozen)
+- `services/investingSchemas.js` 🔒 (100% Frozen)
 
 
 ## 5. ACCEPTANCE STATUS
 
-C.5.2 Tests (`tests/test_c52.mjs`):
-20/20 PASS (Strict exit code: 0) 🟢
+C.5.2 Certified Tests (`tests/test_c52.mjs`):
+20/20 PASS (Strict exit 0) 🟢
 
 C.5.1 Regression (`tests/test_c51.mjs`):
-20/20 PASS (Strict exit code: 0) 🟢
+20/20 PASS (Strict exit 0) 🟢
 
 C.4 Regression (C.4.1–C.4.4):
-77/77 PASS (Strict exit code: 0) 🟢
+77/77 PASS (Strict exit 0) 🟢
 
-Total Committed System Tests:
+Total Committed Baseline Tests:
 117/117 PASS (100%) 🟢
 
 Android Runtime Proof:
-PASS (emulator-5554, screen_c52_proof.png fresh capture) 🟢
-
-Git Boundary Audit:
-PASS (presentation UI components & tests only) 🟢
+PASS (emulator-5554 operational) 🟢
 
 
 ## 6. BLOCKERS LOG
 
-- **C5.2-B01**: Malformed duplicate `finally` block in `app/(tabs)/investments.js` $\to$ **RESOLVED & VERIFIED** 🟢
-- **C5.2-B02**: Missing committed test artifact `test_c52.mjs` $\to$ **RESOLVED & COMMITTED** 🟢
-- **C5.2-B03**: Living state document synchronization $\to$ **SYNCHRONIZED & SEALED** 🟢
-- **Test Hardening**: Enforced non-zero process exit codes (`process.exit(1)`) on test failures/mismatches $\to$ **APPLIED & VERIFIED** 🟢
+No active blockers. Stages C.4.1–C.4.4, C.5.1, and C.5.2 fully certified.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed test hardening across all 6 test suites, synchronized `docs/AI_PROJECT_STATE.md` to exact Git HEAD, and pushed to GitHub. Awaiting Architect final certification.
+Author Stage C.5.3 Master Architecture Plan, commit documentation to GitHub, and await Architect review. Do NOT write UI code until authorized.
 
 Architect:
-Review the hardened commit and issue Stage C.5.2 final certification.
-
-Do NOT start C.5.3 until C.5.2 is CERTIFIED.
+Review `docs/C5_3_ARCHITECTURE_PLAN.md` and issue Stage C.5.3 Architecture Gate decision (Authorize / Block).
 
 
 ## 8. CERTIFICATION STATUS
 
 Stage C.5.1:
-🟢 CERTIFIED
+🟢 CERTIFIED (`6a734f1`)
 
-Stage C.5.2 Architecture Gate:
-PASS 🟢
+Stage C.5.2:
+🟢 CERTIFIED (`398b99c`)
 
-Stage C.5.2 Implementation Gate:
-AUTHORIZED 🔓
+Stage C.5.3 Architecture Gate:
+PENDING ARCHITECT REVIEW ⏳
 
-Stage C.5.2 Verification Gate:
-PASS (20/20 acceptance, 97/97 prior regression, strict non-zero exit code enforced) 🟢
-
-Live Proof:
-PASS (Android emulator-5554 operational) 🟢
+Stage C.5.3 Implementation Gate:
+LOCKED 🔒
 
 Final Certification:
-PENDING ARCHITECT FINAL AUDIT ⏳
+NOT STARTED
 
 
 ## 9. AGENT PROTOCOL RULES
