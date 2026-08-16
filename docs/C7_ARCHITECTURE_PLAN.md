@@ -185,7 +185,7 @@ $$H = \sum_{k=1}^{5} \omega_k \cdot S_k$$
 
 ## 5. Phase C.7 Staging Roadmap
 
-To maintain rigorous certification discipline, Phase C.7 is structured into focused stages:
+To maintain rigorous certification discipline, Phase C.7 is structured into 8 modular stages:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -193,20 +193,29 @@ To maintain rigorous certification discipline, Phase C.7 is structured into focu
 ├───────────┬───────────────────────────────────────────┬─────────────────────┤
 │ Stage     │ Name / Purpose                            │ Key Artifacts       │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
-│ **C.7.1** │ Risk Diagnostics & Concentration Engine   │ riskMetricsEngine.js│
-│           │ (HHI, Top-k, Neff, Liquidity Tiering)     │ test_c71.mjs        │
+│ **C.7.1** │ Portfolio Risk Foundation & Risk Taxonomy │ riskTaxonomy.js     │
+│           │ (Taxonomy, Schemas, Risk Data Contracts)  │ test_c71.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
-│ **C.7.2** │ Volatility, Drawdown & Downside Engine    │ drawdownEngine.js   │
-│           │ (MaxDD, Downside Deviation, VaR, CVaR)    │ test_c72.mjs        │
+│ **C.7.2** │ Concentration & Diversification Diagnostics│ concentrationEngine.js│
+│           │ (HHI Decomp, Top-k, Neff, Entropy)        │ test_c72.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
-│ **C.7.3** │ Macro Scenario & Stress-Testing Engine    │ stressTestEngine.js │
-│           │ (GFC, COVID, Rates, Inflation, Custom)    │ test_c73.mjs        │
+│ **C.7.3** │ Volatility, Drawdown & Downside Risk      │ drawdownEngine.js   │
+│           │ (MaxDD, Downside Deviation, VaR, CVaR)    │ test_c73.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
-│ **C.7.4** │ Composite Portfolio Health & Insights     │ portfolioHealth.js  │
-│           │ (0–100 Score, 5 Pillars, Explanations)    │ test_c74.mjs        │
+│ **C.7.4** │ Correlation & Cross-Asset Risk            │ correlationEngine.js│
+│           │ (8x8 Matrix, Diversification Ratio DBR)   │ test_c74.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
-│ **C.7.5** │ Risk Intelligence & Stress Dashboard UI   │ RiskRadarCard.js    │
-│           │ (Health Meter, Stress Lab, Diagnostics)   │ StressTestModal.js  │
+│ **C.7.5** │ Liquidity & Cash-Flow Stress              │ liquidityEngine.js  │
+│           │ (T+0..T>3 Tiers, LCR, Redemption Buffer)  │ test_c75.mjs        │
+├───────────┼───────────────────────────────────────────┼─────────────────────┤
+│ **C.7.6** │ Scenario & Stress-Test Engine             │ stressTestEngine.js │
+│           │ (GFC, COVID, Rates, Inflation, Custom Lab)│ test_c76.mjs        │
+├───────────┼───────────────────────────────────────────┼─────────────────────┤
+│ **C.7.7** │ Portfolio Health Score & Risk Explanation │ portfolioHealth.js  │
+│           │ (0–100 Score, 5 Pillars, Plain English)   │ test_c77.mjs        │
+├───────────┼───────────────────────────────────────────┼─────────────────────┤
+│ **C.7.8** │ Risk Intelligence Dashboard & Stress UI   │ RiskRadarCard.js    │
+│           │ (Health Meter, Radar, Stress Test Modal)  │ test_c78.mjs        │
 └───────────┴───────────────────────────────────────────┴─────────────────────┘
 ```
 
@@ -236,18 +245,20 @@ To maintain rigorous certification discipline, Phase C.7 is structured into focu
 
 ---
 
-## 7. Stage C.7.1 Focus & Scope: Risk Diagnostics & Concentration Engine
+## 7. Stage C.7.1 Focus & Scope: Portfolio Risk Foundation & Risk Taxonomy
 
-The first implementation stage (`Stage C.7.1`) will establish the foundational risk analytics layer:
-1. **Multi-Level Concentration Decomposition**:
-   - Asset-class HHI and individual holding HHI.
-   - $Top_1$, $Top_3$, and $Top_5$ concentration ratios.
-   - Effective constituent count ($N_{\text{eff}}$).
-2. **Liquidity & Lockup Classification**:
-   - Classifies every holding into Liquidity Tiers: `INSTANT` ($T+0$), `STANDARD` ($T \le 3$), `LOCKED` ($T > 3$ or regulatory lockup).
-   - Computes Liquidity Coverage Ratio (LCR).
-3. **Deterministic asOfDate Evaluation & Zero Mutation Verification**:
-   - Pure read-only service with full regression retention (254/254 + Stage C.7.1 acceptance tests).
+The foundational stage (`Stage C.7.1`) establishes the core risk data model and contracts:
+1. **Canonical Risk Taxonomy Constants**:
+   - Risk pillars (`CONCENTRATION`, `VOLATILITY`, `DRAWDOWN`, `LIQUIDITY`, `CORRELATION`, `STRESS_TEST`).
+   - Risk severity levels (`LOW`, `MODERATE`, `HIGH`, `CRITICAL`).
+   - Standardized stress scenario identifiers (`HISTORICAL_GFC_2008`, `HISTORICAL_COVID_2020`, `RATE_SPIKE_200BPS`, `HIGH_INFLATION_SHOCK`, `CRYPTO_WINTER_2022`, `CUSTOM_STRESS_LAB`).
+2. **Authoritative Risk DTO Schemas**:
+   - `HoldingRiskProfile`: per-holding liquidity tier, volatility proxy, and concentration contribution.
+   - `ConcentrationRiskSummary`: HHI, $Top_k$, $N_{\text{eff}}$, and single-asset concentration warnings.
+   - `PortfolioRiskProfile`: aggregate 5-pillar risk container.
+3. **Deterministic Evaluation & Pure Validation Helpers**:
+   - Schema validation, range guards ($[0, 100]$ bounds), and invalid input protection.
+   - Pure read-only contracts with zero storage mutations.
 
 ---
 
