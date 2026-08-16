@@ -24,22 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-4f541b6
+578040f
 
 Last Certified Commit:
-4f541b6
+578040f
 
 Current HEAD:
-PENDING_COMMIT
+578040f
 
 Current Phase:
 C.7
 
 Current Stage:
-C.7.4_IMPLEMENTATION_COMPLETE
+C.7.5_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.7.4_CERTIFIED_C.7.5_GATE_LOCKED
 
 
 ## 2. MASTER ROADMAP
@@ -65,7 +65,7 @@ C.7.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
-| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **IMPLEMENTATION COMPLETE (40/40 PASS)** |
+| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
@@ -75,16 +75,19 @@ C.7.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-C.7.4 (Correlation, Covariance & Cross-Asset Risk Engine)
+C.7.5 (Liquidity & Cash-Flow Stress Engine)
 
 Objective:
-Implement pure read-only multivariate dependency engine in `services/correlationEngine.js` according to Master Architectural Standard `C7_4_V1`: sample covariance with Bessel's correction, Pearson correlation matrix with zero-variance protection, dimensionally consistent annualized constituent volatility $\sigma_{i,\text{ann}} = \sqrt{\mathbf{\Sigma}_{ii}^{\text{ann}}}$ for Diversification Ratio ($DR_{\text{corr}} = \sigma_{\text{weighted}} / \sigma_p$) and Multiplier ($DBM$), 9-step PSD repair with final spectral recomputation, raw vs effective eigenvalue separation, canonical 8-class correlation matrix with strict constituent synchronization and unrepresented class null semantics, long-only validation, duplicate timestamp rejection, empty portfolio $N=0$ contract, mandatory deterministic `asOfDate`, and 40/40 acceptance tests.
+Author Architecture Plan for Stage C.7.5 covering multi-horizon redemption capacity (T+0, T+2/T+3, T+4/T+7, Locked/Illiquid), emergency fund runway buffer analysis against recurring monthly burn, cash-flow coverage under income shocks, lockup / ELSS exit schedules, and liquidity stress haircut scoring under Master Architectural Standard `C7_5_V1`.
 
-Implementation Status:
-100% COMPLETE 🟢 (40/40 acceptance tests pass)
+Architecture Gate:
+LOCKED 🔒 (Zero-Code Gate Active)
+
+Implementation:
+LOCKED 🔒 (Zero-Code Gate Active)
 
 Certified Baseline:
-4f541b6
+578040f
 
 
 ## 4. CERTIFIED & FROZEN BASELINES
@@ -105,7 +108,7 @@ Certified & Frozen contracts (100% Locked 🔒):
 - `services/riskTaxonomy.js` 🔒 (100% Certified C.7.1 at `d80af93`)
 - `services/concentrationEngine.js` 🔒 (100% Certified C.7.2 at `c29629d`)
 - `services/volatilityDrawdownEngine.js` 🔒 (100% Certified C.7.3 at `4f541b6`)
-- `services/correlationEngine.js` 🟢 (Newly Implemented C.7.4 Service)
+- `services/correlationEngine.js` 🔒 (100% Certified C.7.4 at `578040f`)
 
 
 ## 5. ACCEPTANCE STATUS
@@ -149,17 +152,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.4 Implementation Complete.
-- Zero-Code Gate remains ACTIVE for Stage C.7.5+.
+- Stage C.7.4 is Master Certified at `578040f`.
+- Zero-Code Gate is ACTIVE for Stage C.7.5+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed C.7.4 implementation (`services/correlationEngine.js`) and 40-scenario acceptance test suite (`tests/test_c74.mjs`). Submitted for Stage C.7.4 Certification Review.
+Awaiting instructions to author Stage C.7.5 Architecture Plan (`docs/C7_5_ARCHITECTURE_PLAN.md`).
 
 Architect:
-Perform Stage C.7.4 Certification Review.
+Issue Stage C.7.5 Architecture Directives.
 
 
 ## 8. CERTIFICATION RECORD
@@ -171,7 +174,8 @@ Perform Stage C.7.4 Certification Review.
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
-- **Stage C.7.4**: 🟢 IMPLEMENTATION COMPLETE (`40/40 PASS`)
+- **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
+- **Stage C.7.5**: ⚪ PLANNED (Gate Locked 🔒)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.5+)
 
 
