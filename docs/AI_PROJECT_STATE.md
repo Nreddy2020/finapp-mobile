@@ -39,7 +39,7 @@ Current Stage:
 C.6.3_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.6.3_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
+C.6.3_ARCHITECTURE_AMENDED_PENDING_GATE_AUTHORIZATION
 
 
 ## 2. MASTER ROADMAP
@@ -59,7 +59,7 @@ C.6.3_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
 | **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟡 IN PROGRESS |
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
-| ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟡 ARCHITECTURE IN REVIEW |
+| ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟡 ARCHITECTURE AMENDED |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | ⏳ PENDING |
 
 
@@ -69,10 +69,10 @@ Stage:
 C.6.3
 
 Objective:
-Tax-Efficient Rebalancing Optimizer with Open Tax Lot Adapter, Loss Harvesting, and LTCG/STCG Prioritization
+Tax-Efficient Rebalancing Optimizer (Blockers C6.3-01 through C6.3-05 Resolved)
 
 Architecture:
-SUBMITTED_FOR_GATE_REVIEW (`docs/C6_3_ARCHITECTURE_PLAN.md`)
+AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_3_ARCHITECTURE_PLAN.md`)
 
 Implementation:
 LOCKED 🔒
@@ -136,16 +136,21 @@ PASS (emulator-5554 operational) 🟢
 
 ## 6. BLOCKERS LOG
 
-All prior blockers and hardening items through Stage C.6.2 are 100% resolved and certified.
+- Stage C.6.3 Hardening Items:
+  - C6.3-01 (Deterministic Tax-Minimization Lot Selector): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-02 (Authoritative TaxPolicy, Exemption & Set-off Rules): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-03 (Asset-Specific Loss Harvesting Eligibility): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-04 (Exact Sell-Notional Reconciliation Invariant): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-05 (Deterministic OpenTaxLot Accounting Invariants): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Stand by under Zero-Code Gate. Await Architect review of `docs/C6_3_ARCHITECTURE_PLAN.md`.
+Stand by under Zero-Code Gate. Await Architect review of amended `docs/C6_3_ARCHITECTURE_PLAN.md`.
 
 Architect:
-Review Stage C.6.3 architecture plan and issue implementation authorization.
+Review Stage C.6.3 amended architecture plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -155,7 +160,7 @@ Review Stage C.6.3 architecture plan and issue implementation authorization.
 - **Phase C.6 Architecture Gate**: 🟢 APPROVED (`ba0372f`)
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
 - **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
-- **Stage C.6.3**: 🟡 ARCHITECTURE PROPOSED — IMPLEMENTATION LOCKED
+- **Stage C.6.3**: 🟡 ARCHITECTURE AMENDED — IMPLEMENTATION LOCKED
 - **Zero-Code Gate**: ACTIVE 🔒 (for C.6.3+)
 
 
