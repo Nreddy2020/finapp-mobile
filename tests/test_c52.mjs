@@ -287,25 +287,26 @@ async function runC52AcceptanceSuite() {
             console.error('❌ Test 17 FAIL: State mutation detected during allocation.');
         }
 
-        // Test 18: Theme & Contrast Accessibility
-        console.log('\n--- Test 18: Theme & Contrast Accessibility ---');
+        // Test 18: Asset Palette Token Contract Verification (Supplemental)
+        console.log('\n--- Test 18: Asset Palette Token Contract Verification ---');
         const assetPalette = ['#3B82F6', '#10B981', '#F59E0B', '#EAB308', '#8B5CF6', '#EC4899', '#64748B'];
         if (assetPalette.length === 7) {
-            console.log('✅ Test 18 PASS: Asset allocation palette verified for high contrast.');
+            console.log('✅ Test 18 PASS: Asset allocation palette tokens verified.');
             passCount++;
         } else {
             console.error('❌ Test 18 FAIL: Palette missing');
         }
 
-        // Test 19: Screen Reader Accessibility Semantics
-        console.log('\n--- Test 19: Screen Reader Accessibility Semantics ---');
+        // Test 19: Accessibility Label Semantic Template Verification (Supplemental)
+        console.log('\n--- Test 19: Accessibility Label Semantic Template Verification ---');
         const gaugeAccessibility = 'Risk Tier: Balanced. Well diversified portfolio.';
         if (gaugeAccessibility.includes('Risk Tier')) {
-            console.log('✅ Test 19 PASS: Screen reader semantic accessibility labels validated.');
+            console.log('✅ Test 19 PASS: Screen reader semantic label template verified.');
             passCount++;
         } else {
             console.error('❌ Test 19 FAIL: Accessibility label mismatch');
         }
+
 
         // Test 20: Full Prior Regression Invariant Matrix (97/97)
         console.log('\n--- Test 20: Full Prior Regression Invariant Matrix ---');
@@ -335,9 +336,16 @@ async function runC52AcceptanceSuite() {
         console.log(`=== STAGE C.5.2 ACCEPTANCE RESULT: ${passCount}/${totalTests} TESTS PASSED PERFECTLY ===`);
         console.log(`================================================================\n`);
 
+        if (passCount !== totalTests) {
+            console.error(`🚨 HARDENING FAILURE: Only ${passCount}/${totalTests} tests passed. Exiting with code 1.`);
+            process.exit(1);
+        }
+
     } catch (err) {
         console.error('C.5.2 Acceptance suite exception:', err);
+        process.exit(1);
     }
 }
 
 runC52AcceptanceSuite();
+

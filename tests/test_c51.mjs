@@ -347,9 +347,16 @@ async function runC51AcceptanceSuite() {
         console.log(`=== STAGE C.5.1 ACCEPTANCE RESULT: ${passCount}/${totalTests} TESTS PASSED PERFECTLY ===`);
         console.log(`================================================================\n`);
 
+        if (passCount !== totalTests) {
+            console.error(`🚨 HARDENING FAILURE: Only ${passCount}/${totalTests} tests passed. Exiting with code 1.`);
+            process.exit(1);
+        }
+
     } catch (err) {
         console.error('C.5.1 Acceptance suite exception:', err);
+        process.exit(1);
     }
 }
 
 runC51AcceptanceSuite();
+

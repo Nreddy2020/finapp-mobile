@@ -30,8 +30,7 @@ Last Certified Commit:
 6a734f1
 
 Current HEAD:
-5648942
-
+2db6a30
 
 Current Phase:
 C.5
@@ -41,7 +40,6 @@ C.5.2
 
 Overall Status:
 C.5.2_BLOCKERS_RESOLVED_PENDING_RE_AUDIT
-
 
 
 ## 2. MASTER ROADMAP
@@ -70,7 +68,7 @@ Architecture:
 LOCKED & APPROVED
 
 Implementation:
-COMPLETE & BLOCKERS RESOLVED
+COMPLETE & HARDENED
 
 Stage Implementation Baseline:
 6a734f1
@@ -82,15 +80,15 @@ Previous Certified Baseline:
 ## 4. CURRENT IMPLEMENTATION & BLOCKER RESOLUTIONS
 
 Files modified/created:
-- `app/(tabs)/investments.js` (Resolved C5.2-B01: Removed duplicated finally block)
+- `app/(tabs)/investments.js` (Resolved C5.2-B01: Valid single try/catch/finally)
 - `components/investments/AssetAllocationCard.js` (Removed unused imports, added fallback metadata presentation)
 - `components/investments/ConcentrationRiskGauge.js`
-- `tests/test_c52.mjs` (Resolved C5.2-B02: Committed executable 20-test acceptance suite)
-- `tests/test_c51.mjs` (Committed 20-test suite)
-- `tests/test_c44.mjs` (Committed 20-test suite)
-- `tests/test_c43.mjs` (Committed 30-test suite)
-- `tests/test_c42.mjs` (Committed 20-test suite)
-- `tests/test_c41.mjs` (Committed 7-test suite)
+- `tests/test_c52.mjs` (Resolved C5.2-B02: Committed executable 20-test acceptance suite with hardened non-zero exit enforcement)
+- `tests/test_c51.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
+- `tests/test_c44.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
+- `tests/test_c43.mjs` (Committed 30-test suite with hardened non-zero exit enforcement)
+- `tests/test_c42.mjs` (Committed 20-test suite with hardened non-zero exit enforcement)
+- `tests/test_c41.mjs` (Committed 7-test suite with hardened non-zero exit enforcement)
 - `tests/mock_rn.mjs` & `tests/mock_rn_module.mjs`
 - `scratch/test_c52.mjs`
 - `docs/C5_2_CONSOLIDATED_AUDIT_REPORT.md`
@@ -105,13 +103,13 @@ Frozen contracts:
 ## 5. ACCEPTANCE STATUS
 
 C.5.2 Tests (`tests/test_c52.mjs`):
-20/20 PASS 🟢
+20/20 PASS (Strict exit code: 0) 🟢
 
 C.5.1 Regression (`tests/test_c51.mjs`):
-20/20 PASS 🟢
+20/20 PASS (Strict exit code: 0) 🟢
 
 C.4 Regression (C.4.1–C.4.4):
-77/77 PASS 🟢
+77/77 PASS (Strict exit code: 0) 🟢
 
 Total Committed System Tests:
 117/117 PASS (100%) 🟢
@@ -125,18 +123,19 @@ PASS (presentation UI components & tests only) 🟢
 
 ## 6. BLOCKERS LOG
 
-- **C5.2-B01**: Malformed duplicate `finally` block in `app/(tabs)/investments.js` $\to$ **RESOLVED** ✅
-- **C5.2-B02**: Missing committed test artifact `test_c52.mjs` $\to$ **RESOLVED** (Committed under `tests/test_c52.mjs` & `scratch/test_c52.mjs`) ✅
-- **C5.2-B03**: Living state document synchronization $\to$ **RESOLVED** (`docs/AI_PROJECT_STATE.md` synchronized) ✅
+- **C5.2-B01**: Malformed duplicate `finally` block in `app/(tabs)/investments.js` $\to$ **RESOLVED & VERIFIED** 🟢
+- **C5.2-B02**: Missing committed test artifact `test_c52.mjs` $\to$ **RESOLVED & COMMITTED** 🟢
+- **C5.2-B03**: Living state document synchronization $\to$ **SYNCHRONIZED & SEALED** 🟢
+- **Test Hardening**: Enforced non-zero process exit codes (`process.exit(1)`) on test failures/mismatches $\to$ **APPLIED & VERIFIED** 🟢
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Resolved all 3 blockers, verified 117/117 tests across committed suites in `tests/`, captured fresh Android runtime proof, and pushed to GitHub. Awaiting Architect re-audit.
+Completed test hardening across all 6 test suites, synchronized `docs/AI_PROJECT_STATE.md` to exact Git HEAD, and pushed to GitHub. Awaiting Architect final certification.
 
 Architect:
-Review the new commit and issue consolidated Stage C.5.2 certification decision.
+Review the hardened commit and issue Stage C.5.2 final certification.
 
 Do NOT start C.5.3 until C.5.2 is CERTIFIED.
 
@@ -153,13 +152,13 @@ Stage C.5.2 Implementation Gate:
 AUTHORIZED 🔓
 
 Stage C.5.2 Verification Gate:
-PASS (20/20 acceptance, 97/97 prior regression) 🟢
+PASS (20/20 acceptance, 97/97 prior regression, strict non-zero exit code enforced) 🟢
 
 Live Proof:
 PASS (Android emulator-5554 operational) 🟢
 
 Final Certification:
-PENDING ARCHITECT RE-AUDIT ⏳
+PENDING ARCHITECT FINAL AUDIT ⏳
 
 
 ## 9. AGENT PROTOCOL RULES

@@ -373,9 +373,16 @@ async function runConsolidatedSuite() {
         console.log(`=== CONSOLIDATED ACCEPTANCE RESULT: ${passCount}/${totalTests} TESTS PASSED PERFECTLY ===`);
         console.log(`================================================================\n`);
 
+        if (passCount !== totalTests) {
+            console.error(`🚨 HARDENING FAILURE: Only ${passCount}/${totalTests} tests passed. Exiting with code 1.`);
+            process.exit(1);
+        }
+
     } catch (err) {
         console.error('Consolidated test exception:', err);
+        process.exit(1);
     }
 }
 
 runConsolidatedSuite();
+
