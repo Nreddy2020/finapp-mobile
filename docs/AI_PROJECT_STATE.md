@@ -36,10 +36,10 @@ Current Phase:
 C.7
 
 Current Stage:
-C.7.2_ARCHITECTURE_PLANNING
+C.7.2
 
 Overall Status:
-C.7.2_ARCHITECTURE_HARDENED_PENDING_GATE_DECISION
+C.7.2_IMPLEMENTED_PENDING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -63,7 +63,7 @@ C.7.2_ARCHITECTURE_HARDENED_PENDING_GATE_DECISION
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
-| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 ARCHITECTURE HARDENED (IN REVIEW) |
+| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 IMPLEMENTED — IN REVIEW |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
@@ -75,22 +75,32 @@ C.7.2_ARCHITECTURE_HARDENED_PENDING_GATE_DECISION
 ## 3. CURRENT STAGE
 
 Stage:
-C.7.2 (Architecture Planning: Concentration & Diversification Diagnostics)
+C.7.2
 
 Objective:
-Author and harden the Stage C.7.2 Master Architecture Plan (`docs/C7_2_ARCHITECTURE_PLAN.md`) resolving items C7.2-01 to C7.2-07 (Dedicated ConcentrationRiskTier enum, authoritative equity exposure source, valuation invariants, deterministic tie-breaking, data-quality propagation, numeric precision policy, and versioned C7_2_V1 policy).
+Concentration & Diversification Diagnostics Engine (`services/concentrationEngine.js`), Dual-Level HHI, Top-k Concentration Ratios, Inverse Simpson Index ($N_{\text{eff}}$), Shannon Entropy, Diversification Ratio, Policy Warnings, and 28-Point Automated Acceptance Suite (`tests/test_c72.mjs`).
 
-Architecture Gate:
-UNDER ARCHITECT REVIEW 🟡
+Architecture:
+APPROVED & HARDENED
 
 Implementation:
-LOCKED (Zero-Code Gate Active 🔒)
+COMPLETED & AUDITED
 
-Certified Baseline:
+Stage Baseline:
+d80af93
+
+Previous Certified Baseline:
 d80af93
 
 
-## 4. CERTIFIED & FROZEN BASELINES
+## 4. CURRENT IMPLEMENTATION
+
+Files modified/created:
+- `services/concentrationEngine.js` (NEW — Concentration & Diversification Diagnostics Engine)
+- `tests/test_c72.mjs` (NEW — 28-point automated acceptance suite with AST source verification)
+- `docs/C7_2_ARCHITECTURE_PLAN.md` (NEW)
+- `docs/C7_2_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
+- `docs/AI_PROJECT_STATE.md` (MODIFIED)
 
 Certified & Frozen contracts (100% Locked 🔒):
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
@@ -109,6 +119,9 @@ Certified & Frozen contracts (100% Locked 🔒):
 
 
 ## 5. ACCEPTANCE STATUS
+
+Stage C.7.2 Acceptance (`tests/test_c72.mjs`):
+28/28 PASS (Strict exit 0) 🟢
 
 Stage C.7.1 Acceptance (`tests/test_c71.mjs`):
 21/21 PASS (Strict exit 0) 🟢
@@ -132,7 +145,7 @@ Phase C.4 Regression (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
 Total Certified System Tests:
-275/275 PASS (100%, Strict exit 0) 🟢
+303/303 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -140,17 +153,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- All Stage C.7.2 architecture review items (C7.2-01 to C7.2-07) are hardened in `docs/C7_2_ARCHITECTURE_PLAN.md`.
-- Zero-Code Gate is ACTIVE for Stage C.7.2 implementation. No implementation files created.
+- All Stage C.7.2 architectural requirements (C7.2-01 to C7.2-07) are 100% satisfied.
+- Zero-Code Gate is ACTIVE for Stage C.7.3+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed hardening of `docs/C7_2_ARCHITECTURE_PLAN.md`. Pushed to GitHub. Awaiting Architect Stage C.7.2 implementation authorization.
+Completed implementation and 303/303 test verification of Stage C.7.2. Pushed to GitHub. Awaiting Architect review for Stage C.7.2 Certification.
 
 Architect:
-Review hardened `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Decision.
+Review Stage C.7.2 implementation commit and issue Stage C.7.2 Certification.
 
 
 ## 8. CERTIFICATION RECORD
@@ -160,8 +173,8 @@ Review hardened `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Deci
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
-- **Stage C.7.2**: 🟡 ARCHITECTURE HARDENED (IN REVIEW)
-- **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.2+)
+- **Stage C.7.2**: 🟡 IMPLEMENTED — IN REVIEW
+- **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.3+)
 
 
 ## 9. AGENT PROTOCOL RULES
