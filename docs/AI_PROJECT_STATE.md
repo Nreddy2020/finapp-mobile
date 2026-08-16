@@ -30,7 +30,7 @@ Last Certified Commit:
 578040f
 
 Current HEAD:
-578040f
+PENDING_COMMIT
 
 Current Phase:
 C.7
@@ -39,7 +39,7 @@ Current Stage:
 C.7.5_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.4_CERTIFIED_C.7.5_GATE_LOCKED
+C.7.5_ARCHITECTURE_PROPOSED_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -66,7 +66,7 @@ C.7.4_CERTIFIED_C.7.5_GATE_LOCKED
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
-| ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟡 ARCHITECTURE PROPOSED (IN REVIEW) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED (Gate Locked 🔒) |
@@ -78,13 +78,13 @@ Stage:
 C.7.5 (Liquidity & Cash-Flow Stress Engine)
 
 Objective:
-Author Architecture Plan for Stage C.7.5 covering multi-horizon redemption capacity (T+0, T+2/T+3, T+4/T+7, Locked/Illiquid), emergency fund runway buffer analysis against recurring monthly burn, cash-flow coverage under income shocks, lockup / ELSS exit schedules, and liquidity stress haircut scoring under Master Architectural Standard `C7_5_V1`.
+Author Architecture Plan in `docs/C7_5_ARCHITECTURE_PLAN.md` covering 4-tier liquidity horizon decomposition (T0, T2_T3, T4_T7, LOCKED_ILLIQUID, UNKNOWN), precedence resolution contract, liquidity haircut modeling (No Haircut, Moderate, Severe), recurring cash-flow & emergency runway modeling against essential survival burn, 4-scenario deterministic stress matrix (Base, Income Shock, Portfolio Haircut, Combined Severe Stress), lockup / ELSS / maturity schedule breakdown, bottleneck diagnostics, composite liquidity stress score (0-100) and tiers (HEALTHY, WATCH, STRESSED, CRITICAL), versioned policy `C7_5_V1`, and 42-scenario acceptance matrix.
 
 Architecture Gate:
-LOCKED 🔒 (Zero-Code Gate Active)
+PROPOSED — PENDING GATE REVIEW (Zero-Code Gate Active 🔒)
 
 Implementation:
-LOCKED 🔒 (Zero-Code Gate Active)
+LOCKED (Zero-Code Gate Active 🔒)
 
 Certified Baseline:
 578040f
@@ -153,16 +153,16 @@ PASS (5-store deep snapshot verified) 🟢
 ## 6. BLOCKERS LOG
 
 - Stage C.7.4 is Master Certified at `578040f`.
-- Zero-Code Gate is ACTIVE for Stage C.7.5+.
+- Zero-Code Gate is ACTIVE for Stage C.7.5.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Awaiting instructions to author Stage C.7.5 Architecture Plan (`docs/C7_5_ARCHITECTURE_PLAN.md`).
+Authored Stage C.7.5 Architecture Plan (`docs/C7_5_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's review and implementation gate authorization before creating `services/liquidityStressEngine.js` and `tests/test_c75.mjs`.
 
 Architect:
-Issue Stage C.7.5 Architecture Directives.
+Review Stage C.7.5 Architecture Plan and issue gate decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -175,7 +175,7 @@ Issue Stage C.7.5 Architecture Directives.
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
 - **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
-- **Stage C.7.5**: ⚪ PLANNED (Gate Locked 🔒)
+- **Stage C.7.5**: 🟡 ARCHITECTURE PROPOSED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.5+)
 
 
