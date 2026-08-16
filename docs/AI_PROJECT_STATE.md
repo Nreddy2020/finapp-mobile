@@ -36,10 +36,10 @@ Current Phase:
 C.7
 
 Current Stage:
-C.7_ARCHITECTURE_PLANNING
+C.7.1
 
 Overall Status:
-C.7_ARCHITECTURE_PLAN_HARDENED_PENDING_GATE_REVIEW
+C.7.1_IMPLEMENTED_PENDING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -61,8 +61,8 @@ C.7_ARCHITECTURE_PLAN_HARDENED_PENDING_GATE_REVIEW
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
-| **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 ARCHITECTURE PLANNING (HARDENED) |
-| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 ARCHITECTURE HARDENED |
+| **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
+| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 IMPLEMENTED — IN REVIEW |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | ⚪ PLANNED |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
@@ -75,24 +75,34 @@ C.7_ARCHITECTURE_PLAN_HARDENED_PENDING_GATE_REVIEW
 ## 3. CURRENT STAGE
 
 Stage:
-C.7 (Architecture Planning & Scope Hardening)
+C.7.1
 
 Objective:
-Author and harden the Phase C.7 Master Architecture Plan (`docs/C7_ARCHITECTURE_PLAN.md`) resolving items C7-01 through C7-08 (Historical market data contract, VaR/CVaR methodology, 4 canonical stress scenarios, complete 8-class shock vectors, separate liquidity taxonomy, versioned C7_V1 health score policy, DBR edge cases, and confidence metadata).
+Portfolio Risk Foundation & Risk Taxonomy Service (`services/riskTaxonomy.js`), Schema Contracts, Return Series Adapter, and 20-Point Acceptance Test Suite (`tests/test_c71.mjs`).
 
-Architecture Gate:
-UNDER ARCHITECT REVIEW 🟡
+Architecture:
+APPROVED & HARDENED
 
 Implementation:
-LOCKED (Zero-Code Gate Active 🔒)
+COMPLETE & AUDITED
 
-Certified Baseline:
+Stage Baseline:
+5fdfb36
+
+Previous Certified Baseline:
 5fdfb36
 
 
-## 4. CERTIFIED & FROZEN BASELINES
+## 4. CURRENT IMPLEMENTATION
 
-Certified & Frozen contracts (100% Locked 🔒):
+Files modified/created:
+- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, liquidity classifier)
+- `tests/test_c71.mjs` (NEW — 20-point automated acceptance suite)
+- `docs/C7_1_ARCHITECTURE_PLAN.md` (NEW)
+- `docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
+- `docs/AI_PROJECT_STATE.md` (MODIFIED)
+
+Certified & Frozen contracts:
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
 - `services/storage.js` 🔒 (100% Certified)
 - `services/moneyFlowEngine.js` 🔒 (100% Certified)
@@ -109,20 +119,29 @@ Certified & Frozen contracts (100% Locked 🔒):
 
 ## 5. ACCEPTANCE STATUS
 
-Phase C.4 Regression (C.4.1–C.4.4):
-77/77 PASS (Strict exit 0) 🟢
+C.7.1 Acceptance (`tests/test_c71.mjs`):
+20/20 PASS (Strict exit 0) 🟢
+
+C.6.4 Regression (`tests/test_c64.mjs`):
+23/23 PASS (Strict exit 0) 🟢
+
+C.6.3 Regression (`tests/test_c63.mjs`):
+34/34 PASS (Strict exit 0) 🟢
+
+C.6.2 Regression (`tests/test_c62.mjs`):
+20/20 PASS (Strict exit 0) 🟢
+
+C.6.1 Regression (`tests/test_c61.mjs`):
+20/20 PASS (Strict exit 0) 🟢
 
 Phase C.5 Regression (C.5.1–C.5.4):
 80/80 PASS (Strict exit 0) 🟢
 
-Phase C.6 Acceptance (C.6.1–C.6.4):
-97/97 PASS (Strict exit 0) 🟢
+Phase C.4 Regression (C.4.1–C.4.4):
+77/77 PASS (Strict exit 0) 🟢
 
-Total Certified System Tests:
-254/254 PASS (100%, Strict exit 0) 🟢
-
-Android Runtime Proof:
-PASS (screen_c64_proof.png committed in repo) 🟢
+Total Committed System Tests:
+274/274 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -130,17 +149,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-All C7-01 to C7-08 architectural items are hardened in `docs/C7_ARCHITECTURE_PLAN.md`.
-Zero-Code Gate is ACTIVE for Phase C.7. No implementation code written.
+All Stage C.7.1 acceptance criteria satisfied.
+Zero-Code Gate is ACTIVE for Stage C.7.2+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed hardening of `docs/C7_ARCHITECTURE_PLAN.md` incorporating all 8 architectural directives. Pushed to GitHub. Awaiting Architect gate decision for Stage C.7.1 authorization.
+Completed implementation and audit of Stage C.7.1 with 274/274 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
 
 Architect:
-Review hardened `docs/C7_ARCHITECTURE_PLAN.md` and issue Stage C.7.1 Gate Decision.
+Review Stage C.7.1 implementation and issue Certification decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -148,11 +167,9 @@ Review hardened `docs/C7_ARCHITECTURE_PLAN.md` and issue Stage C.7.1 Gate Decisi
 - **Phase C.4 Complete**: 🟢 CERTIFIED (`012d0f7`)
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
-- **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
-- **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
-- **Stage C.6.3**: 🟢 CERTIFIED (`82663e5`)
-- **Stage C.6.4**: 🟢 CERTIFIED (`5fdfb36`)
-- **Zero-Code Gate**: ACTIVE 🔒 (for Phase C.7)
+- **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
+- **Stage C.7.1**: 🟡 IMPLEMENTED — IN REVIEW
+- **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.2+)
 
 
 ## 9. AGENT PROTOCOL RULES
