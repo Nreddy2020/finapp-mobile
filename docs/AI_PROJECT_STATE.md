@@ -24,22 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-5fdfb36
+d80af93
 
 Last Certified Commit:
-5fdfb36
+d80af93
 
 Current HEAD:
-PENDING_COMMIT
+d80af93
 
 Current Phase:
 C.7
 
 Current Stage:
-C.7.1
+C.7.2_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.1_REMEDIATED_PENDING_CERTIFICATION
+C.7.1_CERTIFIED_PENDING_C7_2_ARCHITECTURE_GATE
 
 
 ## 2. MASTER ROADMAP
@@ -62,8 +62,8 @@ C.7.1_REMEDIATED_PENDING_CERTIFICATION
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
-| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 REMEDIATED — IN REVIEW |
-| ↳ C.7.2 | Concentration & Diversification Diagnostics | ⚪ PLANNED |
+| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
+| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 ARCHITECTURE PLANNING |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
@@ -75,34 +75,24 @@ C.7.1_REMEDIATED_PENDING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-C.7.1
+C.7.2 (Architecture Planning: Concentration & Diversification Diagnostics)
 
 Objective:
-Portfolio Risk Foundation & Risk Taxonomy Service (`services/riskTaxonomy.js`), Schema Contracts, Return Series Adapter, and 21-Point Acceptance Test Suite (`tests/test_c71.mjs`).
+Author Stage C.7.2 Master Architecture Plan (`docs/C7_2_ARCHITECTURE_PLAN.md`) detailing mathematical formulation for Decomposed HHI (Asset-class vs Individual holding), Top-k Concentration Ratios ($Top_1, Top_3, Top_5$), Effective Constituents ($N_{\text{eff}}$), Shannon Entropy Diversification Index, and Single-Holding Warning Limits.
 
-Architecture:
-APPROVED & HARDENED
+Architecture Gate:
+ACTIVE (Architecture Planning Mode)
 
 Implementation:
-REMEDIATED & AUDITED (Blockers C7.1-01 and C7.1-02 resolved with mandatory asOfDate, AST source scan, and time-travel proof)
+LOCKED (Zero-Code Gate Active 🔒)
 
-Stage Baseline:
-5fdfb36
-
-Previous Certified Baseline:
-5fdfb36
+Certified Baseline:
+d80af93
 
 
-## 4. CURRENT IMPLEMENTATION
+## 4. CERTIFIED & FROZEN BASELINES
 
-Files modified/created:
-- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, mandatory deterministic evaluation)
-- `tests/test_c71.mjs` (NEW — 21-point automated acceptance suite with AST source verification)
-- `docs/C7_1_ARCHITECTURE_PLAN.md` (NEW)
-- `docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
-- `docs/AI_PROJECT_STATE.md` (MODIFIED)
-
-Certified & Frozen contracts:
+Certified & Frozen contracts (100% Locked 🔒):
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
 - `services/storage.js` 🔒 (100% Certified)
 - `services/moneyFlowEngine.js` 🔒 (100% Certified)
@@ -115,23 +105,24 @@ Certified & Frozen contracts:
 - `components/investments/rebalancingPresentationAdapter.js` 🔒 (100% Certified C.6.4)
 - `components/investments/RebalancingVisualizerCard.js` 🔒 (100% Certified C.6.4)
 - `components/investments/OrderPreviewModal.js` 🔒 (100% Certified C.6.4)
+- `services/riskTaxonomy.js` 🔒 (100% Certified C.7.1 at `d80af93`)
 
 
 ## 5. ACCEPTANCE STATUS
 
-C.7.1 Acceptance (`tests/test_c71.mjs`):
+Stage C.7.1 Acceptance (`tests/test_c71.mjs`):
 21/21 PASS (Strict exit 0) 🟢
 
-C.6.4 Regression (`tests/test_c64.mjs`):
+Stage C.6.4 Acceptance (`tests/test_c64.mjs`):
 23/23 PASS (Strict exit 0) 🟢
 
-C.6.3 Regression (`tests/test_c63.mjs`):
+Stage C.6.3 Regression (`tests/test_c63.mjs`):
 34/34 PASS (Strict exit 0) 🟢
 
-C.6.2 Regression (`tests/test_c62.mjs`):
+Stage C.6.2 Regression (`tests/test_c62.mjs`):
 20/20 PASS (Strict exit 0) 🟢
 
-C.6.1 Regression (`tests/test_c61.mjs`):
+Stage C.6.1 Regression (`tests/test_c61.mjs`):
 20/20 PASS (Strict exit 0) 🟢
 
 Phase C.5 Regression (C.5.1–C.5.4):
@@ -140,7 +131,7 @@ Phase C.5 Regression (C.5.1–C.5.4):
 Phase C.4 Regression (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
-Total Committed System Tests:
+Total Certified System Tests:
 275/275 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
@@ -149,19 +140,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- All Stage C.7.1 blockers are 100% resolved:
-  - C7.1-01 / C7.1-02 (Mandatory Deterministic asOfDate Context): 🟢 RESOLVED (Eliminated all Date.now() and argument-less new Date() calls; verified via AST source scan in Test 18)
-  - Canonical Stress Scenarios Assertion: 🟢 RESOLVED (Exact 4 canonical IDs asserted in Test 6)
-- Zero-Code Gate is ACTIVE for Stage C.7.2+.
+- Stage C.7.1 is 100% Certified.
+- Zero-Code Gate is ACTIVE for Stage C.7.2.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed remediation of Stage C.7.1 with mandatory deterministic asOfDate and 275/275 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
+Author `docs/C7_2_ARCHITECTURE_PLAN.md` defining mathematical foundations, contracts, and acceptance criteria for Stage C.7.2 (Concentration & Diversification Diagnostics Engine).
 
 Architect:
-Review Stage C.7.1 remediation commit and issue Stage C.7.1 Certification.
+Review `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -170,7 +159,8 @@ Review Stage C.7.1 remediation commit and issue Stage C.7.1 Certification.
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
-- **Stage C.7.1**: 🟡 REMEDIATED — IN REVIEW
+- **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
+- **Stage C.7.2**: 🟡 ARCHITECTURE PLANNING (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.2+)
 
 
