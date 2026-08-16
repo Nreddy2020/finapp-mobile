@@ -17,6 +17,9 @@ import PortfolioHeader from '../../components/investments/PortfolioHeader';
 import AssetAllocationCard from '../../components/investments/AssetAllocationCard';
 import PerformanceGrowthTimelineCard from '../../components/investments/PerformanceGrowthTimelineCard';
 import MasterStatementCard from '../../components/investments/MasterStatementCard';
+import RebalancingVisualizerCard from '../../components/investments/RebalancingVisualizerCard';
+import OrderPreviewModal from '../../components/investments/OrderPreviewModal';
+import TaxOptimizedRebalancingService from '../../services/taxOptimizedRebalancingService';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -37,6 +40,8 @@ export default function InvestmentsScreen() {
     const [selectedPeriod, setSelectedPeriod] = useState('ALL_TIME');
     const [portfolioStatement, setPortfolioStatement] = useState(null);
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
+    const [orderModalVisible, setOrderModalVisible] = useState(false);
+    const [rebalancingSummary, setRebalancingSummary] = useState(null);
     const requestIdRef = useRef(0);
 
     // Modal State
@@ -420,6 +425,26 @@ export default function InvestmentsScreen() {
                         loading={loading}
                     />
 
+                    {/* Stage C.6.4 Rebalancing Visualizer & Decision Support Card */}
+                    <RebalancingVisualizerCard
+                        portfolioId={selectedPortfolioId}
+                        asOfDate={new Date()}
+                        availableLiquidity={0}
+                        onOpenOrderPreview={async () => {
+                            try {
+                                const summary = await TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing({
+                                    portfolioId: selectedPortfolioId,
+                                    asOfDate: new Date(),
+                                    availableLiquidity: 0
+                                });
+                                setRebalancingSummary(summary);
+                                setOrderModalVisible(true);
+                            } catch (e) {
+                                setOrderModalVisible(true);
+                            }
+                        }}
+                    />
+
                     {/* Stage C.5.4 Master Statement & Tax Report View / Export Engine */}
                     <MasterStatementCard
                         statement={portfolioStatement}
@@ -431,6 +456,14 @@ export default function InvestmentsScreen() {
                         loading={loading}
                     />
                 </View>
+
+                {/* Stage C.6.4 Order Preview Modal */}
+                <OrderPreviewModal
+                    visible={orderModalVisible}
+                    onClose={() => setOrderModalVisible(false)}
+                    rebalancingSummary={rebalancingSummary}
+                    onRefreshQuotes={onRefresh}
+                />
 
 
 
