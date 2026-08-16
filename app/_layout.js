@@ -1,7 +1,7 @@
-import { Stack } from "expo-router";
-import { View, StyleSheet, LogBox } from "react-native";
+import { Stack, SplashScreen } from "expo-router";
+import { View, StyleSheet } from "react-native";
+import { useEffect } from "react";
 
-LogBox.ignoreAllLogs(true);
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AccessibilityProvider } from "../components/context/AccessibilityContext";
@@ -17,6 +17,10 @@ import { AuthProvider } from "../components/context/AuthContext";
  * so useAuth() is never called outside its provider.
  */
 export default function RootLayout() {
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AuthProvider>

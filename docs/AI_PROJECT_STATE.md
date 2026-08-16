@@ -39,7 +39,7 @@ Current Stage:
 C.7.3_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.3_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
+C.7.3_ARCHITECTURE_FINAL_CLARIFICATIONS_COMPLETE_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -64,7 +64,7 @@ C.7.3_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
-| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟡 ARCHITECTURE REMEDIATED (IN REVIEW) |
+| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟡 FINAL CLARIFICATIONS COMPLETE (IN REVIEW) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED |
@@ -78,10 +78,10 @@ Stage:
 C.7.3 (Architecture Planning: Volatility, Drawdown & Downside Risk Engine)
 
 Objective:
-Remediate Stage C.7.3 Master Architecture Plan (`docs/C7_3_ARCHITECTURE_PLAN.md`) resolving items C7.3-R1 to C7.3-R5 (True historical subperiod TWR vs explicitly labeled fixed-weight synthetic fallback, 252-observation contract for historical VaR/CVaR, correct multi-day parametric VaR/CVaR scaling, deterministic discrete empirical percentile convention, deterministic peak/trough/recovery tie-breaking, and 34-point acceptance matrix).
+Lock final contract clarifications C7.3-F1 (authoritative TWR cash-flow timing, beginning-of-period denominator base, boundary timestamp ownership, same-day deterministic ordering, zero denominator safety, negative denominator degradation) and C7.3-F2 (authoritative calendar-day to period horizon conversion across DAILY, WEEKLY, and MONTHLY return series, consistent multi-day parametric and historical VaR/CVaR scaling, and 40-scenario acceptance matrix).
 
 Architecture Gate:
-ACTIVE (Architecture Remediated — Zero-Code Gate Active 🔒)
+READY FOR FINAL IMPLEMENTATION AUTHORIZATION (Zero-Code Gate Active 🔒)
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -151,10 +151,10 @@ PASS (5-store deep snapshot verified) 🟢
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed remediation of `docs/C7_3_ARCHITECTURE_PLAN.md` resolving C7.3-R1 through C7.3-R5. Pushed to GitHub. Awaiting Architect review and Stage C.7.3 implementation authorization.
+Completed C7.3-F1 and C7.3-F2 clarifications in `docs/C7_3_ARCHITECTURE_PLAN.md`. Pushed to GitHub. Awaiting Architect's final implementation authorization before creating `services/volatilityDrawdownEngine.js` and `tests/test_c73.mjs`.
 
 Architect:
-Review remediated `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate Decision.
+Review finalized `docs/C7_3_ARCHITECTURE_PLAN.md` and issue final Stage C.7.3 Implementation Authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -165,7 +165,7 @@ Review remediated `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate De
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
-- **Stage C.7.3**: 🟡 ARCHITECTURE REMEDIATED (IN REVIEW)
+- **Stage C.7.3**: 🟡 FINAL CLARIFICATIONS COMPLETE (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.3+)
 
 
