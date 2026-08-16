@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, ScrollView, Text, StyleSheet, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
-import { TrendingUp, TrendingDown, PieChart, DollarSign, Activity, Globe, ArrowUpRight, ArrowDownLeft, Wallet, Briefcase, Bitcoin, BrainCircuit, AlertTriangle, Zap, X, Save } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, PieChart, DollarSign, Activity, Globe, ArrowUpRight, ArrowDownLeft, Wallet, Briefcase, Bitcoin, BrainCircuit, AlertTriangle, Zap, X, Save, Layers } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import LuxuryCard from '../../components/ui/LuxuryCard';
 import StackHeader from '../../components/ui/StackHeader';
 import { COLORS } from '../../constants/theme';
 import { getLoans, getMetalPrices } from '../../services/api';
-import { loadData, saveData, STORAGE_KEYS } from '../../services/storage';
+import { loadData, saveData, STORAGE_KEYS, loadHoldings, loadInvestmentEvents, loadMarketQuotes } from '../../services/storage';
 import { InvestmentsService } from '../../services/investments';
+import InvestingAnalyticsEngine from '../../services/investingAnalyticsEngine';
+import MarketDataService from '../../services/marketDataService';
 import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
+import PortfolioOverviewCard from '../../components/investments/PortfolioOverviewCard';
+import PortfolioHeader from '../../components/investments/PortfolioHeader';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -19,6 +23,13 @@ export default function InvestmentsScreen() {
     const [refreshing, setRefreshing] = useState(false);
     const [isCrisisMode, setIsCrisisMode] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // Stage C.5.1 Portfolio Analytics State
+    const [selectedPortfolioId, setSelectedPortfolioId] = useState(null); // null = ALL_PORTFOLIOS
+    const [availablePortfolios, setAvailablePortfolios] = useState([]);
+    const [portfolioSummary, setPortfolioSummary] = useState(null);
+    const [lastRefreshTime, setLastRefreshTime] = useState(null);
+    const requestIdRef = useRef(0);
 
     // Modal State
     const [modalVisible, setModalVisible] = useState(false);
@@ -37,37 +48,69 @@ export default function InvestmentsScreen() {
     // Holdings
     const [holdings, setHoldings] = useState([]);
 
-    const fetchData = async () => {
+    const fetchData = async (targetPortfolioId = selectedPortfolioId) => {
+        const currentReqId = ++requestIdRef.current;
         try {
-            // Load Holdings
+            // 1. Discover unique portfolios from holdings & events
+            const allHoldings = await loadHoldings();
+            const allEvents = await loadInvestmentEvents();
+
+            const pIdSet = new Set();
+            allHoldings.forEach(h => { if (h.portfolioId) pIdSet.add(h.portfolioId); });
+            allEvents.forEach(e => { if (e.portfolioId) pIdSet.add(e.portfolioId); });
+
+            const discoveredPortfolios = Array.from(pIdSet).map(id => ({
+                id,
+                name: id === 'default' ? 'Main Account' : (id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '))
+            }));
+
+            // 2. Compute C.4.1 Portfolio Summary
+            const summary = await InvestingAnalyticsEngine.getPortfolioSummary({
+                portfolioId: targetPortfolioId
+            });
+
+            // 3. Sourced Quote Timestamps
+            const cachedQuotes = await loadMarketQuotes();
+            let latestQuoteTime = null;
+            if (cachedQuotes && cachedQuotes.length > 0) {
+                const timestamps = cachedQuotes.map(q => new Date(q.timestamp).getTime()).filter(t => !isNaN(t));
+                if (timestamps.length > 0) {
+                    latestQuoteTime = Math.max(...timestamps);
+                }
+            }
+
+            // Load legacy holdings for bottom list view
             const currentHoldings = await InvestmentsService.getInvestments();
+
+            // Guard against race conditions: discard out-of-order async responses
+            if (currentReqId !== requestIdRef.current) {
+                return;
+            }
+
+            setAvailablePortfolios(discoveredPortfolios);
+            setPortfolioSummary(summary);
+            setLastRefreshTime(latestQuoteTime);
             setHoldings(currentHoldings);
 
-            // Fetch Loans for Net Worth (Mock/Real mix)
-            // In a real app we'd call the loans service. For now we use the API wrapper or empty
-            // const loans = await getLoans(); 
-            const borrowing = 0; // loans.reduce...
-            const lending = 0;
-
-            // Calculate Portfolio Value
-            // For existing items without 'currentPrice', we simulate it being slightly changed from invested
-            const investValue = currentHoldings.reduce((sum, h) => {
-                const price = h.currentValue || h.investedAmount || 0;
-                const numValue = parseFloat(price) || 0;
-                return sum + numValue;
-            }, 0);
-
-            const safeInvestValue = isNaN(investValue) ? 0 : investValue;
-            setPortfolioValue(safeInvestValue);
-            setNetWorth((cashBalance + safeInvestValue + lending) - borrowing);
+            const investValue = summary.totalMarketValue || 0;
+            setPortfolioValue(investValue);
+            setNetWorth((cashBalance + investValue) - 0);
 
         } catch (error) {
-            console.error(error);
+            console.error('[InvestmentsScreen] Error loading portfolio summary:', error);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            if (currentReqId === requestIdRef.current) {
+                setLoading(false);
+                setRefreshing(false);
+            }
         }
     };
+
+    const handleSelectPortfolio = (pId) => {
+        setSelectedPortfolioId(pId);
+        fetchData(pId);
+    };
+
 
     // Keep a ref so we can safely clear the interval on unmount
     const intervalRef = useRef(null);
@@ -256,70 +299,24 @@ export default function InvestmentsScreen() {
                     </LuxuryCard>
                 </View>
 
-                {/* Portfolio Summary */}
+                {/* Stage C.5.1 Executive Portfolio Dashboard */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Your Portfolio</Text>
-                    <LuxuryCard style={styles.portfolioCard}>
-                        <View style={styles.portfolioHeader}>
-                            <View>
-                                <Text style={styles.portfolioLabel}>Current Value</Text>
-                                <Text style={styles.portfolioValue}>₹{portfolioValue.toLocaleString()}</Text>
-                            </View>
-                            <View>
-                                <View style={[styles.pnlBadge, { backgroundColor: '#10B98120', marginBottom: 8 }]}>
-                                    <TrendingUp size={16} color="#10B981" />
-                                    <Text style={{ color: '#10B981', fontWeight: '700' }}>+12.5%</Text>
-                                </View>
-                            </View>
-                        </View>
+                    <PortfolioHeader
+                        selectedPortfolioId={selectedPortfolioId}
+                        availablePortfolios={availablePortfolios}
+                        onSelectPortfolio={handleSelectPortfolio}
+                        lastRefreshTime={lastRefreshTime}
+                    />
 
-                        {/* Real Returns (After Inflation) */}
-                        <View style={{ backgroundColor: '#F59E0B10', padding: 12, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#F59E0B30' }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <View>
-                                    <Text style={{ fontSize: 11, color: '#A1A1AA', fontWeight: '600', marginBottom: 4 }}>Real Returns (After Inflation)</Text>
-                                    <Text style={{ fontSize: 18, color: '#10B981', fontWeight: '800' }}>+{(12.5 - inflationRate).toFixed(1)}%</Text>
-                                </View>
-                                <View style={{ backgroundColor: '#10B98120', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                                    <Text style={{ fontSize: 11, color: '#10B981', fontWeight: '700' }}>Beating Inflation</Text>
-                                </View>
-                            </View>
-                            <Text style={{ fontSize: 10, color: '#71717A', marginTop: 8 }}>
-                                Your portfolio returns ({12.5.toFixed(1)}%) are outpacing inflation ({inflationRate.toFixed(1)}%), preserving purchasing power.
-                            </Text>
-                        </View>
-
-                        {/* Holdings List */}
-                        <View style={styles.holdingsList}>
-                            {holdings.length === 0 ? (
-                                <Text style={{ color: '#71717A', textAlign: 'center', marginVertical: 20 }}>No Active Holdings</Text>
-                            ) : (
-                                holdings.map((stock, index) => (
-                                    <TouchableOpacity
-                                        key={stock.id || index}
-                                        style={styles.holdingItem}
-                                        onLongPress={() => handleSell(stock.id)}
-                                    >
-                                        <View style={styles.holdingLeft}>
-                                            <View style={[styles.holdingIcon, { backgroundColor: stock.type === 'Crypto' ? '#F59E0B20' : '#3B82F620' }]}>
-                                                {stock.type === 'Crypto' ? <Bitcoin size={20} color="#F59E0B" /> : <Briefcase size={20} color="#3B82F6" />}
-                                            </View>
-                                            <View>
-                                                <Text style={styles.holdingName}>{stock.name}</Text>
-                                                <Text style={styles.holdingQty}>{stock.quantity || stock.qty} {stock.type === 'Crypto' ? 'Coins' : 'Units'}</Text>
-                                            </View>
-                                        </View>
-                                        <View style={styles.holdingRight}>
-                                            <Text style={styles.holdingValue}>₹{(parseFloat(stock.currentValue || stock.investedAmount)).toLocaleString()}</Text>
-                                            {/* Simplified PnL for now since we don't have live price updates for user assets */}
-                                            <Text style={[styles.holdingPnl, { color: '#71717A', fontSize: 10 }]}>Tap & hold to Sell</Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                ))
-                            )}
-                        </View>
-                    </LuxuryCard>
+                    <PortfolioOverviewCard
+                        portfolioSummary={portfolioSummary}
+                        loading={loading}
+                        refreshing={refreshing}
+                        onAddHolding={() => setModalVisible(true)}
+                        onRefresh={onRefresh}
+                    />
                 </View>
+
 
                 {/* Quick Actions */}
                 <View style={styles.section}>
