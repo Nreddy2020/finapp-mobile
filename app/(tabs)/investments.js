@@ -20,6 +20,7 @@ import MasterStatementCard from '../../components/investments/MasterStatementCar
 import RebalancingVisualizerCard from '../../components/investments/RebalancingVisualizerCard';
 import OrderPreviewModal from '../../components/investments/OrderPreviewModal';
 import RiskIntelligenceDashboard from '../../components/investments/RiskIntelligenceDashboard';
+import FinancialCommandCenter from '../../components/investments/FinancialCommandCenter';
 import TaxOptimizedRebalancingService from '../../services/taxOptimizedRebalancingService';
 import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
 import { evaluatePortfolioStressScenarios } from '../../services/scenarioStressEngine';
@@ -505,6 +506,14 @@ export default function InvestmentsScreen() {
                         stressDTO={riskStressDTO}
                         isLoading={loading}
                         onRefresh={onRefresh}
+                    />
+
+                    {/* Stage C.8.8 Goal & Financial Action Command Center */}
+                    <FinancialCommandCenter
+                        healthScoreDTO={riskHealthDTO}
+                        isLoading={loading}
+                        onRefresh={onRefresh}
+                        asOfDate={lastRefreshTime ? lastRefreshTime.toISOString() : '2026-08-16T00:00:00.000Z'}
                     />
                 </View>
 
