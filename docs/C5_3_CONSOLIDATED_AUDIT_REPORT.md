@@ -3,48 +3,35 @@
 **Branch**: `fintech-using-chatgpt`  
 **Certified Baseline Commit**: [`398b99c`](https://github.com/Nreddy2020/finapp-mobile/commit/398b99c)  
 **Modules Implemented**:
-- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Mounts `PerformanceGrowthTimelineCard` and orchestrates read-only snapshot queries)
-- [`components/investments/PerformanceGrowthTimelineCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/PerformanceGrowthTimelineCard.js) (Hero XIRR return, CAGR vs Absolute tag, interactive timeline visualizer, and cash flow reconciliation)
+- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Mounts `PerformanceGrowthTimelineCard` and orchestrates read-only snapshot queries with explicit deduplication)
+- [`components/investments/PerformanceGrowthTimelineCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/PerformanceGrowthTimelineCard.js) (Hero XIRR return, CAGR vs Absolute tag, interactive timeline visualizer with semantic theme tokens, and cash flow reconciliation)
 - [`tests/test_c53.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c53.mjs) (20-point hardened acceptance test suite)  
 **Status**: Ready for Consolidated Certification Audit 🟢
 
 ---
 
-## 1. Executive Summary & File Boundary Compliance
+## 1. Blocker Resolution Log
 
-Stage C.5.3 implements the **Performance & XIRR Growth Timeline Visualizer**, consuming the certified Stage C.4.3 analytics engine in a strictly read-only manner.
+| Blocker ID | Description | Resolution Applied | Verification |
+| :--- | :--- | :--- | :--- |
+| **C5.3-01** | Timeline deduplication was declared but not executed in code | Added explicit sorting and deduplication loops in both `app/(tabs)/investments.js` and `PerformanceGrowthTimelineCard.js` (useMemo defense) | Verified via `tests/test_c53.mjs` Test 11 |
+| **C5.3-02** | Hardcoded visual color literals in presentation component | Replaced all direct color hex literals with strict semantic theme tokens from `COLORS.*` (`COLORS.primary`, `COLORS.success`, `COLORS.error`, `COLORS.warning`, `COLORS.info`, `COLORS.textPrimary`, `COLORS.textSecondary`, `COLORS.textTertiary`, `COLORS.surface`, `COLORS.border`, `COLORS.card`) | Verified in component implementation |
+
+---
+
+## 2. File Boundary Compliance
 
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
 | `app/(tabs)/investments.js` | **[MODIFIED]** | Mounts `PerformanceGrowthTimelineCard` below `AssetAllocationCard` |
 | `components/investments/PerformanceGrowthTimelineCard.js` | **[NEW]** | Presentation card for XIRR, timeline milestones, and cash flow reconciliation |
 | `tests/test_c53.mjs` | **[NEW]** | Committed 20-point hardened automated acceptance suite |
-| `docs/C5_3_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit document on GitHub |
+| `docs/C5_3_CONSOLIDATED_AUDIT_REPORT.md` | **[MODIFIED]** | Master audit document on GitHub |
 | `docs/AI_PROJECT_STATE.md` | **[MODIFIED]** | Single living synchronization state file |
 | `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (77/77 tests certified) |
 | `services/storage.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/moneyFlowEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/investingSchemas.js` | **[FROZEN]** 🔒 | 100% Untouched |
-
----
-
-## 2. Mathematical Contracts & Presentation Invariants
-
-### A. Option A Multi-Snapshot Timeline
-- Orchestrates read-only point-in-time calls to `InvestingAnalyticsEngine.getPerformanceMetrics({ portfolioId, asOfDate })` across milestone timestamps.
-- Monotonically sorted ascending ($T_0 < T_1 < \dots < T_N$) with duplicate timestamp suppression.
-- Zero UI recalculation of money-weighted rates, Newton-Raphson roots, or holding period durations.
-
-### B. Hero Money-Weighted Return & Horizon
-- Directly renders returned `xirrPercent`, `cagrPercent`, and `absoluteReturnPercent`.
-- Dynamically classifies and displays `CAGR (Annualized)` for holding period $\ge 1.0$ year and `Absolute (<1 Year)` for holding period $< 1.0$ year.
-
-### C. Cash Flow Reconciliation
-- Labeled and presented strictly as *Cash Flow Reconciliation*:
-  - Capital Deployed: `cashFlowSummary.historicalOutflows`
-  - Realized Inflows: `cashFlowSummary.historicalInflows`
-  - Current Valuation: `cashFlowSummary.terminalMarketValue`
-  - Reconciled Net Delta: `(terminalMarketValue + historicalInflows) - historicalOutflows`
 
 ---
 
@@ -86,7 +73,7 @@ Stage C.5.3 implements the **Performance & XIRR Growth Timeline Visualizer**, co
 ✅ Test 10 PASS: Multi-point timeline sequence constructed and strictly ordered.
 
 --- Test 11: Timeline Timestamp Monotonicity & Deduplication ---
-✅ Test 11 PASS: Timeline timestamp monotonicity and deduplication verified.
+✅ Test 11 PASS: Timeline timestamp monotonicity and deduplication verified (3 unique milestones from 4 points).
 
 --- Test 12: Multi-Portfolio Isolation ---
 ✅ Test 12 PASS: Portfolio A (20%) and Portfolio B (30%) performance strictly isolated.

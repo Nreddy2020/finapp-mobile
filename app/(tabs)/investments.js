@@ -101,7 +101,7 @@ export default function InvestmentsScreen() {
                 })
             ]);
 
-            // Construct timeline points with monotonic ordering and deduplication
+            // Construct timeline points with monotonic ordering and explicit deduplication
             const rawPoints = [
                 { date: t0.toISOString().slice(0, 10), timestamp: t0.getTime(), ...perfT0 },
                 { date: t1.toISOString().slice(0, 10), timestamp: t1.getTime(), ...perfT1 },
@@ -109,7 +109,7 @@ export default function InvestmentsScreen() {
                 { date: tNow.toISOString().slice(0, 10), timestamp: tNow.getTime(), ...perfNow }
             ];
 
-            const timeline = rawPoints
+            const sortedPoints = rawPoints
                 .map(pt => ({
                     date: pt.date,
                     timestamp: pt.timestamp,
@@ -123,6 +123,17 @@ export default function InvestmentsScreen() {
                     valuationBasis: pt.valuationBasis || 'EMPTY'
                 }))
                 .sort((a, b) => a.timestamp - b.timestamp);
+
+            const timeline = [];
+            const seenTimestamps = new Set();
+            for (const pt of sortedPoints) {
+                const key = pt.date || String(pt.timestamp);
+                if (!seenTimestamps.has(key)) {
+                    seenTimestamps.add(key);
+                    timeline.push(pt);
+                }
+            }
+
 
             // 3. Sourced Quote Timestamps
             const cachedQuotes = await loadMarketQuotes();

@@ -3,13 +3,14 @@
  * 
  * Stage C.5.3 Performance & XIRR Growth Timeline Visualizer Card.
  * Consumes Stage C.4.3 getPerformanceMetrics strictly read-only.
+ * Uses semantic theme tokens exclusively from COLORS.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { TrendingUp, TrendingDown, Clock, Calendar, AlertTriangle, CheckCircle2, ChevronRight, Activity } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Clock, AlertTriangle, Activity } from 'lucide-react-native';
 import LuxuryCard from '../ui/LuxuryCard';
-import { COLORS, TYPOGRAPHY, SPACING } from '../../constants/theme';
+import { COLORS, SPACING } from '../../constants/theme';
 
 export default function PerformanceGrowthTimelineCard({
     performanceMetrics = null,
@@ -17,6 +18,22 @@ export default function PerformanceGrowthTimelineCard({
     loading = false
 }) {
     const [selectedPointIndex, setSelectedPointIndex] = useState(null);
+
+    // Defense-in-depth: Deduplicate timeline points by date/timestamp and enforce monotonic ordering
+    const safeTimeline = useMemo(() => {
+        if (!Array.isArray(timeline) || timeline.length === 0) return [];
+        const sorted = [...timeline].sort((a, b) => a.timestamp - b.timestamp);
+        const deduplicated = [];
+        const seen = new Set();
+        for (const pt of sorted) {
+            const key = pt.date || String(pt.timestamp);
+            if (!seen.has(key)) {
+                seen.add(key);
+                deduplicated.push(pt);
+            }
+        }
+        return deduplicated;
+    }, [timeline]);
 
     if (loading && !performanceMetrics) {
         return (
@@ -33,14 +50,12 @@ export default function PerformanceGrowthTimelineCard({
     const {
         xirrPercent = 0,
         xirrStatus = 'INSUFFICIENT_CASH_FLOWS',
-        cagrPercent = 0,
         absoluteReturnPercent = 0,
         performanceType = 'ABSOLUTE',
         holdingPeriodDays = 0,
         holdingPeriodYears = 0,
         cashFlowSummary = {},
         performanceIntegrity = 'VALID',
-        integrityWarnings = [],
         valuationBasis = 'EMPTY',
         quoteCoverage = null
     } = performanceMetrics || {};
@@ -62,10 +77,10 @@ export default function PerformanceGrowthTimelineCard({
     const heroReturn = performanceType === 'CAGR' ? xirrPercent : absoluteReturnPercent;
     const isPositive = heroReturn > 0;
     const isNegative = heroReturn < 0;
-    const returnColor = isPositive ? (COLORS.success || '#10B981') : isNegative ? (COLORS.error || '#EF4444') : (COLORS.textMuted || '#94A3B8');
+    const returnColor = isPositive ? COLORS.success : isNegative ? COLORS.error : COLORS.textTertiary;
 
     // Selected timeline milestone or latest
-    const activePoint = (selectedPointIndex !== null && timeline[selectedPointIndex]) ? timeline[selectedPointIndex] : null;
+    const activePoint = (selectedPointIndex !== null && safeTimeline[selectedPointIndex]) ? safeTimeline[selectedPointIndex] : null;
 
     // Cash flow reconciliation components
     const deployed = cashFlowSummary?.historicalOutflows || 0;
@@ -79,12 +94,12 @@ export default function PerformanceGrowthTimelineCard({
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerTitleRow}>
-                    <Activity size={18} color={COLORS.primary || '#D4AF37'} style={styles.headerIcon} />
+                    <Activity size={18} color={COLORS.primary} style={styles.headerIcon} />
                     <Text style={styles.title}>Performance & Growth</Text>
                 </View>
                 {!isInsufficient && (
                     <View style={[styles.typeBadge, performanceType === 'CAGR' ? styles.cagrBadge : styles.absBadge]}>
-                        <Clock size={11} color={performanceType === 'CAGR' ? '#10B981' : '#3B82F6'} style={{ marginRight: 4 }} />
+                        <Clock size={11} color={performanceType === 'CAGR' ? COLORS.success : COLORS.info} style={{ marginRight: 4 }} />
                         <Text style={[styles.typeBadgeText, performanceType === 'CAGR' ? styles.cagrBadgeText : styles.absBadgeText]}>
                             {performanceType === 'CAGR' ? 'CAGR (Annualized)' : 'Absolute (<1 Year)'}
                         </Text>
@@ -95,7 +110,7 @@ export default function PerformanceGrowthTimelineCard({
             {isInsufficient ? (
                 /* Empty / Insufficient Flows State */
                 <View style={styles.emptyContainer}>
-                    <Clock size={32} color={COLORS.textMuted || '#64748B'} style={{ marginBottom: SPACING.xs }} />
+                    <Clock size={32} color={COLORS.textTertiary} style={{ marginBottom: SPACING.xs }} />
                     <Text style={styles.emptyTitle}>Insufficient Performance History</Text>
                     <Text style={styles.emptySubtitle}>
                         Record investment transactions or buy holdings to initiate money-weighted return (XIRR) and growth timeline tracking.
@@ -133,7 +148,7 @@ export default function PerformanceGrowthTimelineCard({
                     </View>
 
                     {/* Timeline Milestones Visualizer */}
-                    {timeline && timeline.length > 1 && (
+                    {safeTimeline && safeTimeline.length > 1 && (
                         <View style={styles.timelineSection}>
                             <View style={styles.timelineHeaderRow}>
                                 <Text style={styles.sectionSubtitle}>Growth Timeline Milestones</Text>
@@ -145,8 +160,8 @@ export default function PerformanceGrowthTimelineCard({
                             </View>
 
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineScroll}>
-                                {timeline.map((pt, idx) => {
-                                    const isSelected = selectedPointIndex === idx || (selectedPointIndex === null && idx === timeline.length - 1);
+                                {safeTimeline.map((pt, idx) => {
+                                    const isSelected = selectedPointIndex === idx || (selectedPointIndex === null && idx === safeTimeline.length - 1);
                                     const ptGain = (pt.terminalMarketValue || 0) - (pt.historicalOutflows || 0);
                                     const ptIsPositive = ptGain >= 0;
 
@@ -157,12 +172,12 @@ export default function PerformanceGrowthTimelineCard({
                                             onPress={() => setSelectedPointIndex(idx)}
                                             accessibilityLabel={`Milestone ${pt.date}: Valuation ${formatCurrency(pt.terminalMarketValue)}, Return ${formatPercent(pt.xirrPercent)}`}
                                         >
-                                            <View style={[styles.nodeDot, isSelected && styles.nodeDotSelected, { backgroundColor: ptIsPositive ? '#10B981' : '#EF4444' }]} />
+                                            <View style={[styles.nodeDot, isSelected && styles.nodeDotSelected, { backgroundColor: ptIsPositive ? COLORS.success : COLORS.error }]} />
                                             <Text style={[styles.nodeDate, isSelected && styles.nodeDateSelected]}>
                                                 {pt.date ? pt.date.slice(5) : `T${idx}`}
                                             </Text>
                                             <Text style={styles.nodeVal}>{formatCurrency(pt.terminalMarketValue)}</Text>
-                                            <Text style={[styles.nodeReturn, { color: pt.xirrPercent >= 0 ? '#10B981' : '#EF4444' }]}>
+                                            <Text style={[styles.nodeReturn, { color: pt.xirrPercent >= 0 ? COLORS.success : COLORS.error }]}>
                                                 {formatPercent(pt.xirrPercent)}
                                             </Text>
                                         </TouchableOpacity>
@@ -192,7 +207,7 @@ export default function PerformanceGrowthTimelineCard({
                             </View>
                             <View style={styles.gridCol}>
                                 <Text style={styles.gridLabel}>Net Reconciled Delta</Text>
-                                <Text style={[styles.gridValue, { color: isReconciledPositive ? '#10B981' : '#EF4444' }]}>
+                                <Text style={[styles.gridValue, { color: isReconciledPositive ? COLORS.success : COLORS.error }]}>
                                     {isReconciledPositive ? '+' : '-'}{formatCurrency(reconciledDelta)}
                                 </Text>
                             </View>
@@ -202,7 +217,7 @@ export default function PerformanceGrowthTimelineCard({
                     {/* Fallback / Warning Notice */}
                     {performanceIntegrity === 'INCOMPLETE' && (
                         <View style={styles.warningBanner}>
-                            <AlertTriangle size={14} color="#F59E0B" style={{ marginRight: 6 }} />
+                            <AlertTriangle size={14} color={COLORS.warning} style={{ marginRight: 6 }} />
                             <Text style={styles.warningText}>
                                 Ledger Incomplete: Missing buy history for some sell events. Returns are estimated.
                             </Text>
@@ -231,7 +246,7 @@ const styles = StyleSheet.create({
         marginHorizontal: SPACING.md,
         marginBottom: SPACING.md,
         borderRadius: 16,
-        backgroundColor: COLORS.surface || '#1E293B'
+        backgroundColor: COLORS.card
     },
     header: {
         flexDirection: 'row',
@@ -249,7 +264,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 16,
         fontWeight: '700',
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         letterSpacing: 0.2
     },
     typeBadge: {
@@ -257,27 +272,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 8,
         paddingVertical: 3,
-        borderRadius: 12
+        borderRadius: 12,
+        borderWidth: 1
     },
     cagrBadge: {
         backgroundColor: 'rgba(16, 185, 129, 0.15)',
-        borderColor: 'rgba(16, 185, 129, 0.3)',
-        borderWidth: 1
+        borderColor: 'rgba(16, 185, 129, 0.3)'
     },
     absBadge: {
         backgroundColor: 'rgba(59, 130, 246, 0.15)',
-        borderColor: 'rgba(59, 130, 246, 0.3)',
-        borderWidth: 1
+        borderColor: 'rgba(59, 130, 246, 0.3)'
     },
     typeBadgeText: {
         fontSize: 11,
         fontWeight: '600'
     },
     cagrBadgeText: {
-        color: '#10B981'
+        color: COLORS.success
     },
     absBadgeText: {
-        color: '#3B82F6'
+        color: COLORS.info
     },
     heroContainer: {
         flexDirection: 'row',
@@ -285,7 +299,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: SPACING.sm,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+        borderBottomColor: COLORS.border,
         marginBottom: SPACING.sm
     },
     heroMain: {
@@ -293,7 +307,7 @@ const styles = StyleSheet.create({
     },
     heroLabel: {
         fontSize: 12,
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textSecondary,
         marginBottom: 2
     },
     heroValueRow: {
@@ -307,21 +321,21 @@ const styles = StyleSheet.create({
     },
     horizonContainer: {
         alignItems: 'flex-end',
-        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        backgroundColor: COLORS.borderLight,
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 8
     },
     horizonLabel: {
         fontSize: 10,
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textTertiary,
         textTransform: 'uppercase',
         letterSpacing: 0.5
     },
     horizonValue: {
         fontSize: 13,
         fontWeight: '700',
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         marginTop: 2
     },
     timelineSection: {
@@ -336,13 +350,13 @@ const styles = StyleSheet.create({
     sectionSubtitle: {
         fontSize: 12,
         fontWeight: '600',
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textSecondary,
         textTransform: 'uppercase',
         letterSpacing: 0.5
     },
     resetTimelineText: {
         fontSize: 11,
-        color: COLORS.primary || '#D4AF37',
+        color: COLORS.primaryLight,
         fontWeight: '600'
     },
     timelineScroll: {
@@ -350,9 +364,9 @@ const styles = StyleSheet.create({
         gap: 8
     },
     timelineNode: {
-        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        backgroundColor: COLORS.borderLight,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        borderColor: COLORS.border,
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 8,
@@ -360,8 +374,8 @@ const styles = StyleSheet.create({
         alignItems: 'center'
     },
     timelineNodeSelected: {
-        borderColor: COLORS.primary || '#D4AF37',
-        backgroundColor: 'rgba(212, 175, 55, 0.08)'
+        borderColor: COLORS.primaryLight,
+        backgroundColor: 'rgba(99, 102, 241, 0.12)'
     },
     nodeDot: {
         width: 6,
@@ -376,16 +390,16 @@ const styles = StyleSheet.create({
     },
     nodeDate: {
         fontSize: 11,
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textTertiary,
         fontWeight: '500'
     },
     nodeDateSelected: {
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         fontWeight: '700'
     },
     nodeVal: {
         fontSize: 11,
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         fontWeight: '600',
         marginTop: 2
     },
@@ -395,15 +409,17 @@ const styles = StyleSheet.create({
         marginTop: 2
     },
     reconciliationCard: {
-        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        backgroundColor: COLORS.surface,
         borderRadius: 12,
         padding: 10,
-        marginTop: 4
+        marginTop: 4,
+        borderWidth: 1,
+        borderColor: COLORS.border
     },
     reconciliationTitle: {
         fontSize: 11,
         fontWeight: '700',
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textSecondary,
         textTransform: 'uppercase',
         letterSpacing: 0.5,
         marginBottom: 8
@@ -417,12 +433,12 @@ const styles = StyleSheet.create({
     },
     gridLabel: {
         fontSize: 11,
-        color: COLORS.textMuted || '#94A3B8'
+        color: COLORS.textSecondary
     },
     gridValue: {
         fontSize: 13,
         fontWeight: '700',
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         marginTop: 1
     },
     warningBanner: {
@@ -437,12 +453,12 @@ const styles = StyleSheet.create({
     },
     warningText: {
         fontSize: 11,
-        color: '#F59E0B',
+        color: COLORS.warning,
         flex: 1
     },
     fallbackNote: {
         fontSize: 10,
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textTertiary,
         marginTop: 6,
         fontStyle: 'italic'
     },
@@ -454,12 +470,12 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 14,
         fontWeight: '700',
-        color: COLORS.textPrimary || '#FFFFFF',
+        color: COLORS.textPrimary,
         marginBottom: 4
     },
     emptySubtitle: {
         fontSize: 12,
-        color: COLORS.textMuted || '#94A3B8',
+        color: COLORS.textSecondary,
         textAlign: 'center',
         lineHeight: 18,
         paddingHorizontal: SPACING.md
@@ -468,7 +484,7 @@ const styles = StyleSheet.create({
         padding: SPACING.sm
     },
     skeleton: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        backgroundColor: COLORS.borderLight,
         borderRadius: 8,
         marginBottom: 8
     },

@@ -39,7 +39,7 @@ Current Stage:
 C.5.3
 
 Overall Status:
-C.5.3_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.5.3_HARDENED_IMPLEMENTATION_PENDING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -68,7 +68,7 @@ Architecture:
 LOCKED & APPROVED
 
 Implementation:
-COMPLETE
+COMPLETE & HARDENED (All blockers C5.3-01 & C5.3-02 resolved)
 
 Stage Baseline:
 398b99c
@@ -118,13 +118,14 @@ PASS (pure presentation UI components & tests only) 🟢
 
 ## 6. BLOCKERS LOG
 
-No active blockers. All prior stage blockers resolved.
+- C5.3-01 (Timeline deduplication): 🟢 RESOLVED (Explicit date/timestamp deduplication implemented in screen and component)
+- C5.3-02 (Semantic theme tokens): 🟢 RESOLVED (All hardcoded hex colors replaced with semantic tokens from COLORS)
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation of Stage C.5.3, verified 137/137 tests, captured live Android proof, and pushed to GitHub. Awaiting Architect consolidated review.
+Completed hardening of Stage C.5.3, resolved all blockers, verified 137/137 tests, and pushed to GitHub. Awaiting Architect consolidated review.
 
 Architect:
 Review Stage C.5.3 implementation commit and issue consolidated certification decision.

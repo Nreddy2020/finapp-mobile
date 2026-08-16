@@ -181,25 +181,30 @@ async function runC53AcceptanceSuite() {
 
         // Test 11: Timeline Timestamp Monotonicity & Deduplication
         console.log('\n--- Test 11: Timeline Timestamp Monotonicity & Deduplication ---');
-        const duplicateEntries = [
-            { date: '2025-01-01', timestamp: 1000, val: 100 },
-            { date: '2025-01-01', timestamp: 1000, val: 100 }, // Duplicate
-            { date: '2025-07-01', timestamp: 2000, val: 200 }
+        const rawPointsWithDupes = [
+            { date: '2025-01-01', timestamp: 1000, ...snapT0 },
+            { date: '2025-01-01', timestamp: 1000, ...snapT0 }, // Exact duplicate snapshot
+            { date: '2025-07-01', timestamp: 2000, ...snapT1 },
+            { date: '2026-01-01', timestamp: 3000, ...snapT2 }
         ];
         const deduplicated = [];
         const seen = new Set();
-        for (const pt of duplicateEntries) {
-            if (!seen.has(pt.timestamp)) {
-                seen.add(pt.timestamp);
+        for (const pt of rawPointsWithDupes) {
+            const key = pt.date || String(pt.timestamp);
+            if (!seen.has(key)) {
+                seen.add(key);
                 deduplicated.push(pt);
             }
         }
-        if (deduplicated.length === 2 && deduplicated[0].timestamp < deduplicated[1].timestamp) {
-            console.log('✅ Test 11 PASS: Timeline timestamp monotonicity and deduplication verified.');
+        if (deduplicated.length === 3 &&
+            deduplicated[0].timestamp < deduplicated[1].timestamp &&
+            deduplicated[1].timestamp < deduplicated[2].timestamp) {
+            console.log('✅ Test 11 PASS: Timeline timestamp monotonicity and deduplication verified (3 unique milestones from 4 points).');
             passCount++;
         } else {
             console.error('❌ Test 11 FAIL: Deduplication mismatch:', deduplicated);
         }
+
 
         // Test 12: Multi-Portfolio Isolation (Portfolios A vs B)
         console.log('\n--- Test 12: Multi-Portfolio Isolation ---');
