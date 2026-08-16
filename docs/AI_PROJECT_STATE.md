@@ -39,7 +39,7 @@ Current Stage:
 C.7.7_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.7_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
+C.7.7_REMEDIATED_ARCHITECTURE_V1.1.0_PENDING_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -68,7 +68,7 @@ C.7.7_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟢 **MASTER CERTIFIED** (`d0f337c`) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
-| ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒) |
+| ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ REMEDIATED ARCHITECTURE v1.1.0 (Gate Locked 🔒) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED (Gate Locked 🔒) |
 
 
@@ -78,7 +78,17 @@ Stage:
 C.7.7 (Portfolio Health Score & Risk Explanation Engine)
 
 Objective:
-Architectural plan authored and submitted for Stage C.7.7 Portfolio Health Score & Risk Explanation Engine (`docs/C7_7_ARCHITECTURE_PLAN.md`). Core architectural principle: *"Calculate once. Authoritatively. Score once. Explain once."* Synthesizes 5 orthogonal risk dimensions: Concentration (20%, from C.7.2), Volatility/Downside (20%, from C.7.3), Correlation/Factor Risk (15%, from C.7.4), Liquidity/Runway (25%, from C.7.5), Scenario Stress Resilience (20%, from C.7.6). Defines deterministic scoring functions, institutional health grade boundaries (`A`, `B`, `C`, `D`, `F`), deficit-based primary risk driver ranking with deterministic tie-breaking, plain-English explanation synthesis, upstream confidence propagation, and 52 acceptance scenarios.
+Architectural remediation for Stage C.7.7 Portfolio Health Score & Risk Explanation Engine (`docs/C7_7_ARCHITECTURE_PLAN.md` Version 1.1.0). Addressed all 10 Architect findings:
+1. `C7.7-R1`: Exact closed-form metric-to-subscore normalization formulas for all 5 dimensions.
+2. `C7.7-R2`: Versioned sub-metric and dimension weights under `HEALTH_SCORE_POLICY_V1` (`C7_7_V1`).
+3. `C7.7-R3` & `C7.7-R4`: Explicit distinction between missing engine (conservative imputation $S_d = 40$, `scoreSource: 'CONSERVATIVE_IMPUTATION'`) vs missing metric (dynamic sub-metric reweighting).
+4. `C7.7-R5`: Explicit provenance for stress metrics ($L_{\text{worst}}$ from `resilienceSummary`, $\Delta R_{\text{worst}}$ from max compression, $\lambda_{20}^*$ from reverse stress).
+5. `C7.7-R6`: Positive reverse-stress resilience scaling (higher $\lambda \to$ higher score; `UNREACHABLE` $\to 100.0$).
+6. `C7.7-R7`: Unrounded authoritative score grade classification with 2-decimal display score.
+7. `C7.7-R8`: Factual explanation provenance (no invented causes).
+8. `C7.7-R9`: Positive deficit ($\Delta S_d > 0$) risk driver inclusion and strength ($\ge 80$) threshold.
+9. `C7.7-R10`: 100% isolation of confidence from numerical score.
+10. Enhanced DTO with provenance and 56 acceptance scenarios.
 
 Implementation Status:
 GATE LOCKED 🔒 (Zero-Code Gate Active)
@@ -157,17 +167,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.7 Architecture Plan Submitted.
+- Stage C.7.7 Remediated Architecture Plan v1.1.0 Submitted.
 - Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.7 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Submitted Stage C.7.7 Architecture Plan (`docs/C7_7_ARCHITECTURE_PLAN.md`) to the Architect for Gate Review.
+Submitted Stage C.7.7 Remediated Architecture Plan (`docs/C7_7_ARCHITECTURE_PLAN.md` v1.1.0) to the Architect for Final Architecture Gate Review.
 
 Architect:
-Perform Stage C.7.7 Architecture Gate Review.
+Perform Stage C.7.7 Final Architecture Gate Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -182,7 +192,7 @@ Perform Stage C.7.7 Architecture Gate Review.
 - **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
 - **Stage C.7.5**: 🟢 MASTER CERTIFIED (`d0f337c`)
 - **Stage C.7.6**: 🟢 MASTER CERTIFIED (`64c00a1`)
-- **Stage C.7.7**: ⚪ ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)
+- **Stage C.7.7**: ⚪ REMEDIATED ARCHITECTURE v1.1.0 (Gate Locked 🔒)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.7+)
 
 
