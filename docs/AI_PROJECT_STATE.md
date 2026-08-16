@@ -24,77 +24,81 @@ Protected Branch:
 main
 
 Current Baseline:
-3269cbc
+1dc480f
 
 Last Certified Commit:
-3269cbc
+1dc480f
 
 Current HEAD:
-PENDING_COMMIT
+1dc480f
 
 Current Phase:
-C.5
+C.6
 
 Current Stage:
-C.5.4
+C.6.0_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.5.4_HARDENED_IMPLEMENTATION_PENDING_CERTIFICATION
+PHASE_C5_COMPLETE_READY_FOR_C6_PLANNING
 
 
 ## 2. MASTER ROADMAP
 
-| Stage | Purpose | Status |
+| Phase / Stage | Purpose | Status |
 | :--- | :--- | :--- |
-| **C.4.1** | Valuation & Realization Engine (WAC) | 🟢 CERTIFIED (`94263a8`) |
-| **C.4.2** | Asset Allocation & Concentration (HHI) | 🟢 CERTIFIED (`bf58509`) |
-| **C.4.3** | Money-Weighted Returns (XIRR / CAGR) | 🟢 CERTIFIED (`6199c65`) |
-| **C.4.4** | Master Portfolio Statement & FIFO Tax | 🟢 CERTIFIED (`012d0f7`) |
-| **C.5.1** | Portfolio Overview & Executive Dashboard | 🟢 CERTIFIED (`6a734f1`) |
-| **C.5.2** | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
-| **C.5.3** | Performance & XIRR Growth Timeline | 🟢 CERTIFIED (`3269cbc`) |
-| **C.5.4** | Master Statement & Tax Report View / Export | 🟡 IN REVIEW |
+| **Phase C.4** | **Analytics & Financial Calculation Engines** | 🟢 **100% CERTIFIED** (`012d0f7`) |
+| ↳ C.4.1 | Valuation & Realization Engine (WAC) | 🟢 CERTIFIED (`94263a8`) |
+| ↳ C.4.2 | Asset Allocation & Concentration (HHI) | 🟢 CERTIFIED (`bf58509`) |
+| ↳ C.4.3 | Money-Weighted Returns (XIRR / CAGR) | 🟢 CERTIFIED (`6199c65`) |
+| ↳ C.4.4 | Master Portfolio Statement & FIFO Tax | 🟢 CERTIFIED (`012d0f7`) |
+| **Phase C.5** | **Investing UI, Visual Dashboards & Export** | 🟢 **100% CERTIFIED** (`1dc480f`) |
+| ↳ C.5.1 | Portfolio Overview & Executive Dashboard | 🟢 CERTIFIED (`6a734f1`) |
+| ↳ C.5.2 | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
+| ↳ C.5.3 | Performance & XIRR Growth Timeline | 🟢 CERTIFIED (`3269cbc`) |
+| ↳ C.5.4 | Master Statement & Tax Report View / Export | 🟢 CERTIFIED (`1dc480f`) |
+| **Phase C.6** | **Phase C.6 Milestone / Advanced Integrations** | ⏳ PENDING ARCHITECTURE |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.5.4
+C.6.0 Architecture Planning
 
 Objective:
-Master Portfolio Statement & Tax Report Viewer with Export Engine
+Define Phase C.6 scope and technical architecture
 
 Architecture:
-LOCKED & APPROVED
+PENDING_PROPOSAL
 
 Implementation:
-COMPLETE & HARDENED (All blockers C5.4-01 through C5.4-06 resolved)
+LOCKED 🔒
 
 Stage Baseline:
-3269cbc
+1dc480f
 
 Previous Certified Baseline:
-3269cbc
+1dc480f
 
 
-## 4. CURRENT IMPLEMENTATION
+## 4. CERTIFIED ENGINES & PRESENTATION BOUNDARIES
 
-Files modified/created:
-- `app/(tabs)/investments.js`
-- `components/investments/MasterStatementCard.js`
-- `components/investments/TaxReportModal.js`
-- `services/statementExportService.js`
-- `tests/test_c54.mjs`
-- `docs/C5_4_CONSOLIDATED_AUDIT_REPORT.md`
+Certified & Frozen contracts:
+- `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
+- `services/storage.js` 🔒 (100% Certified)
+- `services/moneyFlowEngine.js` 🔒 (100% Certified)
+- `services/investingSchemas.js` 🔒 (100% Certified)
+- `services/statementExportService.js` 🔒 (100% Certified C.5.4)
 
-Frozen contracts:
-- `services/investingAnalyticsEngine.js` 🔒 (100% Frozen)
-- `services/storage.js` 🔒 (100% Frozen)
-- `services/moneyFlowEngine.js` 🔒 (100% Frozen)
-- `services/investingSchemas.js` 🔒 (100% Frozen)
+Certified Presentation Components:
+- `components/investments/PortfolioOverviewCard.js` (C.5.1)
+- `components/investments/AssetAllocationCard.js` (C.5.2)
+- `components/investments/ConcentrationRiskGauge.js` (C.5.2)
+- `components/investments/PerformanceGrowthTimelineCard.js` (C.5.3)
+- `components/investments/MasterStatementCard.js` (C.5.4)
+- `components/investments/TaxReportModal.js` (C.5.4)
 
 
-## 5. ACCEPTANCE STATUS
+## 5. ACCEPTANCE & REGRESSION STATUS
 
 C.5.4 Tests (`tests/test_c54.mjs`):
 20/20 PASS (Strict exit 0) 🟢
@@ -117,54 +121,30 @@ Total Committed System Tests:
 Android Runtime Proof:
 PASS (emulator-5554, screen_c54_proof.png) 🟢
 
-Git Boundary Audit:
-PASS (pure presentation UI components & tests only) 🟢
-
 
 ## 6. BLOCKERS LOG
 
-- C5.4-01 (FIFO Tax View): 🟢 RESOLVED (Authoritative FIFO cost basis, tax gain, acquisition date, and holding period displayed in TaxReportModal)
-- C5.4-02 (Integrity Warnings): 🟢 RESOLVED (Structured warning renderer handles object and string warnings cleanly)
-- C5.4-03 (Actual Export Sharing): 🟢 RESOLVED (Wired real Share.share dialogs for CSV, JSON, and text summaries)
-- C5.4-04 (RFC-4180 CSV Hardening): 🟢 RESOLVED (Enforced CRLF, section headers, quote escaping, and verified roundtrip)
-- C5.4-05 (Semantic Theme Tokens): 🟢 RESOLVED (Replaced all visual color literals with COLORS tokens)
-- C5.4-06 (Test Behavioral Rigor): 🟢 RESOLVED (Added deep behavioral assertions for tax lots, CSV RFC-4180, and warning structures)
+All prior blockers (Phase C.4, Phase C.5) are 100% resolved and certified.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed hardening of Stage C.5.4, resolved all 6 blockers, verified 157/157 tests, and pushed to GitHub. Awaiting Architect consolidated review for C.5.4 certification and Phase C.5 completion.
+Stand by under Zero-Code Gate. Await Phase C.6 Master Roadmap and Architecture Specification from Architect.
 
 Architect:
-Review Stage C.5.4 implementation commit and issue consolidated certification decision.
+Define Phase C.6 requirements and architectural boundaries.
 
 
-## 8. CERTIFICATION STATUS
+## 8. CERTIFICATION RECORD
 
-Stage C.5.1:
-🟢 CERTIFIED (`6a734f1`)
-
-Stage C.5.2:
-🟢 CERTIFIED (`398b99c`)
-
-Stage C.5.3:
-🟢 CERTIFIED (`3269cbc`)
-
-Stage C.5.4 Architecture Gate:
-PASS 🟢
-
-Stage C.5.4 Implementation Gate:
-AUTHORIZED 🔓
-
-Stage C.5.4 Verification Gate:
-PASS (20/20 acceptance, 137/137 prior regression, exit 0 enforced) 🟢
-
-Live Proof:
-PASS (Android emulator-5554 operational) 🟢
-
-Final Certification:
-PENDING ARCHITECT REVIEW ⏳
+- **Phase C.4 Complete**: 🟢 CERTIFIED (`012d0f7`)
+- **Stage C.5.1**: 🟢 CERTIFIED (`6a734f1`)
+- **Stage C.5.2**: 🟢 CERTIFIED (`398b99c`)
+- **Stage C.5.3**: 🟢 CERTIFIED (`3269cbc`)
+- **Stage C.5.4**: 🟢 CERTIFIED (`1dc480f`)
+- **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
+- **Zero-Code Gate**: ACTIVE 🔒
 
 
 ## 9. AGENT PROTOCOL RULES
