@@ -30,16 +30,16 @@ Last Certified Commit:
 7e71b8d
 
 Current HEAD:
-7e71b8d
+PENDING_COMMIT
 
 Current Phase:
-C.7 (MASTER CLOSED)
+C.8
 
 Current Stage:
-PHASE_C.7_COMPLETE
+C.8_ARCHITECTURE_PLANNING
 
 Overall Status:
-PHASE_C.7_MASTER_CLOSED_ALL_STAGES_CERTIFIED
+C.8_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -70,18 +70,27 @@ PHASE_C.7_MASTER_CLOSED_ALL_STAGES_CERTIFIED
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | 🟢 **MASTER CERTIFIED & APP-MOUNTED** (`7e71b8d`) |
+| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)** |
+| ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.2 | Goal Funding, Inflation & Wealth Projection Engine | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.4 | Cross-Domain Opportunity & Vulnerability Aggregator | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.5 | Next Best Action Prioritization Engine | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.6 | Action Impact Simulator ("Before vs After" Health & Goals) | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.7 | Decision Intelligence Presentation Adapter | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.8 | Goal & Financial Action Command Center UI | ⚪ PLANNED (Gate Locked 🔒) |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-PHASE C.7 MASTER CLOSURE
+Phase C.8 Architecture Planning (`docs/C8_ARCHITECTURE_PLAN.md`)
 
 Objective:
-All 8 stages of Phase C.7 (C.7.1 through C.7.8) are 100% implemented, verified, app-mounted, and master-certified. Entire financial calculation and visual risk ecosystem validated across 599 automated tests with 100% pass rate, zero store mutations, zero wall-clock calls, zero UI recalculations, and 16 frozen certified backend services.
+Authored and submitted Phase C.8 Master Architecture Plan defining the Goal Planning & Actionable Decision Intelligence Pipeline: C.8.1 (Goal Schema & Inflation Policy), C.8.2 (Wealth Projection & SIP Gap Solver), C.8.3 (Target-Date Glidepath Engine), C.8.4 (Cross-Domain Opportunity/Vulnerability Aggregator), C.8.5 (Next Best Action Prioritization), C.8.6 (Action Impact Simulator), C.8.7 (Presentation Adapter), C.8.8 (Command Center UI). Enforces zero recalculation of C.4–C.7 metrics, recommendation-execution separation, pure hypothetical simulation without store mutations, and 599+ test regression floor.
 
 Implementation Status:
-100% MASTER CLOSED 🟢🔒
+GATE LOCKED 🔒 (Zero-Code Gate Active)
 
 Certified Baseline:
 7e71b8d
@@ -120,49 +129,19 @@ Certified & Frozen contracts (100% Locked 🔒):
 
 ## 5. ACCEPTANCE STATUS
 
-Stage C.7.8 Acceptance (`tests/test_c78.mjs`):
-48/48 PASS (Strict exit 0) 🟢
+Phase C.7 Full Suite (C.7.1–C.7.8):
+305/305 PASS (Strict exit 0) 🟢
 
-Stage C.7.7 Regression (`tests/test_c77.mjs`):
-56/56 PASS (Strict exit 0) 🟢
+Phase C.6 Full Suite (C.6.1–C.6.4):
+97/97 PASS (Strict exit 0) 🟢
 
-Stage C.7.6 Regression (`tests/test_c76.mjs`):
-56/56 PASS (Strict exit 0) 🟢
-
-Stage C.7.5 Regression (`tests/test_c75.mjs`):
-56/56 PASS (Strict exit 0) 🟢
-
-Stage C.7.4 Regression (`tests/test_c74.mjs`):
-40/40 PASS (Strict exit 0) 🟢
-
-Stage C.7.3 Regression (`tests/test_c73.mjs`):
-40/40 PASS (Strict exit 0) 🟢
-
-Stage C.7.2 Regression (`tests/test_c72.mjs`):
-28/28 PASS (Strict exit 0) 🟢
-
-Stage C.7.1 Regression (`tests/test_c71.mjs`):
-21/21 PASS (Strict exit 0) 🟢
-
-Stage C.6.4 Regression (`tests/test_c64.mjs`):
-23/23 PASS (Strict exit 0) 🟢
-
-Stage C.6.3 Regression (`tests/test_c63.mjs`):
-34/34 PASS (Strict exit 0) 🟢
-
-Stage C.6.2 Regression (`tests/test_c62.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-Stage C.6.1 Regression (`tests/test_c61.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-Phase C.5 Regression (C.5.1–C.5.4):
+Phase C.5 Full Suite (C.5.1–C.5.4):
 80/80 PASS (Strict exit 0) 🟢
 
-Phase C.4 Regression (C.4.1–C.4.4):
+Phase C.4 Full Suite (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
-Total Certified System Tests:
+Total Master System Regression:
 599/599 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
@@ -171,17 +150,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- All Phase C.7 Stages Master Certified & Closed.
-- Zero-Code Gate active for subsequent major phases.
+- Phase C.8 Architecture Plan Submitted.
+- Zero-Code Gate remains ACTIVE 🔒 for Phase C.8 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Phase C.7 is 100% complete and master-certified. Ready for next roadmap phase or user directives.
+Authored and submitted Phase C.8 Master Architecture Plan (`docs/C8_ARCHITECTURE_PLAN.md`). Zero-Code Gate is ACTIVE. Awaiting Architect's Gate Review.
 
 Architect:
-Issue directives for next roadmap phase.
+Perform Phase C.8 Master Architecture Gate Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -190,14 +169,7 @@ Issue directives for next roadmap phase.
 - **Phase C.5 Complete**: 🟢 100% MASTER CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 100% MASTER CERTIFIED (`5fdfb36`)
 - **Phase C.7 Complete**: 🟢 100% MASTER CERTIFIED & CLOSED (`7e71b8d`)
-  - Stage C.7.1: 🟢 MASTER CERTIFIED (`d80af93`)
-  - Stage C.7.2: 🟢 MASTER CERTIFIED (`c29629d`)
-  - Stage C.7.3: 🟢 MASTER CERTIFIED (`4f541b6`)
-  - Stage C.7.4: 🟢 MASTER CERTIFIED (`578040f`)
-  - Stage C.7.5: 🟢 MASTER CERTIFIED (`d0f337c`)
-  - Stage C.7.6: 🟢 MASTER CERTIFIED (`64c00a1`)
-  - Stage C.7.7: 🟢 MASTER CERTIFIED (`30e4b8a`)
-  - Stage C.7.8: 🟢 MASTER CERTIFIED (`7e71b8d`)
+- **Phase C.8 Status**: 🟡 ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)
 
 
 ## 9. AGENT PROTOCOL RULES
