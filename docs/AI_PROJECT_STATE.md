@@ -39,7 +39,7 @@ Current Stage:
 C.6.2_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.6.2_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
+C.6.2_ARCHITECTURE_AMENDED_PENDING_GATE_AUTHORIZATION
 
 
 ## 2. MASTER ROADMAP
@@ -58,7 +58,7 @@ C.6.2_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
 | ↳ C.5.4 | Master Statement & Tax Report View / Export | 🟢 CERTIFIED (`1dc480f`) |
 | **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟡 IN PROGRESS |
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
-| ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟡 ARCHITECTURE IN REVIEW |
+| ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟡 ARCHITECTURE AMENDED |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | ⏳ PENDING |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | ⏳ PENDING |
 
@@ -69,10 +69,10 @@ Stage:
 C.6.2
 
 Objective:
-Drift & Rebalancing Delta Calculator with Post-Cash Scaling, 8-Class Rounding, and Tradability
+Drift & Rebalancing Delta Calculator (C6.2-01 through C6.2-04 Hardened)
 
 Architecture:
-SUBMITTED_FOR_GATE_REVIEW (`docs/C6_2_ARCHITECTURE_PLAN.md`)
+AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_2_ARCHITECTURE_PLAN.md`)
 
 Implementation:
 LOCKED 🔒
@@ -132,16 +132,20 @@ PASS (emulator-5554 operational) 🟢
 
 ## 6. BLOCKERS LOG
 
-All prior blockers (Phase C.4, Phase C.5, and C.6.1) are 100% resolved and certified.
+- C.6.2 Hardening Items:
+  - C6.2-01 (Post-Rounding Notional Reconciliation): 🟢 RESOLVED in `docs/C6_2_ARCHITECTURE_PLAN.md`
+  - C6.2-02 (Scoped Quote Staleness Status): 🟢 RESOLVED in `docs/C6_2_ARCHITECTURE_PLAN.md`
+  - C6.2-03 (Zero-Target Asset Classes): 🟢 RESOLVED in `docs/C6_2_ARCHITECTURE_PLAN.md`
+  - C6.2-04 (C.6.2 vs C.6.3 Boundary): 🟢 RESOLVED in `docs/C6_2_ARCHITECTURE_PLAN.md`
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Stand by under Zero-Code Gate. Await Architect review of `docs/C6_2_ARCHITECTURE_PLAN.md`.
+Stand by under Zero-Code Gate. Await Architect final review and implementation authorization for Stage C.6.2.
 
 Architect:
-Review Stage C.6.2 architecture plan and issue implementation authorization.
+Review amended Stage C.6.2 architecture plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -150,7 +154,7 @@ Review Stage C.6.2 architecture plan and issue implementation authorization.
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.6 Architecture Gate**: 🟢 APPROVED (`ba0372f`)
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
-- **Stage C.6.2**: 🟡 ARCHITECTURE PROPOSED — IMPLEMENTATION LOCKED
+- **Stage C.6.2**: 🟡 ARCHITECTURE AMENDED — IMPLEMENTATION LOCKED
 - **Zero-Code Gate**: ACTIVE 🔒 (for C.6.2+)
 
 

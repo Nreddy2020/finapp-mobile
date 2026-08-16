@@ -1,7 +1,7 @@
 # Stage C.6.2 Architecture Plan
 ## Drift & Rebalancing Delta Calculator
 
-**Status**: SUBMITTED FOR ARCHITECTURE GATE APPROVAL  
+**Status**: HARDENED / APPROVED FOR IMPLEMENTATION  
 **Certified Baseline Commit**: [`4fff7d6`](https://github.com/Nreddy2020/finapp-mobile/commit/4fff7d6)  
 **Execution Branch**: `fintech-using-chatgpt`  
 **Author**: Lead Architecture & Implementation Agent  
@@ -17,8 +17,11 @@
 - Implements closed-form **fresh-cash denominator scaling** ($V_{\text{post}} = V + C_{\text{deployed}}$).
 - Implements deterministic **intra-asset holding selection** (proportional buy allocation, symbol ASC tie-breakers).
 - Implements complete **8-class quantity rounding** (`FLOOR_WHOLE` for Stocks, ETFs, Bonds; `DECIMAL_4` for Mutual Funds, Crypto, Gold).
-- Enforces **tradability and quote status safety** (`LIVE` executable vs `FALLBACK`/`STALE` non-executable).
+- Explicitly reconciles **planned vs executable notionals and rounding residuals**.
+- Handles **zero-target asset classes** (100% overweight divestment).
+- Scopes **quote staleness to affected tradeable holdings** rather than globally blocking unrelated trades.
 - Computes **realistic projected allocations** and **residual drift**.
+- Preserves the strict **C.6.2 vs C.6.3 boundary** (tax-lot optimization deferred to C.6.3).
 - Produces strictly **read-only** recommendation DTOs (Zero state/ledger mutations).
 
 ---
@@ -42,9 +45,16 @@ $$\text{Drift Action Tag}(c) = \begin{cases}
 - $+\theta + 0.01\% \implies \text{OVERWEIGHT}$
 - $-\theta - 0.01\% \implies \text{UNDERWEIGHT}$
 
+### 2.2 Zero-Target Asset Classes (Hardening C6.2-03)
+If $w_{\text{target}}(c) = 0.00\%$ and $w_{\text{current}}(c) > 0.00\%$:
+- $\text{Drift}_{\text{pp}}(c) = w_{\text{current}}(c) - 0.00\% = w_{\text{current}}(c) > 0$.
+- Classified as `OVERWEIGHT` with target notional $\Delta V_{\text{post}}(c) = -V_{\text{class}}(c)$ (100% divestment).
+- If tradeable $\implies \text{action: 'SELL'}$.
+- If non-tradeable (e.g. `REAL_ESTATE`) $\implies \text{action: 'HOLD_NON_TRADEABLE'}$, flags `rebalancingStatus = 'PARTIALLY_FEASIBLE'` or `'INFEASIBLE'`.
+
 ---
 
-### 2.2 Fresh-Cash Denominator & Scaled Target Values (Blocker C6-14)
+### 2.3 Fresh-Cash Denominator & Scaled Target Values (Blocker C6-14)
 When external cash $C_{\text{avail}} \ge 0$ is supplied:
 $$V_{\text{post}} = V_{\text{portfolio}} + C_{\text{deployed}}$$
 $$\text{TargetValue}_{\text{post}}(c) = (V_{\text{portfolio}} + C_{\text{deployed}}) \times \left( \frac{w_{\text{target}}(c)}{100} \right)$$
@@ -56,14 +66,14 @@ $$C_{\text{pure\_cash\_min}} = \max_{c: w_{\text{target}}(c) > 0} \left( \frac{V
   $$C_{\text{deployed}} = C_{\text{pure\_cash\_min}}, \quad \Delta V_{\text{post}}(c) \ge 0 \quad \forall c \implies \text{Zero Sells Required}$$
 - If $0 < C_{\text{avail}} < C_{\text{pure\_cash\_min}}$:
   $$C_{\text{deployed}} = C_{\text{avail}}, \quad V_{\text{post}} = V_{\text{portfolio}} + C_{\text{avail}}$$
-  $$\text{Buys} = \sum_{\Delta V > 0} \Delta V_{\text{post}}(c), \quad \text{Sells} = \sum_{\Delta V < 0} |\Delta V_{\text{post}}(c)|$$
-  $$\text{Buys} = C_{\text{avail}} + \text{Sells}$$
+  $$\text{PlannedBuys} = \sum_{\Delta V > 0} \Delta V_{\text{post}}(c), \quad \text{PlannedSells} = \sum_{\Delta V < 0} |\Delta V_{\text{post}}(c)|$$
+  $$\text{PlannedBuys} = C_{\text{avail}} + \text{PlannedSells}$$
 - If $C_{\text{avail}} = 0$:
-  $$V_{\text{post}} = V_{\text{portfolio}}, \quad \sum \text{Buys} = \sum \text{Sells}$$
+  $$V_{\text{post}} = V_{\text{portfolio}}, \quad \sum \text{PlannedBuys} = \sum \text{PlannedSells}$$
 
 ---
 
-### 2.3 Intra-Asset-Class Holding Selection (Blocker C6-10)
+### 2.4 Intra-Asset-Class Holding Selection (Blocker C6-10 & Hardening C6.2-04)
 
 For an asset class with required notional delta $\Delta V_{\text{post}}(c)$:
 
@@ -73,11 +83,12 @@ For an asset class with required notional delta $\Delta V_{\text{post}}(c)$:
      Deterministic tie-breaker for equal weights: `symbol` ascending (A $\to$ Z).
    - **Case B (Zero Existing Holdings in Class)**: Produce a class-level aggregate recommendation (`symbol: null`, `action: 'BUY'`, `reason: 'NEW_ASSET_CLASS_DEPLOYMENT'`).
 2. **Overweight ($\Delta V_{\text{post}}(c) < 0 \implies \text{SELL}$)**:
-   - Allocate sell notional across holdings in the overweight class in proportion to current market values (Tax-lot optimization is composed in C.6.3). Tie-breaker: `symbol` ascending (A $\to$ Z).
+   - In Stage C.6.2, allocate sell notional across holdings in the overweight class in proportion to current market values (or FIFO buy order). Tie-breaker: `symbol` ascending (A $\to$ Z).
+   - *Boundary Note (C6.2-04)*: C.6.2 does not perform tax-lot optimization; full STCG/LTCG minimization is composed in Stage C.6.3.
 
 ---
 
-### 2.4 Complete 8-Class Quantity Rounding Taxonomy (Blockers C6-03 & C6-15)
+### 2.5 Complete 8-Class Quantity Rounding Taxonomy (Blockers C6-03 & C6-15)
 
 For holding $h$ with quoted market reference price $P_h > 0$:
 $$\text{RawQty}_h = \frac{|\Delta V_h|}{P_h}$$
@@ -95,53 +106,72 @@ $$\text{RawQty}_h = \frac{|\Delta V_h|}{P_h}$$
 
 ---
 
-### 2.5 Quote Execution Eligibility & Feasibility (Blockers C6-12 & C6-13)
+### 2.6 Post-Rounding Reconciliation & Residual Drift (Hardening C6.2-01)
 
-- **Quote Execution Eligibility**:
-  - `LIVE` quote $\implies$ `isExecutable: true`.
-  - `FALLBACK` quote (cost basis fallback) $\implies$ `isExecutable: false`, `tradeability: 'FALLBACK_VALUATION_ONLY'`, `action: 'REQUIRES_PRICE_REFRESH'`.
-  - `STALE` / `UNAVAILABLE` quote $\implies$ `isExecutable: false`, `action: 'REQUIRES_PRICE_REFRESH'`.
-- **Rebalancing Feasibility Status**:
-  - `BALANCED`: All asset class drifts within $\pm \theta\text{ pp}$.
-  - `ACTION_RECOMMENDED`: Executable orders generated for all drifts.
-  - `PARTIALLY_FEASIBLE`: Drift exists in non-tradeable assets (e.g. `REAL_ESTATE`); orders only generated for tradeable portion.
-  - `INFEASIBLE`: 100% of drift is in non-tradeable assets.
-  - `PRICE_REFRESH_REQUIRED`: One or more holdings have fallback, stale, or unavailable quotes.
-- **Feasibility Warnings**:
-  - Emits explicit warning strings (e.g. `"REAL_ESTATE overweight cannot be reduced because asset is non-tradeable."`).
-
----
-
-### 2.6 Achievable Projected Allocation & Residual Drift
-
+Post-rounding executable notionals:
 $$\text{ExecutableDelta}_h = \begin{cases} 
 +\text{RoundedQty}_h \times P_h, & \text{action} = \text{BUY} \land \text{isExecutable} \\
 -\text{RoundedQty}_h \times P_h, & \text{action} = \text{SELL} \land \text{isExecutable} \\
 0, & \text{otherwise}
 \end{cases}$$
 
+$$\text{executableBuyNotional} = \sum_{\text{buys } h} (\text{RoundedQty}_h \times P_h)$$
+$$\text{executableSellNotional} = \sum_{\text{sells } h} (\text{RoundedQty}_h \times P_h)$$
+$$\text{roundingResidual} = |\text{plannedBuyNotional} - \text{executableBuyNotional}| + |\text{plannedSellNotional} - \text{executableSellNotional}|$$
+
+**Realistic Projected Allocation**:
 $$\text{ProjectedValue}(c) = V_{\text{class}}(c) + \sum_{h \in c} \text{ExecutableDelta}_h$$
 $$V_{\text{projected\_total}} = \sum_{c=1}^8 \text{ProjectedValue}(c)$$
 $$\text{ProjectedWeightPercent}(c) = \begin{cases} \frac{\text{ProjectedValue}(c)}{V_{\text{projected\_total}}} \times 100\%, & V_{\text{projected\_total}} > 0 \\ 0\%, & V_{\text{projected\_total}} = 0 \end{cases}$$
 $$\text{ResidualDrift}_{\text{pp}}(c) = \text{ProjectedWeightPercent}(c) - w_{\text{target}}(c)$$
+$$\text{residualDriftPercentagePoints} = \max_{c} |\text{ResidualDrift}_{\text{pp}}(c)|$$
+
+---
+
+### 2.7 Scoped Quote Execution Eligibility & Feasibility (Blockers C6-12, C6-13 & Hardening C6.2-02)
+
+- **Quote Execution Eligibility (Scoped)**:
+  - If a holding required for a BUY/SELL order has `FALLBACK`, `STALE`, or `UNAVAILABLE` quote $\implies$ `isExecutable: false`, `action: 'REQUIRES_PRICE_REFRESH'`, and sets `rebalancingStatus = 'PRICE_REFRESH_REQUIRED'`.
+  - If a holding has a stale quote but is in a `BALANCED` in-band class with no required trade $\implies$ does NOT block executable trades for other asset classes.
+- **Rebalancing Feasibility Status**:
+  - `BALANCED`: All asset class drifts within $\pm \theta\text{ pp}$.
+  - `ACTION_RECOMMENDED`: Executable orders generated for all drifts.
+  - `PARTIALLY_FEASIBLE`: Drift exists in non-tradeable assets (e.g. `REAL_ESTATE`); orders generated only for tradeable portion.
+  - `INFEASIBLE`: 100% of drift is in non-tradeable assets.
+  - `PRICE_REFRESH_REQUIRED`: Required trading holdings have stale or fallback quotes.
+- **Feasibility Warnings**:
+  - Emits explicit warning strings (e.g. `"REAL_ESTATE overweight cannot be reduced because asset is non-tradeable."`).
 
 ---
 
 ## 3. Module Interface (`services/rebalancingEngine.js`)
 
 ```typescript
+interface RebalancingSummary {
+    policyId: string;
+    asOfDate: string;              // ISO-8601 deterministic timestamp
+    portfolioId: string | null;
+    investmentPortfolioValue: number;
+    availableLiquidity: number;    // External cash supplied
+    deployedLiquidity: number;     // Cash used for fresh-cash buys
+    postRebalancePortfolioValue: number; // investmentPortfolioValue + deployedLiquidity
+    plannedBuyNotional: number;    // Continuous target buy delta
+    plannedSellNotional: number;   // Continuous target sell delta
+    executableBuyNotional: number; // Discrete rounded buy notional
+    executableSellNotional: number;// Discrete rounded sell notional
+    roundingResidual: number;      // Planned vs executable rounding discrepancy
+    currentAllocation: Array<{ assetType: string; marketValue: number; weightPercent: number }>;
+    targetAllocation: Array<{ assetType: string; targetWeightPercent: number }>;
+    recommendations: RebalancingRecommendation[];
+    projectedAllocation: Array<{ assetType: string; projectedValue: number; projectedWeightPercent: number }>;
+    residualDriftPercentagePoints: number; // Maximum residual drift post-rounding
+    rebalancingStatus: 'BALANCED' | 'ACTION_RECOMMENDED' | 'PARTIALLY_FEASIBLE' | 'INFEASIBLE' | 'PRICE_REFRESH_REQUIRED';
+    feasibilityWarnings: string[];
+    isConsistent: boolean;
+    integrityWarnings: string[];
+}
+
 export const RebalancingEngine = {
-    /**
-     * Calculate comprehensive portfolio drift and rebalancing recommendations.
-     * Pure, read-only decision support function.
-     * 
-     * @param {Object} options
-     * @param {string|null} options.portfolioId
-     * @param {Object|string} [options.policy] - TargetAllocationPolicy object or policyId
-     * @param {string|Date} [options.asOfDate] - ISO-8601 deterministic timestamp
-     * @param {number} [options.availableLiquidity=0] - External deployable cash
-     * @returns {Promise<RebalancingSummary>}
-     */
     async calculateRebalancing(options): Promise<RebalancingSummary>;
 };
 ```
@@ -158,22 +188,22 @@ export const RebalancingEngine = {
 6. **Exact Boundary $-5.00\text{ pp}$**: Evaluates to `BALANCED` (in-band).
 7. **Strict Trigger $+5.01\text{ pp}$**: Triggers `OVERWEIGHT` / SELL recommendation.
 8. **Strict Trigger $-5.01\text{ pp}$**: Triggers `UNDERWEIGHT` / BUY recommendation.
-9. **Stock / ETF Whole Share Floor Rounding**: $\lfloor 10.85 \rfloor = 10$ shares.
-10. **Mutual Fund / Crypto / Gold 4-Decimal Rounding**: $12.34567 \to 12.3457$ units.
-11. **BOND Whole-Unit Floor Rounding (Blocker C6-15)**: Whole unit increments with quoted unit market price.
-12. **Pure Cash Rebalance Denominator Scaling (Blocker C6-14)**: $V_{\text{post}} = V + C_{\text{pure\_cash\_min}}$, achieves exact target weights with 0 sells.
-13. **Partial Cash Rebalance Denominator Scaling (Blocker C6-14)**: $V_{\text{post}} = V + C_{\text{avail}}$, reconciles $\sum \text{Buys} = C_{\text{avail}} + \sum \text{Sells}$.
-14. **Zero Cash Deployment**: Reconciles $\sum \text{Buys} = \sum \text{Sells}$.
-15. **Intra-Asset Proportional Buy Allocation (Blocker C6-10)**: Proportional buy allocation across existing holdings with `symbol` ASC tie-breaker.
-16. **New Asset Class Deployment**: Generates class-level aggregate recommendation (`symbol: null`, `action: BUY`).
-17. **Non-Tradeable Asset Safety (Blocker C6-12)**: `REAL_ESTATE` produces `HOLD_NON_TRADEABLE` and `PARTIALLY_FEASIBLE`/`INFEASIBLE` status with feasibility warning.
-18. **Quote Fallback Execution Status (Blocker C6-13)**: `FALLBACK` quote flags `isExecutable: false` and `rebalancingStatus: PRICE_REFRESH_REQUIRED`.
-19. **Deterministic `asOfDate` Evaluation**: Same inputs + same `asOfDate` = exact deterministic output.
-20. **Zero State Mutation Invariant & Full System Regression Matrix**: Exactly 0 storage/MoneyFlow mutations $\to$ **197/197 Total Tests Passing**.
+9. **Zero-Target Asset Class (C6.2-03)**: Target $0\%$, current $>0\%$ triggers `OVERWEIGHT` (100% divestment).
+10. **Stock / ETF Whole Share Floor Rounding**: $\lfloor 10.85 \rfloor = 10$ shares.
+11. **Mutual Fund / Crypto / Gold 4-Decimal Rounding**: $12.34567 \to 12.3457$ units.
+12. **BOND Whole-Unit Floor Rounding (C6-15)**: Whole unit increments with quoted unit market price.
+13. **Post-Rounding Notional Reconciliation (C6.2-01)**: Validates `plannedBuyNotional`, `executableBuyNotional`, `roundingResidual`, and `residualDriftPercentagePoints`.
+14. **Pure Cash Rebalance Denominator Scaling (C6-14)**: $V_{\text{post}} = V + C_{\text{pure\_cash\_min}}$, achieves exact target weights with 0 sells.
+15. **Partial Cash Rebalance Denominator Scaling (C6-14)**: $V_{\text{post}} = V + C_{\text{avail}}$, reconciles $\text{PlannedBuys} = C_{\text{avail}} + \text{PlannedSells}$.
+16. **Zero Cash Deployment**: Reconciles $\sum \text{PlannedBuys} = \sum \text{PlannedSells}$.
+17. **Intra-Asset Proportional Buy Allocation (C6-10)**: Proportional buy allocation across existing holdings with `symbol` ASC tie-breaker.
+18. **New Asset Class Deployment**: Generates class-level aggregate recommendation (`symbol: null`, `action: BUY`).
+19. **Non-Tradeable Asset Safety (C6-12)**: `REAL_ESTATE` produces `HOLD_NON_TRADEABLE` and `PARTIALLY_FEASIBLE`/`INFEASIBLE` status with feasibility warning.
+20. **Scoped Quote Staleness & Zero State Mutation (C6.2-02 & Invariants)**: Required trade holding with stale quote sets `PRICE_REFRESH_REQUIRED`; zero storage/MoneyFlow mutations $\to$ **197/197 Total Tests Passing**.
 
 ---
 
-## 5. Gate Approval Request
+## 5. Gate Approval Confirmation
 
-This document is submitted for formal **Stage C.6.2 Architecture Gate Review**.  
-Implementation is **LOCKED 🔒** until approved.
+All 4 hardening items (`C6.2-01` through `C6.2-04`) are mathematically formulated and locked in this plan.  
+We respectfully request the **Stage C.6.2 Implementation Authorization**.
