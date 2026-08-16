@@ -1,6 +1,6 @@
 # Master Architectural Plan: Stage C.7.6 Scenario & Stress-Test Engine
 
-**Document Version**: `2.0.0`  
+**Document Version**: `2.1.0`  
 **Master Standard Identifier**: `C7_6_V1`  
 **Stage**: C.7.6 (Scenario & Stress-Test Engine)  
 **Phase**: C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)  
@@ -38,7 +38,7 @@ Stage C.7.6 is strictly an **orchestration, shock-propagation, and impact-attrib
 
 ## 2. Core Architectural Invariants & Remediation Contracts
 
-### 2.1 C7.6-R1: Canonical 8-Class Taxonomy Integrity
+### 2.1 C7.6-R1: Canonical 8-Class Taxonomy & CASH Treatment
 C.7.6 strictly preserves the frozen C.7.1 canonical 8-class taxonomy:
 ```javascript
 export const CANONICAL_ASSET_CLASSES = Object.freeze([
@@ -52,9 +52,11 @@ export const CANONICAL_ASSET_CLASSES = Object.freeze([
     'OTHER'
 ]);
 ```
-- **CASH is NOT a canonical risk asset class**. Cash instruments are represented as holding-level financial instruments that map into the certified taxonomy (`OTHER` or liquidity tier) without mutating C.7.1.
+- **CASH is NOT a ninth canonical risk class**.
+- C.7.6 does not independently assign CASH to an asset class or liquidity tier.
+- C.7.6 preserves each holding's authoritative asset/instrument metadata and delegates liquidity treatment entirely to C.7.5.
 - Every scenario shock vector MUST contain exactly the 8 canonical classes.
-- No scenario may introduce a 9th canonical risk class.
+- No C.7.6 transformation may mutate or extend the C.7.1 canonical taxonomy.
 
 ### 2.2 C7.6-R2: Historical Scenario Semantics (Policy Shock Proxies)
 - The scenarios `HIST_2008_GFC`, `HIST_2020_COVID`, `HIST_2022_TECH_RATES`, and `HIST_2013_TAPER_TANTRUM` are standardized **POLICY SHOCK PROXIES** inspired by historical market regimes.
@@ -65,8 +67,8 @@ export const CANONICAL_ASSET_CLASSES = Object.freeze([
 - The diagonal of the C.7.4 covariance matrix represents constituent periodic variance $\sigma_i^2$, **NOT** beta. Beta is never inferred from variance.
 - Beta resolution follows strict authority hierarchy:
   1. **Tier 1 (`AUTHORITATIVE_METADATA`)**: Explicit holding metadata `beta` ($\beta_i \in [0.0, 5.0]$).
-  2. **Tier 2 (`DEFAULT_UNIT_BETA`)**: Default unit beta $\beta_i = 1.0$ (when metadata is missing or unspecified).
-- The DTO explicitly exposes `beta` and `betaSource` (`AUTHORITATIVE_METADATA` | `BENCHMARK_CALCULATED` | `DEFAULT_UNIT_BETA`) per holding.
+  2. **Tier 2 (`DEFAULT_UNIT_BETA`)**: Default unit beta $\beta_i = 1.0$ (when metadata is missing, unspecified, or invalid).
+- The DTO explicitly exposes `beta` and `betaSource` (`AUTHORITATIVE_METADATA` | `DEFAULT_UNIT_BETA`) per holding. No other beta sources are permitted.
 
 ### 2.4 C7.6-R4 & C7.6-R5: Authoritative Shock Composition Pipeline & Bounds
 All holding-level shocks follow a deterministic, closed-form pipeline:
@@ -94,25 +96,51 @@ STRESSED_VALUATION: V_i^{stressed} = max(0.0, V_i × (1.0 + Δr_{effective}))
 - Dollar loss: $\Delta V_i = V_i - V_i^{\text{stressed}}$. Total dollar loss: $\Delta V_p = \sum_{i} \Delta V_i = V_p - V_p^{\text{stressed}}$.
 - Percentage loss: $L_p = \frac{\Delta V_p}{V_p} \in [-\text{MAX\_STRESS\_GAIN}, 1.0]$ for $V_p > 0$.
 
-### 2.5 C7.6-R6: Reverse Stress Testing Solvency Solver
-To determine the critical market shock multiplier $\lambda^* \ge 0$ causing a target portfolio loss ratio $L^* \in (0.0, 1.0]$:
+### 2.5 C7.6-R6 & C7.6-R17: Monotonic Downside Reverse-Stress Solver
+To deterministically solve for the minimum market stress multiplier $\lambda^* \ge 0$ required to reach a target portfolio loss ratio $L^* \in (0.0, 1.0]$:
 
-Let holding sensitivity vector be $s_i = R_S(c(i)) \times \beta_i$. Stressed valuation as a function of scaling factor $\lambda$:
+#### 2.5.1 Downside-Only Sensitivity Isolation
+Canonical scenarios may contain both negative and positive asset shocks (e.g. Gold $+15\%$, Bond $+5\%$). If positive shocks were scaled by $\lambda$, $V_p(\lambda)$ would not be monotonic.
+
+To guarantee mathematical monotonicity, the reverse-stress solver isolates the **downside sensitivity vector**:
 \[
-V_p(\lambda) = \sum_{i=1}^{N} \max\left(0.0, V_i \times \left(1.0 + \operatorname{clamp}(\lambda \cdot s_i, \text{MIN\_STRESS\_RETURN}, \text{MAX\_STRESS\_GAIN})\right)\right)
+s_i^{\text{downside}} = \min\left(0.0, R_S(c(i)) \times \beta_i\right) \le 0.0
+\]
+Positive scenario shocks are excluded from the loss-threshold solver so that diversifying assets do not artificially increase the market stress required to reach a loss threshold.
+
+#### 2.5.2 Monotonic Valuation & Loss Functions
+Stressed valuation under reverse stress:
+\[
+V_p(\lambda) = \sum_{i=1}^{N} V_i \max\left(0.0, 1.0 + \operatorname{clamp}(\lambda \cdot s_i^{\text{downside}}, -1.0, 0.0)\right)
 \]
 The portfolio loss ratio is:
 \[
 L_p(\lambda) = 1.0 - \frac{V_p(\lambda)}{V_p} \quad (\text{for } V_p > 0)
 \]
 
-**Solver State Machine & Boundary Handling**:
-1. **Target Loss = 0**: If $L^* \le 0 \implies \lambda^* = 0.0, \text{status: 'ZERO\_TARGET'}$.
-2. **Already Breached at $\lambda = 0$**: If $L_p(0) \ge L^* \implies \lambda^* = 0.0, \text{status: 'ALREADY\_BREACHED'}$.
-3. **Achievable Target**: When $L_p(0) < L^* \le L_p(\lambda_{\max})$ (where $\lambda_{\max} = 3.0$):
-   - Solve via deterministic monotonic bisection on $\lambda \in [0.0, \lambda_{\max}]$ with convergence tolerance $\epsilon = 10^{-4}$ and $\text{maxIterations} = 50$.
+**Mathematical Proof of Monotonicity**:
+Since $s_i^{\text{downside}} \le 0$, for any $\lambda_1 < \lambda_2$:
+\[
+\lambda_1 \cdot s_i^{\text{downside}} \ge \lambda_2 \cdot s_i^{\text{downside}}
+\]
+\[
+\implies 1.0 + \operatorname{clamp}(\lambda_1 \cdot s_i^{\text{downside}}, -1.0, 0.0) \ge 1.0 + \operatorname{clamp}(\lambda_2 \cdot s_i^{\text{downside}}, -1.0, 0.0)
+\]
+\[
+\implies V_p(\lambda_1) \ge V_p(\lambda_2)
+\]
+\[
+\implies L_p(\lambda_1) \le L_p(\lambda_2)
+\]
+Thus, $\frac{dL_p}{d\lambda} \ge 0$ across the entire interval $\lambda \in [0.0, \lambda_{\max}]$, which **mathematically guarantees** that deterministic bisection converges to the unique root.
+
+#### 2.5.3 Clean Solver State Machine
+1. **`ZERO_TARGET`**: If $L^* \le 0 \implies \lambda^* = 0.0, \text{iterations} = 0$.
+2. **`INVALID_TARGET`**: If $L^* > 1.0 \implies \lambda^* = \text{null}, \text{iterations} = 0$.
+3. **`SOLVED`**: When $0 < L^* \le L_p(\lambda_{\max})$ (where $\lambda_{\max} = 3.0$):
+   - Solved via deterministic bisection on $\lambda \in [0.0, \lambda_{\max}]$ with convergence tolerance $\epsilon = 10^{-4}$ and $\text{maxIterations} = 50$.
    - Returns $\lambda^*$ and `status: 'SOLVED'`.
-4. **Unreachable Within Bounds**: If $L_p(\lambda_{\max}) < L^* \implies \lambda^* = \text{null}, \text{status: 'UNREACHABLE\_WITHIN\_BOUNDS'}$.
+4. **`UNREACHABLE_WITHIN_BOUNDS`**: If $L_p(\lambda_{\max}) < L^* \implies \lambda^* = \text{null}, \text{status: 'UNREACHABLE\_WITHIN\_BOUNDS'}$.
 
 ### 2.6 C7.6-R7: 100% Deterministic Execution (0 Timestamps)
 - Zero internally generated timestamps. `evaluationTimestamp` is removed from the analytical DTO; callers provide the mandatory deterministic `asOfDate`.
@@ -476,12 +504,12 @@ interface ScenarioStressEvaluationDTO {
   reverseStressTest: {
     marketDropToCause20PctLoss: {
       solvedLambda: number | null;
-      status: "SOLVED" | "ZERO_TARGET" | "ALREADY_BREACHED" | "UNREACHABLE_WITHIN_BOUNDS";
+      status: "SOLVED" | "ZERO_TARGET" | "INVALID_TARGET" | "UNREACHABLE_WITHIN_BOUNDS";
       iterations: number;
     };
     marketDropToCause35PctLoss: {
       solvedLambda: number | null;
-      status: "SOLVED" | "ZERO_TARGET" | "ALREADY_BREACHED" | "UNREACHABLE_WITHIN_BOUNDS";
+      status: "SOLVED" | "ZERO_TARGET" | "INVALID_TARGET" | "UNREACHABLE_WITHIN_BOUNDS";
       iterations: number;
     };
     criticalVulnerabilityFactor: string | null; // e.g. "EQUITY_CONCENTRATION", "CRYPTO_SPECULATION"
@@ -519,7 +547,7 @@ The acceptance test suite will cover the 32 mandated test categories:
    - Test 7: Authoritative metadata beta applied ($\beta = 1.4$).
    - Test 8: Missing beta resolves to `DEFAULT_UNIT_BETA` ($\beta = 1.0$).
    - Test 9: Invalid / NaN / negative beta falls back safely to unit beta.
-   - Test 10: DTO exposes `beta` and `betaSource` per holding.
+   - Test 10: DTO exposes `beta` and `betaSource` (`AUTHORITATIVE_METADATA` | `DEFAULT_UNIT_BETA`) per holding.
    - Test 11: Beta scaling produces exact linear holding shock before clamping.
    - Test 12: Covariance diagonal strictly isolated from beta calculation.
 
@@ -555,13 +583,13 @@ The acceptance test suite will cover the 32 mandated test categories:
    - Test 35: Custom scenario cannot override statutory ELSS lockup.
    - Test 36: Custom scenario cannot bypass C.7.5 5-tier liquidity hierarchy.
 
-7. **Group 7: Reverse Stress Testing & Solver Edge Cases (Tests 37–44)**:
-   - Test 37: Achievable target loss (20%) solved via bisection ($|L_p(\lambda^*) - 0.20| < 10^{-4}$).
-   - Test 38: Achievable target loss (35%) solved via bisection.
-   - Test 39: Target loss = 0 returns $\lambda^* = 0.0$ (`ZERO_TARGET`).
-   - Test 40: Target loss already breached at $\lambda = 0$ returns $\lambda^* = 0.0$ (`ALREADY_BREACHED`).
+7. **Group 7: Monotonic Downside Reverse-Stress Solver & Edge Cases (Tests 37–44)**:
+   - Test 37: Downside sensitivity vector isolates $s_i^{\text{downside}} \le 0.0$.
+   - Test 38: Achievable target loss (20%) solved via bisection ($|L_p(\lambda^*) - 0.20| < 10^{-4}$).
+   - Test 39: Achievable target loss (35%) solved via bisection.
+   - Test 40: Target loss = 0 returns $\lambda^* = 0.0$ (`ZERO_TARGET`).
    - Test 41: Target loss unreachable within $\lambda_{\max} = 3.0$ returns `UNREACHABLE_WITHIN_BOUNDS`.
-   - Test 42: Mixed positive/negative asset shocks handled safely by monotonic bisection.
+   - Test 42: Mixed positive/negative asset shocks (e.g. Gold +15%) do not distort monotonic downside solving.
    - Test 43: Solver convergence within 50 iterations verified.
    - Test 44: Critical vulnerability factor identification.
 

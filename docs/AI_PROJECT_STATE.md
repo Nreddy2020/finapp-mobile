@@ -39,7 +39,7 @@ Current Stage:
 C.7.6_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.6_REMEDIATED_ARCHITECTURE_PENDING_GATE_REVIEW
+C.7.6_REMEDIATED_ARCHITECTURE_V2.1.0_PENDING_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -67,7 +67,7 @@ C.7.6_REMEDIATED_ARCHITECTURE_PENDING_GATE_REVIEW
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟢 **MASTER CERTIFIED** (`d0f337c`) |
-| ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ REMEDIATED ARCHITECTURE (Gate Locked 🔒) |
+| ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ REMEDIATED ARCHITECTURE v2.1.0 (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED (Gate Locked 🔒) |
 
@@ -78,7 +78,11 @@ Stage:
 C.7.6 (Scenario & Stress-Test Engine)
 
 Objective:
-Architectural remediation for Stage C.7.6 Scenario & Stress-Test Engine (`docs/C7_6_ARCHITECTURE_PLAN.md`). Addressed all findings `C7.6-R1` through `C7.6-R16`: Canonical 8-class taxonomy preservation (CASH is not a 9th class), historical proxy semantics (no fabricated returns), beta authority hierarchy (authoritative metadata vs unit beta 1.0; no covariance diagonal inference), authoritative shock composition pipeline with versioned bounds (`MIN_STRESS_RETURN = -1.0`, `MAX_STRESS_GAIN = 1.0`), reverse stress testing solver using stressed valuation bisection, 100% deterministic DTO (0 timestamps), custom scenario schema validation, strict C.7.1–C.7.5 orchestration/delegation boundaries, upstream confidence propagation, loss attribution conservation invariants, and 56 acceptance scenarios.
+Architectural remediation for Stage C.7.6 Scenario & Stress-Test Engine (`docs/C7_6_ARCHITECTURE_PLAN.md` Version 2.1.0). Addressed final findings:
+1. `C7.6-R17`: Monotonic Downside Reverse-Stress Solver ($s_i^{\text{downside}} = \min(0, R_S(c(i))\beta_i)$ ensuring $\frac{dL_p}{d\lambda} \ge 0$ for proven bisection convergence).
+2. Cleaned up solver state machine (`ZERO_TARGET`, `INVALID_TARGET`, `SOLVED`, `UNREACHABLE_WITHIN_BOUNDS`).
+3. DTO beta source cleanup (retained `AUTHORITATIVE_METADATA` and `DEFAULT_UNIT_BETA`).
+4. Clarified CASH treatment (delegated to C.7.5 without mutating canonical 8-class taxonomy).
 
 Implementation Status:
 GATE LOCKED 🔒 (Zero-Code Gate Active)
@@ -153,14 +157,14 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.6 Architecture Remediated.
+- Stage C.7.6 Architecture Remediated (v2.1.0).
 - Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.6 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Submitted remediated architecture plan (`docs/C7_6_ARCHITECTURE_PLAN.md`) to the Architect for Final Architecture Gate Review.
+Submitted remediated architecture plan v2.1.0 (`docs/C7_6_ARCHITECTURE_PLAN.md`) to the Architect for Final Architecture Gate Review.
 
 Architect:
 Perform Final Architecture Gate Review for Stage C.7.6.
@@ -177,7 +181,7 @@ Perform Final Architecture Gate Review for Stage C.7.6.
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
 - **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
 - **Stage C.7.5**: 🟢 MASTER CERTIFIED (`d0f337c`)
-- **Stage C.7.6**: ⚪ REMEDIATED ARCHITECTURE (Gate Locked 🔒)
+- **Stage C.7.6**: ⚪ REMEDIATED ARCHITECTURE v2.1.0 (Gate Locked 🔒)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.6+)
 
 
