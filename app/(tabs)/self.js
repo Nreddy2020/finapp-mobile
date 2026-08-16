@@ -8,6 +8,7 @@ import { useGlobalFinance } from '../../components/context/GlobalFinanceContext'
 import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
 import { aggregateFinancialOpportunities } from '../../services/financialOpportunityAggregator';
 import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
+import MoneyFlowView from '../../components/moneyflow/MoneyFlowView';
 const { width } = Dimensions.get('window');
 
 const AGENTS_20 = [
@@ -2319,648 +2320,154 @@ export default function SelfScreen() {
                 <View style={{ width: 40 }} />
             </View>
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {/* 1. Money Flow */}
+                {/* 1. World-Class Personal Financial Decision Assistant */}
                 {activeTab === 'flow' && (
-                    <View style={styles.card}>
-                        {/* Stage AX.1 Personal CFO Decision Intelligence Integration Banner */}
-                        <View style={{
-                            backgroundColor: '#1E1B4B',
-                            borderColor: '#4338CA',
-                            borderWidth: 1,
-                            borderRadius: 16,
-                            padding: 16,
-                            marginBottom: 16
-                        }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <ShieldCheck size={18} color="#818CF8" />
-                                    <Text style={{ color: '#818CF8', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>
-                                        PERSONAL CFO INTELLIGENCE
-                                    </Text>
-                                </View>
-                                {cfoHealthScore && (
-                                    <View style={{ backgroundColor: '#312E81', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#4F46E5' }}>
-                                        <Text style={{ color: '#E0E7FF', fontSize: 11, fontWeight: '800' }}>
-                                            Health: {cfoHealthScore}/100 ({cfoHealthGrade})
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
+                    <MoneyFlowView
+                        transactions={transactions}
+                        onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
+                        onCategorizeTransaction={(txId, cat) => {
+                            setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
+                        }}
+                        onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
+                        asOfDate={new Date().toISOString()}
+                    />
+                )}
 
-                            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800', marginBottom: 4 }}>
-                                {cfoTopAction ? `#1 Priority: ${cfoTopAction.title}` : 'Cash Flow Actively Feeds Portfolio Truth'}
-                            </Text>
+                {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
+                {activeTab === 'sms' && (
+                    <View>
+                        {/* SMS Parsing Logic */}
+                        <View style={{ gap: 12 }}>
+                            {(() => {
+                                return smsInbox.map((item) => {
+                                    const sms = item.data;
+                                    const isAutoSorted = item.isAutoSorted;
+                                    const selectedCat = smsSelectedCategories[sms.id] || sms.parsedCategory || (sms.type === 'INCOME' ? 'Income' : 'Bills');
+                                    
+                                    // Accordion/inline collapse for needs sorting
+                                    const isSmsSelected = selectedSmsId === sms.id;
 
-                            <Text style={{ color: '#94A3B8', fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
-                                {cfoTopAction?.rationale || 'Categorizing transactions establishes your true monthly burn rate and updates your emergency runway.'}
-                            </Text>
-
-                            <TouchableOpacity 
-                                style={{
-                                    backgroundColor: '#4F46E5',
-                                    paddingVertical: 8,
-                                    paddingHorizontal: 14,
-                                    borderRadius: 8,
-                                    alignSelf: 'flex-start',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 6
-                                }}
-                                onPress={() => router.push('/investments')}
-                            >
-                                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>View Decision Command Center</Text>
-                                <ArrowUpRight size={14} color="#FFFFFF" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.cardTitle}>Personal Spending Table</Text>
-                        {/* Clean Integrated Active Period Selector */}
-                        <View style={{ backgroundColor: '#141417', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#27272A', marginBottom: 16 }}>
-                            {/* Title & Preset Pills in vertical stack layout for perfect alignment */}
-                            <Text style={{ color: '#F4F4F5', fontSize: 13, fontWeight: '800', letterSpacing: 0.3, marginBottom: 10 }}>Active Period</Text>
-                            
-                            {/* Segmented Control Pill Bar */}
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ flexDirection: 'row', backgroundColor: '#09090B', padding: 4, borderRadius: 10, borderWidth: 1, borderColor: '#27272A', minWidth: '100%' }}>
-                                {['Daily', 'Weekly', 'Monthly', 'Yearly', 'All Time', 'Custom'].map(preset => (
-                                    <Pressable
-                                        key={preset}
-                                        onPress={() => handleSpendTimeframeSelect(preset)}
-                                        style={{
-                                            paddingHorizontal: 14,
-                                            paddingVertical: 8,
-                                            backgroundColor: spendTimeframe === preset ? '#6366F1' : 'transparent',
-                                            borderRadius: 7,
-                                            alignItems: 'center',
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        <Text style={{ color: spendTimeframe === preset ? '#FFFFFF' : '#A1A1AA', fontSize: 11, fontWeight: spendTimeframe === preset ? '800' : '600' }}>
-                                            {preset}
-                                        </Text>
-                                    </Pressable>
-                                ))}
-                            </ScrollView>
-
-                            {/* Editable Date Range Inputs */}
-                            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>FROM DATE</Text>
-                                    <TextInput
-                                        value={spendFromDate}
-                                        onChangeText={(val) => {
-                                            setSpendFromDate(val);
-                                            setSpendTimeframe('Custom');
-                                        }}
-                                        placeholder="YYYY-MM-DD"
-                                        placeholderTextColor="#52525B"
-                                        style={{
-                                            backgroundColor: '#09090B',
-                                            color: '#FFFFFF',
-                                            fontSize: 13,
-                                            fontWeight: '700',
-                                            textAlign: 'center',
-                                            height: 42,
-                                            borderRadius: 10,
-                                            borderWidth: 1,
-                                            borderColor: spendTimeframe === 'Custom' ? '#6366F1' : '#27272A',
-                                            paddingHorizontal: 8
-                                        }}
-                                    />
-                                </View>
-                                <Text style={{ color: '#52525B', fontSize: 12, fontWeight: '700', marginTop: 18 }}>to</Text>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>TO DATE</Text>
-                                    <TextInput
-                                        value={spendToDate}
-                                        onChangeText={(val) => {
-                                            setSpendToDate(val);
-                                            setSpendTimeframe('Custom');
-                                        }}
-                                        placeholder="YYYY-MM-DD"
-                                        placeholderTextColor="#52525B"
-                                        style={{
-                                            backgroundColor: '#09090B',
-                                            color: '#FFFFFF',
-                                            fontSize: 13,
-                                            fontWeight: '700',
-                                            textAlign: 'center',
-                                            height: 42,
-                                            borderRadius: 10,
-                                            borderWidth: 1,
-                                            borderColor: spendTimeframe === 'Custom' ? '#6366F1' : '#27272A',
-                                            paddingHorizontal: 8
-                                        }}
-                                    />
-                                </View>
-                            </View>
-                        </View>
-                        {/* Selected Period Metrics Card */}
-                        <View style={{ backgroundColor: '#101012', borderRadius: 16, paddingVertical: 14, paddingHorizontal: 10, marginBottom: 16, borderWidth: 1, borderColor: '#27272A' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Earnings</Text>
-                                    <Text style={{ color: '#10B981', fontSize: 15, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                        ₹{Math.round(flow.income).toLocaleString()}
-                                    </Text>
-                                </View>
-                                <View style={{ width: 1, height: 28, backgroundColor: '#27272A' }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Total Spendings</Text>
-                                    <Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '800', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                        ₹{Math.round(flow.expense).toLocaleString()}
-                                    </Text>
-                                </View>
-                                <View style={{ width: 1, height: 28, backgroundColor: '#27272A' }} />
-                                <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
-                                    <Text style={{ color: '#9CA3AF', fontSize: 10, fontWeight: '700', marginBottom: 4, textAlign: 'center' }} numberOfLines={1}>Net Balance</Text>
-                                    <Text style={{ color: flow.net >= 0 ? '#10B981' : '#EF4444', fontSize: 15, fontWeight: '900', textAlign: 'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>
-                                        ₹{Math.round(flow.net).toLocaleString()}
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-                        <TouchableOpacity 
-                            onPress={() => setIsWhereMoneyExpanded(!isWhereMoneyExpanded)} 
-                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12, backgroundColor: '#18181B', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: '#27272A' }}
-                        >
-                            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '750' }}>💸 Where Is My Money?</Text>
-                            <Text style={{ color: '#6366F1', fontSize: 12, fontWeight: '800' }}>
-                                {isWhereMoneyExpanded ? 'Hide ▲' : 'Show Details ▼'}
-                            </Text>
-                        </TouchableOpacity>
-                        
-                        {isWhereMoneyExpanded && (
-                            <View style={{ paddingHorizontal: 4, marginBottom: 10 }}>
-                                {Object.keys(catTotals).filter(cat => cat !== 'Income' && cat !== 'Salary' && cat !== 'Business').length === 0 ? (
-                                    <View style={{ padding: 16, backgroundColor: '#18181B', borderRadius: 10, borderWidth: 1, borderColor: '#27272A', alignItems: 'center', marginBottom: 14 }}>
-                                        <Text style={{ color: '#71717A', fontSize: 13 }}>No expenses recorded during this period.</Text>
-                                    </View>
-                                ) : (
-                                    Object.keys(catTotals).filter(cat => cat !== 'Income' && cat !== 'Salary' && cat !== 'Business').map(cat => {
-                                        return (
-                                            <View key={cat} style={{ marginBottom: 14 }}>
-                                                <View style={styles.categoryProgressRow}>
-                                                    <View style={styles.row}>
-                                                        <Text style={styles.categoryLabel}>{cat}</Text>
-                                                        <Text style={styles.categoryVal}>₹{Math.round(catTotals[cat]).toLocaleString()}</Text>
-                                                    </View>
-                                                    <View style={styles.progressBarBg}>
-                                                        <View style={[styles.progressBarFill, { width: `${Math.min(100, (catTotals[cat] / (flow.expense || 1)) * 100)}%` }]} />
-                                                    </View>
-                                                </View>
-                                            </View>
-                                        );
-                                    })
-                                )}
-                            </View>
-                        )}
-                        {/* Transaction Logger */}
-                        <TouchableOpacity 
-                            onPress={() => setIsLoggerExpanded(!isLoggerExpanded)} 
-                            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 12, backgroundColor: '#18181B', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, borderColor: '#27272A' }}
-                        >
-                            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '750' }}>Quick Transaction Logger</Text>
-                            <Text style={{ color: '#6366F1', fontSize: 12, fontWeight: '800' }}>
-                                {isLoggerExpanded ? 'Hide ▲' : 'Open Logger ▼'}
-                            </Text>
-                        </TouchableOpacity>
-
-                        {isLoggerExpanded && (
-                            <View style={styles.formContainer}>
-                                <View style={styles.formGroup}>
-                                    <Text style={styles.formLabel}>Description</Text>
-                                    <TextInput
-                                        placeholder="e.g. Organic Groceries, Salary, Coffee"
-                                        placeholderTextColor="#71717A"
-                                        value={newTxDesc}
-                                        onChangeText={setNewTxDesc}
-                                        style={styles.formInput}
-                                    />
-                                </View>
-                                <View style={styles.formRow}>
-                                    <View style={[styles.formGroup, { flex: 1.2, marginRight: 8 }]}>
-                                        <Text style={styles.formLabel}>Amount (₹)</Text>
-                                        <TextInput
-                                            placeholder="0.00"
-                                            placeholderTextColor="#71717A"
-                                            keyboardType="numeric"
-                                            value={newTxAmt}
-                                            onChangeText={setNewTxAmt}
-                                            style={styles.formInput}
-                                        />
-                                    </View>
-                                    <View style={[styles.formGroup, { flex: 1.8, marginLeft: 8 }]}>
-                                        <Text style={styles.formLabel}>Category</Text>
-                                        <Pressable
-                                            onPress={() => setShowCatDropdown(!showCatDropdown)}
-                                            style={styles.dropdownSelectBox}
-                                        >
-                                            <Text style={styles.dropdownSelectBoxText}>{newTxCat}</Text>
-                                            <Text style={{ color: '#A1A1AA', fontSize: 10 }}>▼</Text>
-                                        </Pressable>
-                                        {showCatDropdown && (
-                                            <View style={styles.dropdownOptionsContainer}>
-                                                <ScrollView nestedScrollEnabled style={{ maxHeight: 150 }}>
-                                                    {['Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', 'Custom', ...customCategories].map(cat => (
-                                                        <Pressable
-                                                            key={cat}
-                                                            onPress={() => {
-                                                                setNewTxCat(cat);
-                                                                setShowCatDropdown(false);
-                                                            }}
-                                                            style={styles.dropdownOptionItem}
-                                                        >
-                                                            <Text style={styles.dropdownOptionText}>{cat}</Text>
-                                                        </Pressable>
-                                                    ))}
-                                                </ScrollView>
-                                            </View>
-                                        )}
-                                    </View>
-                                </View>
-                                {/* Custom Category Input Box */}
-                                {newTxCat === 'Custom' && (
-                                    <View style={styles.formGroup}>
-                                        <Text style={styles.formLabel}>Enter Custom Category Name</Text>
-                                        <TextInput
-                                            placeholder="e.g. Health, Education, Tax"
-                                            placeholderTextColor="#71717A"
-                                            value={newTxCustomCat}
-                                            onChangeText={setNewTxCustomCat}
-                                            style={styles.formInput}
-                                        />
-                                    </View>
-                                )}
-                                {/* Type Switcher (Income vs Expense) */}
-                                <View style={styles.typeSwitcher}>
-                                    <Pressable
-                                        onPress={() => setNewTxType('EXPENSE')}
-                                        style={[
-                                            styles.typeButton,
-                                            newTxType === 'EXPENSE' && styles.typeButtonExpenseActive
-                                        ]}
-                                    >
-                                        <Text style={[
-                                            styles.typeText,
-                                            newTxType === 'EXPENSE' && styles.typeTextActive
-                                        ]}>
-                                            Expense
-                                        </Text>
-                                    </Pressable>
-                                    <Pressable
-                                        onPress={() => setNewTxType('INCOME')}
-                                        style={[
-                                            styles.typeButton,
-                                            newTxType === 'INCOME' && styles.typeButtonIncomeActive
-                                        ]}
-                                    >
-                                        <Text style={[
-                                            styles.typeText,
-                                            newTxType === 'INCOME' && styles.typeTextActive
-                                        ]}>
-                                            Income
-                                        </Text>
-                                    </Pressable>
-                                </View>
-                                <Pressable style={styles.submitBtn} onPress={handleAddTransaction}>
-                                    <Plus size={20} color="#FFF" style={{ marginRight: 8 }} />
-                                    <Text style={styles.submitBtnText}>Log Transaction</Text>
-                                </Pressable>
-                            </View>
-                        )}
-                        {/* ======= UNIFIED SMART TRANSACTION FEED ======= */}
-                        <View style={{ marginTop: 24 }}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                                <Text style={styles.subHeader}>📋 Smart Transaction Feed</Text>
-                            </View>
-                            
-                            {/* Segmented Filter Chips */}
-                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                                {[
-                                    { key: 'all', label: 'All Feed' },
-                                    { key: 'manual', label: 'Needs Sort 🔴' },
-                                    { key: 'auto', label: 'Sorted ✓' }
-                                ].map(opt => {
-                                    const isActive = feedFilter === opt.key;
                                     return (
-                                        <TouchableOpacity 
-                                            key={opt.key}
-                                            onPress={() => setFeedFilter(opt.key)}
-                                            style={{
-                                                backgroundColor: isActive ? '#6366F1' : '#18181B',
-                                                paddingHorizontal: 14,
-                                                paddingVertical: 8,
-                                                borderRadius: 20,
-                                                borderWidth: 1,
-                                                borderColor: isActive ? '#818CF8' : '#27272A'
-                                            }}
-                                        >
-                                            <Text style={{ color: isActive ? '#FFF' : '#A1A1AA', fontSize: 11, fontWeight: '750' }}>
-                                                {opt.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                            {/* === Merged: Transactions + SMS Items === */}
-                            <View style={{ gap: 10 }}>
-                                {(() => {
-                                    const combinedFeed = [
-                                        ...transactions.map(t => {
-                                            const isAutoSorted = knownCategories.includes(t.category);
-                                            return {
-                                                feedId: `tx-${t.id}`,
-                                                itemType: 'transaction',
-                                                date: t.date,
-                                                isAutoSorted,
-                                                data: t
-                                            };
-                                        }),
-                                        ...smsInbox.map(sms => {
-                                            const cat = sms.parsedCategory || '';
-                                            const isAutoSorted = sms.status === 'PARSED' && knownCategories.includes(cat);
-                                            return {
-                                                feedId: `sms-${sms.id}`,
-                                                itemType: 'sms',
-                                                date: sms.date || '2026-07-06',
-                                                isAutoSorted,
-                                                data: sms
-                                            };
-                                        })
-                                    ];
-                                    const filteredFeed = combinedFeed.filter(item => {
-                                        if (feedFilter === 'auto') return item.isAutoSorted;
-                                        if (feedFilter === 'manual') return !item.isAutoSorted;
-                                        return true;
-                                    });
-                                    const sortedFeed = filteredFeed.sort((a, b) => b.date.localeCompare(a.date));
-                                    if (sortedFeed.length === 0) {
-                                        return (
-                                            <View style={{ padding: 24, backgroundColor: '#18181B', borderRadius: 12, borderWidth: 1, borderColor: '#27272A', alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
-                                                <Text style={{ color: '#71717A', fontSize: 13 }}>No transactions found in this filter.</Text>
-                                            </View>
-                                        );
-                                    }
-                                    return sortedFeed.map(item => {
-                                        if (item.itemType === 'transaction') {
-                                            const t = item.data;
-                                            const isAutoSorted = item.isAutoSorted;
-                                            const isTxSelected = selectedTxId === t.id;
-                                            
-                                            // Get category emoji helper
-                                            const getEmoji = (cat) => {
-                                                const c = cat.toLowerCase();
-                                                if (c.includes('food')) return '🍕';
-                                                if (c.includes('travel')) return '🚗';
-                                                if (c.includes('rent')) return '🏠';
-                                                if (c.includes('shopping')) return '🛍️';
-                                                if (c.includes('bills')) return '📄';
-                                                if (c.includes('income') || c.includes('salary')) return '📈';
-                                                return '💰';
-                                            };
-
-                                            return (
-                                                <View key={item.feedId} style={{
-                                                    backgroundColor: '#18181B',
-                                                    borderRadius: 14,
-                                                    borderWidth: 1,
-                                                    borderColor: '#27272A',
-                                                    borderLeftWidth: 4,
-                                                    borderLeftColor: isAutoSorted ? '#10B981' : '#EF4444',
-                                                    overflow: 'hidden',
-                                                    marginBottom: 4
-                                                }}>
-                                                    <Pressable onPress={() => setSelectedTxId(isTxSelected ? null : t.id)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}>
-                                                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#27272A', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Text style={{ fontSize: 16 }}>{getEmoji(t.category)}</Text>
-                                                        </View>
-                                                        <View style={{ flex: 1, marginLeft: 12 }}>
-                                                            <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '750' }} numberOfLines={1}>{t.desc}</Text>
-                                                            <Text style={{ color: '#71717A', fontSize: 10, marginTop: 2 }}>{t.category} • {t.date}</Text>
-                                                        </View>
-                                                        <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                                                            <Text style={{ color: t.type === 'INCOME' ? '#10B981' : '#E4E4E7', fontSize: 14, fontWeight: '800' }}>
-                                                                {t.type === 'INCOME' ? '+' : '-'}₹{t.amount.toLocaleString()}
-                                                            </Text>
-                                                            <Text style={{ color: '#10B981', fontSize: 9, fontWeight: '800', marginTop: 2 }}>✓ Sorted</Text>
-                                                        </View>
-                                                    </Pressable>
-                                                    
-                                                    {isTxSelected && (
-                                                        <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#27272A', backgroundColor: '#09090B' }}>
-                                                            <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '800' }}>TRANSACTION SOURCE</Text>
-                                                            <Text style={{ color: '#D4D4D8', fontSize: 12, marginVertical: 6 }}>{t.syncedFromSms ? `SMS: "${t.smsBody}"` : 'Manually logged transaction'}</Text>
-                                                            
-                                                            <View style={{ marginTop: 10 }}>
-                                                                <Text style={{ color: '#A1A1AA', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>Re-assign Category</Text>
-                                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
-                                                                    {['Custom', 'Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', ...customCategories].map(c => (
-                                                                        <TouchableOpacity
-                                                                            key={c}
-                                                                            onPress={() => {
-                                                                                if (c === 'Custom') {
-                                                                                    setTxCustomInputActive(prev => ({ ...prev, [t.id]: true }));
-                                                                                    setActiveTxCatDropdownId(null);
-                                                                                } else {
-                                                                                    setTxCustomInputActive(prev => ({ ...prev, [t.id]: false }));
-                                                                                    setTransactions(prev => prev.map(item => item.id === t.id ? { ...item, category: c } : item));
-                                                                                    if (t.smsId) {
-                                                                                        setSmsInbox(prev => prev.map(item => item.id === t.smsId ? { ...item, parsedCategory: c, status: 'PARSED' } : item));
-                                                                                        setSyncedSmsArchive(prev => prev.map(item => item.smsId === t.smsId ? { ...item, category: c } : item));
-                                                                                    }
-                                                                                    Alert.alert("Success", `Category updated to ${c}!`);
-                                                                                }
-                                                                            }}
-                                                                            style={{
-                                                                                backgroundColor: t.category === c ? '#6366F1' : '#27272A',
-                                                                                paddingHorizontal: 12,
-                                                                                paddingVertical: 6,
-                                                                                borderRadius: 20,
-                                                                                borderWidth: 1,
-                                                                                borderColor: t.category === c ? '#818CF8' : '#3F3F46',
-                                                                                marginRight: 6
-                                                                            }}
-                                                                        >
-                                                                            <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{c}</Text>
-                                                                        </TouchableOpacity>
-                                                                    ))}
-                                                                </ScrollView>
-                                                                {txCustomInputActive[t.id] && (
-                                                                    <View style={{ marginTop: 8 }}>
-                                                                        <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Enter Custom Category</Text>
-                                                                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                                            <TextInput
-                                                                                placeholder="e.g. Health, Tax"
-                                                                                placeholderTextColor="#52525B"
-                                                                                value={txCustomName[t.id] || ''}
-                                                                                onChangeText={text => setTxCustomName(prev => ({ ...prev, [t.id]: text }))}
-                                                                                style={[styles.formInput, { flex: 1, height: 36, paddingVertical: 4, color: '#FFF' }]}
-                                                                            />
-                                                                            <TouchableOpacity
-                                                                                onPress={() => {
-                                                                                    const finalCat = (txCustomName[t.id] || '').trim();
-                                                                                    if (!finalCat) {
-                                                                                        Alert.alert("Error", "Category name cannot be empty.");
-                                                                                        return;
-                                                                                    }
-                                                                                    if (!customCategories.includes(finalCat)) {
-                                                                                        setCustomCategories([...customCategories, finalCat]);
-                                                                                    }
-                                                                                    setTransactions(prev => prev.map(item => item.id === t.id ? { ...item, category: finalCat } : item));
-                                                                                    if (t.smsId) {
-                                                                                        setSmsInbox(prev => prev.map(item => item.id === t.smsId ? { ...item, parsedCategory: finalCat, status: 'PARSED' } : item));
-                                                                                        setSyncedSmsArchive(prev => prev.map(item => item.smsId === t.smsId ? { ...item, category: finalCat } : item));
-                                                                                    }
-                                                                                    setTxCustomInputActive(prev => ({ ...prev, [t.id]: false }));
-                                                                                    Alert.alert("Success", `Category updated to ${finalCat}!`);
-                                                                                }}
-                                                                                style={{ backgroundColor: '#6366F1', paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }}
-                                                                            >
-                                                                                <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '600' }}>Save</Text>
-                                                                            </TouchableOpacity>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                            </View>
-                                                            <TouchableOpacity onPress={() => handleDeleteTransaction(t.id)} style={{ marginTop: 12, backgroundColor: '#EF444415', paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#EF444430' }}>
-                                                                <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '800' }}>Delete Transaction</Text>
-                                                            </TouchableOpacity>
-                                                        </View>
-                                                    )}
+                                        <View key={item.feedId} style={{
+                                            backgroundColor: '#18181B',
+                                            borderRadius: 14,
+                                            borderWidth: 1,
+                                            borderColor: '#27272A',
+                                            borderLeftWidth: 4,
+                                            borderLeftColor: isAutoSorted ? '#10B981' : '#EF4444',
+                                            overflow: 'hidden',
+                                            marginBottom: 4
+                                        }}>
+                                            <Pressable onPress={() => setSelectedSmsId(isSmsSelected ? null : sms.id)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}>
+                                                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isAutoSorted ? '#10B98115' : '#EF444415', justifyContent: 'center', alignItems: 'center' }}>
+                                                    <Text style={{ fontSize: 16 }}>✉️</Text>
                                                 </View>
-                                            );
-                                        } else {
-                                            const sms = item.data;
-                                            const isAutoSorted = item.isAutoSorted;
-                                            const selectedCat = smsSelectedCategories[sms.id] || sms.parsedCategory || (sms.type === 'INCOME' ? 'Income' : 'Bills');
+                                                <View style={{ flex: 1, marginLeft: 12 }}>
+                                                    <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '750' }}>{sms.sender}</Text>
+                                                    <Text style={{ color: '#71717A', fontSize: 11, marginTop: 2 }} numberOfLines={1}>{sms.text}</Text>
+                                                </View>
+                                                <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                                                    <Text style={{ color: isAutoSorted ? '#10B981' : '#EF4444', fontSize: 10, fontWeight: '800' }}>
+                                                        {isAutoSorted ? 'Sorted' : 'Needs Sort 🔴'}
+                                                    </Text>
+                                                </View>
+                                            </Pressable>
                                             
-                                            // Accordion/inline collapse for needs sorting
-                                            const isSmsSelected = selectedSmsId === sms.id;
-
-                                            return (
-                                                <View key={item.feedId} style={{
-                                                    backgroundColor: '#18181B',
-                                                    borderRadius: 14,
-                                                    borderWidth: 1,
-                                                    borderColor: '#27272A',
-                                                    borderLeftWidth: 4,
-                                                    borderLeftColor: isAutoSorted ? '#10B981' : '#EF4444',
-                                                    overflow: 'hidden',
-                                                    marginBottom: 4
-                                                }}>
-                                                    <Pressable onPress={() => setSelectedSmsId(isSmsSelected ? null : sms.id)} style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}>
-                                                        <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isAutoSorted ? '#10B98115' : '#EF444415', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Text style={{ fontSize: 16 }}>✉️</Text>
-                                                        </View>
-                                                        <View style={{ flex: 1, marginLeft: 12 }}>
-                                                            <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '750' }}>{sms.sender}</Text>
-                                                            <Text style={{ color: '#71717A', fontSize: 11, marginTop: 2 }} numberOfLines={1}>{sms.text}</Text>
-                                                        </View>
-                                                        <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                                                            <Text style={{ color: isAutoSorted ? '#10B981' : '#EF4444', fontSize: 10, fontWeight: '800' }}>
-                                                                {isAutoSorted ? 'Sorted' : 'Needs Sort 🔴'}
-                                                            </Text>
-                                                            <Text style={{ color: '#52525B', fontSize: 9, marginTop: 4 }}>{sms.date || '2026-07-06'}</Text>
-                                                        </View>
-                                                    </Pressable>
+                                            {/* Expanded Context Details */}
+                                            {isSmsSelected && (
+                                                <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#27272A', backgroundColor: '#09090B' }}>
+                                                    <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '800' }}>FULL SMS CONTENT</Text>
+                                                    <View style={{ backgroundColor: '#18181B', padding: 10, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#27272A' }}>
+                                                        <Text style={{ color: '#E4E4E7', fontSize: 12, lineHeight: 18 }}>{sms.text || sms.body}</Text>
+                                                    </View>
                                                     
-                                                    {isSmsSelected && (
-                                                        <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#27272A', backgroundColor: '#09090B' }}>
-                                                            <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '800' }}>FULL SMS CONTENT</Text>
-                                                            <View style={{ backgroundColor: '#18181B', padding: 10, borderRadius: 8, marginVertical: 8, borderWidth: 1, borderColor: '#27272A' }}>
-                                                                <Text style={{ color: '#E4E4E7', fontSize: 12, lineHeight: 18 }}>{sms.text}</Text>
-                                                            </View>
-                                                            
-                                                            <View style={{ marginTop: 10 }}>
-                                                                <Text style={{ color: '#A1A1AA', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>Select Matching Category</Text>
-                                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
-                                                                    {['Custom', 'Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', ...customCategories].map(c => (
-                                                                        <TouchableOpacity
-                                                                            key={c}
-                                                                            onPress={() => {
-                                                                                if (c === 'Custom') {
-                                                                                    setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: true }));
-                                                                                } else {
-                                                                                    setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: false }));
-                                                                                    setSmsSelectedCategories({ ...smsSelectedCategories, [sms.id]: c });
-                                                                                    if (sms.status === 'PARSED') {
-                                                                                        handleUpdateParsedSmsCategory(sms.id, c);
-                                                                                    }
-                                                                                }
-                                                                            }}
-                                                                            style={{
-                                                                                backgroundColor: selectedCat === c ? '#6366F1' : '#27272A',
-                                                                                paddingHorizontal: 12,
-                                                                                paddingVertical: 6,
-                                                                                borderRadius: 20,
-                                                                                borderWidth: 1,
-                                                                                borderColor: selectedCat === c ? '#818CF8' : '#3F3F46',
-                                                                                marginRight: 6
-                                                                            }}
-                                                                        >
-                                                                            <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{c}</Text>
-                                                                        </TouchableOpacity>
-                                                                    ))}
-                                                                </ScrollView>
-                                                                {smsCustomInputActive[sms.id] && (
-                                                                    <View style={{ marginTop: 8 }}>
-                                                                        <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Enter Custom Category</Text>
-                                                                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                                                                            <TextInput
-                                                                                placeholder="e.g. Health, Tax"
-                                                                                placeholderTextColor="#52525B"
-                                                                                value={smsCustomName[sms.id] || ''}
-                                                                                onChangeText={text => setSmsCustomName(prev => ({ ...prev, [sms.id]: text }))}
-                                                                                style={[styles.formInput, { flex: 1, height: 36, paddingVertical: 4, color: '#FFF' }]}
-                                                                            />
-                                                                            <TouchableOpacity
-                                                                                onPress={() => {
-                                                                                    const finalCat = (smsCustomName[sms.id] || '').trim();
-                                                                                    if (!finalCat) {
-                                                                                        Alert.alert("Error", "Category name cannot be empty.");
-                                                                                        return;
-                                                                                    }
-                                                                                    if (!customCategories.includes(finalCat)) {
-                                                                                        setCustomCategories([...customCategories, finalCat]);
-                                                                                    }
-                                                                                    setSmsSelectedCategories(prev => ({ ...prev, [sms.id]: finalCat }));
-                                                                                    setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: false }));
-                                                                                    if (sms.status === 'PARSED') {
-                                                                                        handleUpdateParsedSmsCategory(sms.id, finalCat);
-                                                                                    }
-                                                                                    Alert.alert("Success", `Category set to ${finalCat}`);
-                                                                                }}
-                                                                                style={{ backgroundColor: '#6366F1', paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }}
-                                                                            >
-                                                                                <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '600' }}>Save</Text>
-                                                                            </TouchableOpacity>
-                                                                        </View>
-                                                                    </View>
-                                                                )}
-                                                            </View>
-                                                            
-                                                            {sms.status === 'UNPARSED' ? (
-                                                                <TouchableOpacity 
-                                                                    style={{ marginTop: 14, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }} 
-                                                                    onPress={() => handleSmsSync(sms, selectedCat)}
+                                                    <View style={{ marginTop: 10 }}>
+                                                        <Text style={{ color: '#A1A1AA', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>Select Matching Category</Text>
+                                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
+                                                            {['Custom', 'Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', ...customCategories].map(c => (
+                                                                <TouchableOpacity
+                                                                    key={c}
+                                                                    onPress={() => {
+                                                                        if (c === 'Custom') {
+                                                                            setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: true }));
+                                                                        } else {
+                                                                            setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: false }));
+                                                                            setSmsSelectedCategories({ ...smsSelectedCategories, [sms.id]: c });
+                                                                            if (sms.status === 'PARSED') {
+                                                                                handleUpdateParsedSmsCategory(sms.id, c);
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    style={{
+                                                                        backgroundColor: selectedCat === c ? '#6366F1' : '#27272A',
+                                                                        paddingHorizontal: 12,
+                                                                        paddingVertical: 6,
+                                                                        borderRadius: 20,
+                                                                        borderWidth: 1,
+                                                                        borderColor: selectedCat === c ? '#818CF8' : '#3F3F46',
+                                                                        marginRight: 6
+                                                                    }}
                                                                 >
-                                                                    <Text style={{ color: '#000', fontSize: 12, fontWeight: '800' }}>Confirm Sort & Sync under "${selectedCat}"</Text>
+                                                                    <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '700' }}>{c}</Text>
                                                                 </TouchableOpacity>
-                                                            ) : (
-                                                                <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                                    <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '750' }}>✓ Archived & Synced</Text>
+                                                            ))}
+                                                        </ScrollView>
+                                                        {smsCustomInputActive[sms.id] && (
+                                                            <View style={{ marginTop: 8 }}>
+                                                                <Text style={{ color: '#71717A', fontSize: 10, fontWeight: '700', marginBottom: 4 }}>Enter Custom Category</Text>
+                                                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                                    <TextInput
+                                                                        placeholder="e.g. Health, Tax"
+                                                                        placeholderTextColor="#52525B"
+                                                                        value={smsCustomName[sms.id] || ''}
+                                                                        onChangeText={text => setSmsCustomName(prev => ({ ...prev, [sms.id]: text }))}
+                                                                        style={[styles.formInput, { flex: 1, height: 36, paddingVertical: 4, color: '#FFF' }]}
+                                                                    />
+                                                                    <TouchableOpacity
+                                                                        onPress={() => {
+                                                                            const finalCat = (smsCustomName[sms.id] || '').trim();
+                                                                            if (!finalCat) {
+                                                                                Alert.alert("Error", "Category name cannot be empty.");
+                                                                                return;
+                                                                            }
+                                                                            if (!customCategories.includes(finalCat)) {
+                                                                                setCustomCategories([...customCategories, finalCat]);
+                                                                            }
+                                                                            setSmsSelectedCategories(prev => ({ ...prev, [sms.id]: finalCat }));
+                                                                            setSmsCustomInputActive(prev => ({ ...prev, [sms.id]: false }));
+                                                                            if (sms.status === 'PARSED') {
+                                                                                handleUpdateParsedSmsCategory(sms.id, finalCat);
+                                                                            }
+                                                                            Alert.alert("Success", `Category set to ${finalCat}`);
+                                                                        }}
+                                                                        style={{ backgroundColor: '#6366F1', paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' }}
+                                                                    >
+                                                                        <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '600' }}>Save</Text>
+                                                                    </TouchableOpacity>
                                                                 </View>
-                                                            )}
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                    
+                                                    {sms.status === 'UNPARSED' ? (
+                                                        <TouchableOpacity 
+                                                            style={{ marginTop: 14, backgroundColor: '#10B981', paddingVertical: 12, borderRadius: 8, alignItems: 'center' }} 
+                                                            onPress={() => handleSmsSync(sms, selectedCat)}
+                                                        >
+                                                            <Text style={{ color: '#000', fontSize: 12, fontWeight: '800' }}>Confirm Sort & Sync under "${selectedCat}"</Text>
+                                                        </TouchableOpacity>
+                                                    ) : (
+                                                        <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                            <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '750' }}>✓ Archived & Synced</Text>
                                                         </View>
                                                     )}
                                                 </View>
-                                            );
-                                        }
-                                    });
-                                })()}
-                            </View>
-                            </View>
+                                            )}
+                                        </View>
+                                    );
+                                });
+                            })()}
+                        </View>
                             {/* Synced SMS Archive */}
                             {syncedSmsArchive.length > 0 && (
                                 <View style={{ marginTop: 20 }}>

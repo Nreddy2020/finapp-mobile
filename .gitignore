@@ -104,4 +104,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Build & temp archives
+tmp/
+*.zip
+tests/check_bundle.js
+
 # @end expo-cli

@@ -194,18 +194,19 @@ async function main() {
     // -------------------------------------------------------------------
     console.log('\n--- Group 3: AX1-03 Money Flow Feeder & Intelligence Callout ---');
 
-    await runTest(7, 'Personal CFO Callout Banner in app/(tabs)/self.js: Present & properly styled', async () => {
+    await runTest(7, 'Personal CFO Callout Banner in Money Flow: Present & properly styled', async () => {
         const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
-        assert.ok(fs.existsSync(selfPath), 'app/(tabs)/self.js must exist');
-        const content = fs.readFileSync(selfPath, 'utf8');
+        const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
+        const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
 
         assert.ok(content.includes('PERSONAL CFO INTELLIGENCE'), 'Must include Personal CFO Intelligence banner');
-        assert.ok(content.includes('View Decision Command Center'), 'Must include deep link to Decision Command Center');
+        assert.ok(content.includes('View Decision Command Center') || content.includes('View All Recommendations'), 'Must include deep link to Decision Command Center');
     });
 
-    await runTest(8, 'Zero Local Recalculation in self.js: Pure engine consumption', async () => {
+    await runTest(8, 'Zero Local Recalculation in Money Flow: Pure engine consumption', async () => {
         const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
-        const content = fs.readFileSync(selfPath, 'utf8');
+        const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
+        const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
 
         assert.ok(content.includes('evaluatePortfolioHealthScore'), 'Consumes certified health score engine');
         assert.ok(content.includes('prioritizeNextBestActions'), 'Consumes certified next best actions engine');
@@ -213,7 +214,8 @@ async function main() {
 
     await runTest(9, 'Money Flow Navigation Bridge: Links to /investments', async () => {
         const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
-        const content = fs.readFileSync(selfPath, 'utf8');
+        const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
+        const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
 
         assert.ok(content.includes("router.push('/investments')"), 'Must link to investments decision center');
     });

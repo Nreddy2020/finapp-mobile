@@ -1,6 +1,14 @@
 import { Stack, SplashScreen } from "expo-router";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, LogBox } from "react-native";
 import { useEffect } from "react";
+
+// Ignore known Expo Go SDK 53 push notification limitation warnings
+LogBox.ignoreLogs([
+  'expo-notifications: Android Push notifications',
+  'Listening to push token changes is not yet fully supported on web',
+  '`expo-notifications` functionality is not fully supported in Expo Go',
+  'Cannot manually set color scheme'
+]);
 
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
