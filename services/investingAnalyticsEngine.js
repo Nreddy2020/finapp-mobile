@@ -792,6 +792,386 @@ function solveXIRR(cashFlows) {
     return { xirrPercent: 0, xirrStatus: 'FAILED_TO_CONVERGE' };
 }
 
+export const TAX_RULE_VERSION = 'C44_V1';
+
+function getTaxHoldingPeriodThreshold(assetType) {
+    const norm = normalizeAssetType(assetType);
+    if (norm === 'STOCK' || norm === 'ETF') {
+        return 365;
+    }
+    return 730;
+}
+
+function resolvePeriodDates(period, startDate, endDate, asOfDate) {
+    if (startDate && endDate) {
+        return {
+            start: new Date(startDate),
+            end: new Date(endDate)
+        };
+    }
+
+    if (period === 'FY2024_25') {
+        return {
+            start: new Date('2024-04-01T00:00:00.000Z'),
+            end: new Date('2025-03-31T23:59:59.999Z')
+        };
+    } else if (period === 'FY2023_24') {
+        return {
+            start: new Date('2023-04-01T00:00:00.000Z'),
+            end: new Date('2024-03-31T23:59:59.999Z')
+        };
+    } else if (period === 'FY2025_26') {
+        return {
+            start: new Date('2025-04-01T00:00:00.000Z'),
+            end: new Date('2026-03-31T23:59:59.999Z')
+        };
+    } else if (period === 'YTD') {
+        const year = asOfDate.getUTCFullYear();
+        return {
+            start: new Date(`${year}-01-01T00:00:00.000Z`),
+            end: new Date(asOfDate.getTime())
+        };
+    }
+
+    // Default: ALL_TIME
+    return {
+        start: new Date(0),
+        end: new Date(asOfDate.getTime())
+    };
+}
+
+InvestingAnalyticsEngine.generatePortfolioStatement = async function(options = {}) {
+    const {
+        portfolioId = null,
+        period = 'ALL_TIME',
+        startDate = null,
+        endDate = null,
+        asOfDate: rawAsOfDate = new Date()
+    } = options;
+
+    const asOfDate = (rawAsOfDate instanceof Date && !isNaN(rawAsOfDate.getTime())) ? rawAsOfDate : new Date(rawAsOfDate);
+    const { start: periodStart, end: periodEnd } = resolvePeriodDates(period, startDate, endDate, asOfDate);
+    const periodStartMs = periodStart.getTime();
+    const periodEndMs = periodEnd.getTime();
+
+    const allEvents = await loadInvestmentEvents();
+    const allHoldings = await loadHoldings();
+    const holdingMap = new Map(allHoldings.map(h => [h.id, h.symbol]));
+
+    const integrityWarnings = [];
+    let skippedEventCount = 0;
+
+    // Validate dates and filter confirmed events
+    const confirmedEvents = [];
+    for (const evt of allEvents) {
+        if (evt.status !== InvestmentEventStatus.CONFIRMED) continue;
+        if (portfolioId && evt.portfolioId !== portfolioId) continue;
+
+        const dateVal = evt.date || evt.createdAt;
+        const eventDate = new Date(dateVal);
+        if (isNaN(eventDate.getTime())) {
+            skippedEventCount++;
+            integrityWarnings.push({
+                type: 'INVALID_EVENT_DATE',
+                eventId: evt.id,
+                eventType: evt.type,
+                message: `Event ${evt.id} skipped due to invalid date string "${dateVal}"`
+            });
+            continue;
+        }
+
+        confirmedEvents.push({
+            ...evt,
+            parsedDate: eventDate,
+            parsedTimeMs: eventDate.getTime()
+        });
+    }
+
+    confirmedEvents.sort((a, b) => a.parsedTimeMs - b.parsedTimeMs);
+
+    // Dual Chronological Replay: WAC (Economic) + FIFO (Tax)
+    const fifoLots = {};
+    const wacLedger = {};
+
+    let totalEconomicRealizedGain = 0;
+    let totalTaxRealizedGain = 0;
+    let totalSTCG = 0;
+    let totalLTCG = 0;
+    let totalTradeFees = 0;
+    let totalTradeTaxes = 0;
+    let totalGrossDividends = 0;
+    let totalDividendTaxesWithheld = 0;
+    let totalNetDividends = 0;
+    let dividendEventCount = 0;
+    let totalStandaloneFees = 0;
+    let totalStandaloneTaxes = 0;
+    const periodSells = [];
+
+    for (const evt of confirmedEvents) {
+        const sym = (evt.symbol || evt.metadata?.symbol || holdingMap.get(evt.holdingId) || 'UNKNOWN').toUpperCase();
+        const ledgerKey = `${evt.portfolioId || 'default'}:${(evt.holdingId || sym).toUpperCase()}`;
+        const holdingRecord = allHoldings.find(h => h.id === evt.holdingId || (h.symbol && h.symbol.toUpperCase() === sym));
+        const assetType = normalizeAssetType(evt.assetType || evt.metadata?.assetType || holdingRecord?.assetType);
+
+        if (!fifoLots[ledgerKey]) fifoLots[ledgerKey] = [];
+        if (!wacLedger[ledgerKey]) wacLedger[ledgerKey] = { netQuantity: 0, totalInvestedCost: 0, averageCost: 0 };
+
+        const sec = wacLedger[ledgerKey];
+        const lotQueue = fifoLots[ledgerKey];
+
+        const qty = Number(evt.quantity) || 0;
+        const price = Number(evt.price) || 0;
+        const fees = Number(evt.fees) || 0;
+        const taxes = Number(evt.taxes) || 0;
+        const amount = Number(evt.amount) || 0;
+
+        if (evt.type === EventType.BUY) {
+            sec.netQuantity = Number((sec.netQuantity + qty).toFixed(4));
+            sec.totalInvestedCost = Number((sec.totalInvestedCost + (qty * price)).toFixed(2));
+            sec.averageCost = sec.netQuantity > 0 ? Number((sec.totalInvestedCost / sec.netQuantity).toFixed(4)) : 0;
+
+            lotQueue.push({
+                quantity: qty,
+                buyDate: evt.parsedDate,
+                buyPrice: price,
+                assetType
+            });
+        } else if (evt.type === EventType.BONUS) {
+            sec.netQuantity = Number((sec.netQuantity + qty).toFixed(4));
+            sec.averageCost = sec.netQuantity > 0 ? Number((sec.totalInvestedCost / sec.netQuantity).toFixed(4)) : 0;
+
+            const precedingBuyDate = lotQueue.length > 0 ? lotQueue[0].buyDate : evt.parsedDate;
+            lotQueue.push({
+                quantity: qty,
+                buyDate: precedingBuyDate,
+                buyPrice: 0,
+                assetType
+            });
+        } else if (evt.type === EventType.SPLIT) {
+            const factor = evt.metadata?.ratio || (evt.metadata?.quantityAfter && sec.netQuantity > 0 ? (evt.metadata.quantityAfter / sec.netQuantity) : 2);
+            if (evt.metadata && evt.metadata.quantityAfter) {
+                sec.netQuantity = Number(evt.metadata.quantityAfter);
+            } else if (qty > 0) {
+                sec.netQuantity = Number((sec.netQuantity + qty).toFixed(4));
+            }
+            sec.averageCost = sec.netQuantity > 0 ? Number((sec.totalInvestedCost / sec.netQuantity).toFixed(4)) : 0;
+
+            for (const lot of lotQueue) {
+                lot.quantity = Number((lot.quantity * factor).toFixed(4));
+                lot.buyPrice = factor > 0 ? Number((lot.buyPrice / factor).toFixed(4)) : lot.buyPrice;
+            }
+        } else if (evt.type === EventType.SELL) {
+            const isWithinPeriod = evt.parsedTimeMs >= periodStartMs && evt.parsedTimeMs <= periodEndMs;
+
+            const pointInTimeWAC = sec.averageCost;
+            const availableQtyBeforeSale = sec.netQuantity;
+            const oversellDetected = qty > availableQtyBeforeSale;
+            let sellQty = qty;
+
+            if (oversellDetected) {
+                integrityWarnings.push({
+                    type: 'HISTORICAL_OVERSELL',
+                    eventId: evt.id,
+                    symbol: sym,
+                    requestedSellQty: qty,
+                    availableQty: availableQtyBeforeSale,
+                    message: `Historical SELL event ${evt.id} for ${sym} requested ${qty} units but available quantity was ${availableQtyBeforeSale}`
+                });
+                sellQty = Math.max(0, availableQtyBeforeSale);
+            }
+
+            const wacCostBasisOfSold = Number((sellQty * pointInTimeWAC).toFixed(2));
+            const grossProceeds = Number((sellQty * price).toFixed(2));
+            const economicRealizedGain = Number((grossProceeds - wacCostBasisOfSold - fees - taxes).toFixed(2));
+
+            sec.netQuantity = Number((Math.max(0, sec.netQuantity - sellQty)).toFixed(4));
+            sec.totalInvestedCost = Number((Math.max(0, sec.totalInvestedCost - wacCostBasisOfSold)).toFixed(2));
+            sec.averageCost = sec.netQuantity > 0 ? Number((sec.totalInvestedCost / sec.netQuantity).toFixed(4)) : 0;
+
+            let remainingToConsume = sellQty;
+            let fifoCostBasisOfSold = 0;
+            let primaryAcquisitionDate = evt.parsedDate;
+            let oldestLotHoldingDays = 0;
+
+            while (remainingToConsume > 0 && lotQueue.length > 0) {
+                const oldestLot = lotQueue[0];
+                if (oldestLotHoldingDays === 0) {
+                    primaryAcquisitionDate = oldestLot.buyDate;
+                    const holdingDaysMs = Math.max(0, evt.parsedTimeMs - new Date(oldestLot.buyDate).getTime());
+                    oldestLotHoldingDays = Math.round(holdingDaysMs / (24 * 3600 * 1000));
+                }
+
+                const takeQty = Math.min(remainingToConsume, oldestLot.quantity);
+                fifoCostBasisOfSold += takeQty * oldestLot.buyPrice;
+                oldestLot.quantity -= takeQty;
+                remainingToConsume -= takeQty;
+
+                if (oldestLot.quantity <= 0.00001) {
+                    lotQueue.shift();
+                }
+            }
+
+            fifoCostBasisOfSold = Number(fifoCostBasisOfSold.toFixed(2));
+            const taxRealizedGain = Number((grossProceeds - fifoCostBasisOfSold - fees - taxes).toFixed(2));
+
+            const taxThreshold = getTaxHoldingPeriodThreshold(assetType);
+            const gainType = oldestLotHoldingDays > taxThreshold ? 'LTCG' : 'STCG';
+
+            if (isWithinPeriod) {
+                totalTradeFees = Number((totalTradeFees + fees).toFixed(2));
+                totalTradeTaxes = Number((totalTradeTaxes + taxes).toFixed(2));
+                totalEconomicRealizedGain = Number((totalEconomicRealizedGain + economicRealizedGain).toFixed(2));
+                totalTaxRealizedGain = Number((totalTaxRealizedGain + taxRealizedGain).toFixed(2));
+
+                if (gainType === 'LTCG') {
+                    totalLTCG = Number((totalLTCG + taxRealizedGain).toFixed(2));
+                } else {
+                    totalSTCG = Number((totalSTCG + taxRealizedGain).toFixed(2));
+                }
+
+                periodSells.push({
+                    eventId: evt.id,
+                    symbol: sym,
+                    assetType,
+                    quantity: sellQty,
+                    sellPrice: price,
+                    grossProceeds,
+                    fees,
+                    taxes,
+
+                    // Economic WAC view
+                    pointInTimeWAC,
+                    wacCostBasisOfSold,
+                    economicRealizedGain,
+
+                    // Tax FIFO view
+                    acquisitionDate: new Date(primaryAcquisitionDate).toISOString(),
+                    fifoCostBasisOfSold,
+                    taxRealizedGain,
+                    holdingDays: oldestLotHoldingDays,
+                    gainType,
+                    oversellFlag: oversellDetected
+                });
+            }
+        } else if (evt.type === EventType.DIVIDEND) {
+            const isWithinPeriod = evt.parsedTimeMs >= periodStartMs && evt.parsedTimeMs <= periodEndMs;
+            const grossDiv = evt.metadata?.grossDividend !== undefined ? Number(evt.metadata.grossDividend) : (evt.amount ? Number(evt.amount) : 0);
+            const divTax = evt.metadata?.dividendTaxWithheld !== undefined ? Number(evt.metadata.dividendTaxWithheld) : (evt.taxes ? Number(evt.taxes) : 0);
+            const netDiv = evt.metadata?.netDividend !== undefined ? Number(evt.metadata.netDividend) : Number((grossDiv - divTax).toFixed(2));
+
+            if (Math.abs((grossDiv - divTax) - netDiv) > 0.01) {
+                integrityWarnings.push({
+                    type: 'DIVIDEND_DATA_MISMATCH',
+                    eventId: evt.id,
+                    grossDividend: grossDiv,
+                    taxWithheld: divTax,
+                    netDividend: netDiv,
+                    message: `Dividend event ${evt.id} gross (${grossDiv}) minus tax (${divTax}) does not equal net (${netDiv})`
+                });
+            }
+
+            if (isWithinPeriod) {
+                totalGrossDividends = Number((totalGrossDividends + grossDiv).toFixed(2));
+                totalDividendTaxesWithheld = Number((totalDividendTaxesWithheld + divTax).toFixed(2));
+                totalNetDividends = Number((totalNetDividends + netDiv).toFixed(2));
+                dividendEventCount++;
+            }
+        } else if (evt.type === EventType.FEE) {
+            const isWithinPeriod = evt.parsedTimeMs >= periodStartMs && evt.parsedTimeMs <= periodEndMs;
+            const feeAmt = evt.metadata?.feeAmount !== undefined ? Number(evt.metadata.feeAmount) : (fees || amount);
+            if (isWithinPeriod) {
+                totalStandaloneFees = Number((totalStandaloneFees + feeAmt).toFixed(2));
+            }
+        } else if (evt.type === EventType.TAX) {
+            const isWithinPeriod = evt.parsedTimeMs >= periodStartMs && evt.parsedTimeMs <= periodEndMs;
+            const taxAmt = evt.metadata?.taxAmount !== undefined ? Number(evt.metadata.taxAmount) : (taxes || amount);
+            if (isWithinPeriod) {
+                totalStandaloneTaxes = Number((totalStandaloneTaxes + taxAmt).toFixed(2));
+            }
+        }
+    }
+
+    // 2. Synthesize As-Of Snapshot Metrics (C.4.1, C.4.2, C.4.3)
+    const portfolioSummary = await this.getPortfolioSummary({ portfolioId });
+    const allocationSummary = await this.getAssetAllocationSummary({ portfolioId });
+    const performanceSummary = await this.getPerformanceMetrics({ portfolioId, asOfDate });
+
+    const totalInvestmentExpenses = Number((totalTradeFees + totalTradeTaxes + totalStandaloneFees + totalStandaloneTaxes).toFixed(2));
+    const netPeriodEconomicReturn = Number((totalEconomicRealizedGain + totalNetDividends - totalStandaloneFees - totalStandaloneTaxes).toFixed(2));
+
+    return {
+        statementId: `stmt_${Date.now()}`,
+        portfolioId: portfolioId || 'ALL_PORTFOLIOS',
+        period,
+        startDate: periodStart.toISOString(),
+        endDate: periodEnd.toISOString(),
+        asOfDate: asOfDate.toISOString(),
+
+        // 1. Period-Scoped Activity Statement
+        periodActivity: {
+            capitalGains: {
+                totalEconomicRealizedGain,
+                totalTaxRealizedGain,
+                totalSTCG,
+                totalLTCG,
+                sellEventCount: periodSells.length,
+                sells: periodSells
+            },
+            dividends: {
+                totalGrossDividends,
+                totalTaxesWithheld: totalDividendTaxesWithheld,
+                totalNetDividends,
+                dividendEventCount
+            },
+            expenses: {
+                totalTradeFees,
+                totalTradeTaxes,
+                totalStandaloneFees,
+                totalStandaloneTaxes,
+                totalInvestmentExpenses
+            },
+            netPeriodEconomicReturn
+        },
+
+        // 2. Point-in-Time Snapshot Valuation (asOfDate)
+        asOfSnapshot: {
+            valuation: {
+                totalCostBasis: portfolioSummary.totalCurrentCostBasis,
+                totalMarketValue: portfolioSummary.totalMarketValue,
+                unrealizedGain: portfolioSummary.unrealizedGain,
+                unrealizedReturnPercent: portfolioSummary.unrealizedReturnPercent,
+                valuationBasis: portfolioSummary.valuationBasis,
+                quoteCoverage: portfolioSummary.quoteCoverage
+            },
+            allocation: {
+                assetClasses: allocationSummary.assetAllocation,
+                top1Percent: allocationSummary.concentration.top1Percent,
+                top3Percent: allocationSummary.concentration.top3Percent,
+                hhi: allocationSummary.concentration.hhi,
+                riskTier: allocationSummary.concentration.riskTier
+            },
+            performance: {
+                xirrPercent: performanceSummary.xirrPercent,
+                xirrStatus: performanceSummary.xirrStatus,
+                cagrPercent: performanceSummary.cagrPercent,
+                absoluteReturnPercent: performanceSummary.absoluteReturnPercent,
+                performanceType: performanceSummary.performanceType,
+                holdingPeriodYears: performanceSummary.holdingPeriodYears
+            }
+        },
+
+        taxPolicy: {
+            version: TAX_RULE_VERSION
+        },
+
+        // 3. Statement Audit & Integrity
+        statementIntegrity: integrityWarnings.length === 0 ? 'VALID' : 'INCOMPLETE',
+        integrityWarnings,
+        skippedEventCount
+    };
+};
+
 export default InvestingAnalyticsEngine;
+
 
 
