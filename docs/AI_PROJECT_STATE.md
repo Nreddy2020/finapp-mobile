@@ -39,7 +39,7 @@ Current Stage:
 C.7.4_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.4_ARCHITECTURE_FINAL_REMEDIATION_COMPLETE_PENDING_GATE_DECISION
+C.7.4_ARCHITECTURE_FINAL_MICRO_REMEDIATION_COMPLETE_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -65,7 +65,7 @@ C.7.4_ARCHITECTURE_FINAL_REMEDIATION_COMPLETE_PENDING_GATE_DECISION
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
-| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟡 FINAL REMEDIATION COMPLETE (IN REVIEW) |
+| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟡 FINAL MICRO-REMEDIATION COMPLETE (IN REVIEW) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
@@ -78,10 +78,10 @@ Stage:
 C.7.4 (Correlation, Covariance & Cross-Asset Risk Engine)
 
 Objective:
-Incorporate final Architect remediations C7.4-R6 (final PCA eigenvalue non-negativity and noise clamping within 1e-8 tolerance), C7.4-R7 (strict asset-class return synchronization without imputation or dynamic weight renormalization), and C7.4-R8 (explicit N=0 empty portfolio DTO contract with safe nulls) into `docs/C7_4_ARCHITECTURE_PLAN.md` with an expanded 40-scenario acceptance test matrix.
+Incorporate final Architect micro-remediations C7.4-R9 (annualized constituent volatility $\sigma_{i,\text{ann}} = \sqrt{\mathbf{\Sigma}_{ii}^{\text{ann}}}$ ensuring dimensional consistency across DR/DBM) and C7.4-R10 (explicit distinction between `FINAL_EIGENVALUES_RAW` and `FINAL_EIGENVALUES_EFFECTIVE` used for all PCA DTO metrics) into `docs/C7_4_ARCHITECTURE_PLAN.md`.
 
 Architecture Gate:
-FINAL REMEDIATION COMPLETE — PENDING IMPLEMENTATION AUTHORIZATION (Zero-Code Gate Active 🔒)
+FINAL MICRO-REMEDIATION COMPLETE — PENDING IMPLEMENTATION AUTHORIZATION (Zero-Code Gate Active 🔒)
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -155,7 +155,7 @@ PASS (5-store deep snapshot verified) 🟢
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed final Stage C.7.4 Architecture Remediation (`docs/C7_4_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's final implementation authorization before creating `services/correlationEngine.js` and `tests/test_c74.mjs`.
+Completed final Stage C.7.4 Architecture Micro-Remediation (`docs/C7_4_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's final implementation authorization before creating `services/correlationEngine.js` and `tests/test_c74.mjs`.
 
 Architect:
 Review finalized Stage C.7.4 Architecture Plan and issue implementation authorization.
@@ -170,7 +170,7 @@ Review finalized Stage C.7.4 Architecture Plan and issue implementation authoriz
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
-- **Stage C.7.4**: 🟡 FINAL REMEDIATION COMPLETE (IN REVIEW)
+- **Stage C.7.4**: 🟡 FINAL MICRO-REMEDIATION COMPLETE (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.4+)
 
 

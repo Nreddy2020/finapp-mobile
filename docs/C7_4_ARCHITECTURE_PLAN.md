@@ -2,7 +2,7 @@
 
 **Stage**: C.7.4  
 **Phase**: C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)  
-**Status**: ARCHITECTURE FINAL REMEDIATION COMPLETE — ZERO-CODE GATE ACTIVE 🔒  
+**Status**: ARCHITECTURE FINAL MICRO-REMEDIATION COMPLETE — ZERO-CODE GATE ACTIVE 🔒  
 **Certified Baseline**: [`4f541b6`](https://github.com/Nreddy2020/finapp-mobile/commit/4f541b6) (Stage C.7.3 Master Certified)  
 **Branch**: `fintech-using-chatgpt`  
 **Author**: Antigravity AI & Quantitative Risk Systems Architect  
@@ -15,15 +15,15 @@
 While Stage C.7.2 established concentration/diversification (HHI, entropy) and Stage C.7.3 calculated univariate volatility, drawdown, and VaR/CVaR, **Stage C.7.4 (Correlation, Covariance & Cross-Asset Risk Engine)** creates the analytical multivariate dependency engine (`services/correlationEngine.js`).
 
 It provides mathematically rigorous, deterministic, and auditable cross-asset risk diagnostics:
-1. **Pairwise Sample Covariance Matrix ($\mathbf{\Sigma}$)**: Sample covariance of synchronized return series with Bessel's correction $N-1$ and frequency annualization.
+1. **Pairwise Sample Covariance Matrix ($\mathbf{\Sigma}^{\text{ann}}$)**: Sample covariance of synchronized return series with Bessel's correction $N-1$ and frequency annualization factor $F \in \{252, 52, 12\}$.
 2. **Pearson Correlation Matrix ($\mathbf{R}$)**: Normalized linear dependency matrix ($\rho_{ij} \in [-1, 1]$) with strict zero-variance protection.
 3. **Portfolio-Weighted Average Correlation ($\bar{\rho}_p$)**: Off-diagonal diversification density index.
-4. **Diversification Ratio ($DR_{\text{corr}}$) & Volatility Reduction Multiplier ($DBM$)**: Ratio of weighted constituent volatilities to total portfolio volatility ($\frac{\sum w_i \sigma_i}{\sqrt{\mathbf{w}^T \mathbf{\Sigma} \mathbf{w}}}$) with explicit zero/degenerate-variance boundaries.
-5. **Principal Component Analysis (PCA) & Factor Concentration with Final Spectrum Non-Negativity**:
+4. **Diversification Ratio ($DR_{\text{corr}}$) & Volatility Reduction Multiplier ($DBM$)**: Dimensionally consistent ratio of annualized weighted constituent volatilities to total annualized portfolio volatility ($\frac{\sum w_i \sigma_{i,\text{ann}}}{\sqrt{\mathbf{w}^T \mathbf{\Sigma}^{\text{ann}} \mathbf{w}}}$) with explicit zero/degenerate-variance boundaries.
+5. **Principal Component Analysis (PCA) & Factor Concentration with Raw vs Effective Spectrum**:
    - 9-step deterministic spectral projection PSD repair with authoritative **final eigen recomputation**.
-   - Strict eigenvalue non-negativity validation ($\lambda_k^{\text{final}} \ge 0$) and floating-point noise clamping.
-   - Proportion of variance explained by Top-1, Top-2, Top-3 eigenvalues of the final repaired correlation matrix.
-   - Effective Number of Independent Risk Factors ($N_{\text{factors}} = \frac{(\sum \lambda_i^{\text{final}})^2}{\sum (\lambda_i^{\text{final}})^2} = \frac{N^2}{\sum (\lambda_i^{\text{final}})^2}$).
+   - Explicit separation of `FINAL_EIGENVALUES_RAW` (decomposition output) and `FINAL_EIGENVALUES_EFFECTIVE` (tolerance-clamped non-negative spectrum $\ge 0$ used for all PCA DTO metrics).
+   - Proportion of variance explained by Top-1, Top-2, Top-3 effective eigenvalues.
+   - Effective Number of Independent Risk Factors ($N_{\text{factors}} = \frac{(\sum \lambda_{i,\text{effective}})^2}{\sum (\lambda_{i,\text{effective}})^2} = \frac{N^2}{\sum (\lambda_{i,\text{effective}})^2}$).
 6. **Canonical 8-Class Cross-Asset Class Correlation & Strict Constituent Synchronization**:
    - Aggregated $8 \times 8$ correlation matrix across canonical C.7.1 asset classes.
    - Strict intersection synchronization across class constituents (zero manufactured returns, zero dynamic weight renormalization).
@@ -92,7 +92,7 @@ If holding count $N = 0$:
 
 ### 2.4 Covariance & Correlation Matrix Formulation
 
-#### A. Sample Covariance Matrix ($\mathbf{\Sigma} \in \mathbb{R}^{N \times N}$)
+#### A. Annualized Sample Covariance Matrix ($\mathbf{\Sigma}^{\text{ann}} \in \mathbb{R}^{N \times N}$)
 For holdings $i, j \in [1, N]$ over $T$ synchronized periods:
 $$\bar{r}_i = \frac{1}{T} \sum_{t=1}^T r_{i,t}$$
 $$\text{Cov}(r_i, r_j) = \frac{1}{T-1} \sum_{t=1}^T (r_{i,t} - \bar{r}_i)(r_{j,t} - \bar{r}_j)$$
@@ -102,34 +102,36 @@ where $F \in \{252, 52, 12\}$ is the frequency annualization factor.
 #### B. Pearson Correlation Matrix ($\mathbf{R} \in \mathbb{R}^{N \times N}$)
 $$\mathbf{R}_{ij} = \begin{cases}
 1.0 & \text{if } i = j \\
-0.0 & \text{if } \sigma_i = 0 \text{ or } \sigma_j = 0 \quad (\text{zero-variance cash/stable asset guard}) \\
-\text{clamp}\left(\frac{\text{Cov}(r_i, r_j)}{\sigma_i \sigma_j}, -1.0, 1.0\right) & \text{otherwise}
+0.0 & \text{if } \sigma_{i,\text{periodic}} = 0 \text{ or } \sigma_{j,\text{periodic}} = 0 \quad (\text{zero-variance cash/stable asset guard}) \\
+\text{clamp}\left(\frac{\text{Cov}(r_i, r_j)}{\sigma_{i,\text{periodic}} \sigma_{j,\text{periodic}}}, -1.0, 1.0\right) & \text{otherwise}
 \end{cases}$$
-where $\sigma_i = \sqrt{\text{Cov}(r_i, r_i)}$.
+where $\sigma_{i,\text{periodic}} = \sqrt{\text{Cov}(r_i, r_i)}$.
 
 ---
 
-### 2.5 Portfolio-Weighted Diversification Metrics & Zero-Volatility Boundary (C7.4-R5)
+### 2.5 Annualized Diversification Metrics & Zero-Volatility Boundary (C7.4-R5 & C7.4-R9)
 
 Define numerical volatility epsilon: $\epsilon_{\text{vol}} = 10^{-12}$.
 
-1. **Portfolio Variance & Volatility from Covariance**:
+1. **Annualized Constituent Volatility ($\sigma_{i,\text{ann}}$) (C7.4-R9)**:
+   $$\sigma_{i,\text{ann}} = \sqrt{\mathbf{\Sigma}_{ii}^{\text{ann}}} = \sqrt{\text{Cov}(r_i, r_i) \cdot F}$$
+2. **Annualized Weighted Constituent Volatility ($\sigma_{\text{weighted}}$)**:
+   $$\sigma_{\text{weighted}} = \sum_{i=1}^N w_i \sigma_{i,\text{ann}}$$
+3. **Annualized Portfolio Volatility from Covariance ($\sigma_p$)**:
    $$\sigma_p^2 = \mathbf{w}^T \mathbf{\Sigma}^{\text{ann}} \mathbf{w} = \sum_{i=1}^N \sum_{j=1}^N w_i w_j \mathbf{\Sigma}_{ij}^{\text{ann}}$$
    $$\sigma_p = \sqrt{\max(0, \sigma_p^2)}$$
-2. **Weighted Constituent Volatility ($\sigma_{\text{weighted}}$)**:
-   $$\sigma_{\text{weighted}} = \sum_{i=1}^N w_i \sigma_{i,\text{ann}}$$
-3. **Diversification Ratio ($DR_{\text{corr}}$) & Multiplier ($DBM$) Contract**:
+4. **Diversification Ratio ($DR_{\text{corr}}$) & Multiplier ($DBM$) Contract**:
    - **Case 1 (Zero Constituent & Portfolio Volatility)**:
      If $\sigma_{\text{weighted}} \le \epsilon_{\text{vol}}$ AND $\sigma_p \le \epsilon_{\text{vol}}$ (e.g. 100% cash portfolio):
      $$DR_{\text{corr}} = 1.0, \quad DBM = 0.0$$
    - **Case 2 (Degenerate Portfolio Variance)**:
      If $\sigma_p \le \epsilon_{\text{vol}}$ AND $\sigma_{\text{weighted}} > \epsilon_{\text{vol}}$ (e.g. perfect synthetic hedge $\sigma_p \approx 0$):
      $$DR_{\text{corr}} = \text{null}, \quad DBM = \text{null}, \quad \text{warnings.push('DEGENERATE_PORTFOLIO_VARIANCE')}$$
-     *(Guarantees zero division-by-zero, `NaN`, or artificial `Infinity`)*.
+     *(Guarantees dimensional consistency and zero division-by-zero, `NaN`, or artificial `Infinity`)*.
    - **Case 3 (Standard Positive Volatility)**:
-     $$DR_{\text{corr}} = \frac{\sigma_{\text{weighted}}}{\sigma_p} \ge 1.0$$
+     $$DR_{\text{corr}} = \frac{\sigma_{\text{weighted}}}{\sigma_p} = \frac{\sum_{i=1}^N w_i \sigma_{i,\text{ann}}}{\sqrt{\mathbf{w}^T \mathbf{\Sigma}^{\text{ann}} \mathbf{w}}} \ge 1.0$$
      $$DBM = \max\left(0.0, 1.0 - \frac{\sigma_p}{\sigma_{\text{weighted}}}\right) \in [0.0, 1.0)$$
-4. **Weighted Average Off-Diagonal Correlation ($\bar{\rho}_p$)**:
+5. **Weighted Average Off-Diagonal Correlation ($\bar{\rho}_p$)**:
    $$\bar{\rho}_p = \begin{cases}
    1.0 & \text{if } N = 1 \text{ or } \sum_{i \ne j} w_i w_j = 0 \\
    \frac{\sum_{i=1}^N \sum_{j \ne i} w_i w_j \mathbf{R}_{ij}}{\sum_{i=1}^N \sum_{j \ne i} w_i w_j} = \frac{\mathbf{w}^T \mathbf{R} \mathbf{w} - \sum w_i^2}{1 - \sum w_i^2} & \text{otherwise}
@@ -137,11 +139,9 @@ Define numerical volatility epsilon: $\epsilon_{\text{vol}} = 10^{-12}$.
 
 ---
 
-### 2.6 Principal Component Analysis (PCA), Final Spectrum & Non-Negativity Contract (C7.4-R1 & C7.4-R6)
+### 2.6 Principal Component Analysis (PCA), Raw vs Effective Spectrum Contract (C7.4-R1, C7.4-R6, C7.4-R10)
 
 #### A. Authoritative Deterministic Pipeline
-To eliminate spectral drift caused by diagonal re-normalization during Positive Semi-Definite (PSD) projection, the engine executes the following deterministic 9-step pipeline:
-
 ```
 Input Correlation Matrix R (N x N)
         ↓
@@ -160,30 +160,33 @@ Input Correlation Matrix R (N x N)
    Else:
    R_final = R_sym, Λ_final = Λ
         ↓
-5. Inspect & Validate FINAL Spectrum (C7.4-R6):
-   For each λ in Λ_final:
-   If λ < 0 and |λ| <= PSD_REPAIR_TOLERANCE (1e-8):
-       λ_clamped = 0.0  (floating-point numerical noise)
+5. Inspect & Derive FINAL Spectrum (C7.4-R10):
+   FINAL_EIGENVALUES_RAW = exact eigenvalues returned by decomposition of R_final
+   For each λ in FINAL_EIGENVALUES_RAW:
+   If λ >= 0:
+       λ_effective = λ
+   Else if λ < 0 and |λ| <= PSD_REPAIR_TOLERANCE (1e-8):
+       λ_effective = 0.0  (floating-point numerical noise)
    Else if λ < -PSD_REPAIR_TOLERANCE:
        Mark status: 'DEGRADED', warning: 'NUMERICALLY_INVALID_NON_PSD_SPECTRUM', PCA metrics = null
-   Sort final non-negative eigenvalues descendingly: λ_1^final ≥ λ_2^final ≥ ... ≥ λ_N^final ≥ 0
+   Sort FINAL_EIGENVALUES_EFFECTIVE descendingly: λ_1^eff ≥ λ_2^eff ≥ ... ≥ λ_N^eff ≥ 0
         ↓
-6. Use FINAL Eigenvalues {λ_k^final} for ALL Output PCA Metrics
+6. Use FINAL_EIGENVALUES_EFFECTIVE for ALL Output PCA Metrics
 ```
 
 #### B. Trace Invariant & Mathematical Metrics
-The eigenvalues used in all PCA DTO outputs **MUST** be those of the final repaired correlation matrix:
-1. **Trace Invariant**:
-   $$\left| \sum_{k=1}^N \lambda_k^{\text{final}} - N \right| \le 10^{-6}$$
+All PCA DTO metrics are strictly computed using `FINAL_EIGENVALUES_EFFECTIVE`:
+1. **Effective Trace Invariant**:
+   $$\left| \sum_{k=1}^N \lambda_{k,\text{effective}} - N \right| \le 10^{-6}$$
 2. **Variance Explained Ratios ($V_k$)**:
-   $$V_k = \frac{\lambda_k^{\text{final}}}{N}$$
-   - $PC_1 = \frac{\lambda_1^{\text{final}}}{N}$
-   - $PC_{1,2} = \frac{\lambda_1^{\text{final}} + \lambda_2^{\text{final}}}{N}$
-   - $PC_{1,2,3} = \frac{\lambda_1^{\text{final}} + \lambda_2^{\text{final}} + \lambda_3^{\text{final}}}{N}$
+   $$V_k = \frac{\lambda_{k,\text{effective}}}{N}$$
+   - $PC_1 = \frac{\lambda_{1,\text{effective}}}{N}$
+   - $PC_{1,2} = \frac{\lambda_{1,\text{effective}} + \lambda_{2,\text{effective}}}{N}$
+   - $PC_{1,2,3} = \frac{\lambda_{1,\text{effective}} + \lambda_{2,\text{effective}} + \lambda_{3,\text{effective}}}{N}$
    - $K_{80} = \min \{ K \mid \sum_{k=1}^K V_k \ge 0.80 \}$
    - $K_{90} = \min \{ K \mid \sum_{k=1}^K V_k \ge 0.90 \}$
 3. **Effective Number of Independent Factors ($N_{\text{factors}}$)**:
-   $$N_{\text{factors}} = \frac{N^2}{\sum_{k=1}^N (\lambda_k^{\text{final}})^2} \quad \in [1.0, N]$$
+   $$N_{\text{factors}} = \frac{N^2}{\sum_{k=1}^N (\lambda_{k,\text{effective}})^2} \quad \in [1.0, N]$$
 
 ---
 
@@ -269,14 +272,14 @@ export const CorrelationDiagnosticsSchema = {
     correlationMatrix: 'ARRAY_OF_ARRAYS_OF_NUMBERS_OR_NULL',
     covarianceMatrix: 'ARRAY_OF_ARRAYS_OF_NUMBERS_OR_NULL',
 
-    // Summary Dependency & Diversification Metrics
+    // Summary Dependency & Annualized Diversification Metrics
     weightedAverageCorrelation: 'FINITE_NUMBER_OR_NULL',
     diversificationRatio: 'FINITE_NUMBER_OR_NULL',
     diversificationBenefitMultiplier: 'FINITE_NUMBER_OR_NULL',
     portfolioAnnualizedVolatility: 'FINITE_NUMBER_OR_NULL',
     weightedConstituentVolatility: 'FINITE_NUMBER_OR_NULL',
 
-    // Principal Component Analysis (PCA) — Based on FINAL Spectrum
+    // Principal Component Analysis (PCA) — Based on FINAL_EIGENVALUES_EFFECTIVE
     eigenvalues: 'ARRAY_OF_NUMBERS_OR_NULL',
     varianceExplainedRatios: 'ARRAY_OF_NUMBERS_OR_NULL',
     top1FactorConcentration: 'FINITE_NUMBER_OR_NULL',
@@ -307,20 +310,20 @@ export const CorrelationDiagnosticsSchema = {
 ### Group 1: Mathematical Formulation & Core Matrices (Tests 1–8)
 1. **Single Holding Portfolio ($N = 1$)**: $\mathbf{R} = [[1.0]], \mathbf{\Sigma} = [[\sigma^2]], DR = 1.0, \bar{\rho}_p = 1.0, N_{\text{factors}} = 1.0$.
 2. **Two Orthogonal Uncorrelated Holdings ($\rho = 0$)**: Exact $DR = \sqrt{2} \approx 1.4142, \bar{\rho}_p = 0.0, N_{\text{factors}} = 2.0$.
-3. **Two Perfectly Correlated Holdings ($\rho = 1.0$)**: Exact $DR = 1.0, \bar{\rho}_p = 1.0, \lambda_1 = 2.0 (100\%), N_{\text{factors}} = 1.0$.
+3. **Two Perfectly Correlated Holdings ($\rho = 1.0$)**: Exact $DR = 1.0, \bar{\rho}_p = 1.0, \lambda_{1,\text{eff}} = 2.0 (100\%), N_{\text{factors}} = 1.0$.
 4. **Two Perfectly Inversely Correlated Holdings ($\rho = -1.0$)**: $\sigma_p = 0.0$ for equal weights $\implies DR = \text{null}, DBM = \text{null}$, warning `DEGENERATE_PORTFOLIO_VARIANCE`.
 5. **Sample Covariance Bessel's Correction ($N-1$)**: Exact mathematical match against analytical covariance.
 6. **Annualized Covariance Scaling ($F = 252, 52, 12$)**: Exact scaling verified across frequencies.
 7. **Pearson Correlation Normalization ($\rho \in [-1, 1]$)**: Symmetry $\mathbf{R}_{ij} = \mathbf{R}_{ji}$ and diagonal $\mathbf{R}_{ii} = 1.0$.
 8. **Zero-Variance Asset Protection (Cash / Stablecoins)**: Constant return yields $\rho_{ij} = 0.0$ and $\mathbf{R}_{ii} = 1.0$ without division-by-zero or `NaN`.
 
-### Group 2: Diversification & Weighted Metrics (Tests 9–14)
-9. **Weighted Average Correlation ($\bar{\rho}_p$) Equal Weights**: Exact match against off-diagonal average.
-10. **Weighted Average Correlation Non-Equal Weights**: Correct weighting by $w_i w_j$.
-11. **Diversification Ratio ($DR_{\text{corr}}$) Mathematical Invariant ($DR \ge 1.0$)**: Verified across diverse synthetic portfolios.
+### Group 2: Annualized Diversification & Weighted Metrics (Tests 9–14)
+9. **Annualized Constituent Volatility Match (C7.4-R9)**: $\sigma_{i,\text{ann}} = \sqrt{\mathbf{\Sigma}_{ii}^{\text{ann}}}$ dimensionally consistent with $\sigma_p$.
+10. **Weighted Average Correlation ($\bar{\rho}_p$) Equal vs Non-Equal Weights**: Exact match against formula $(\mathbf{w}^T \mathbf{R} \mathbf{w} - \sum w_i^2) / (1 - \sum w_i^2)$.
+11. **Diversification Ratio ($DR_{\text{corr}}$) Invariant ($DR \ge 1.0$)**: Numerator and denominator both use annualized units.
 12. **Diversification Benefit Multiplier ($DBM \in [0, 1)$)**: Exact $(1 - \sigma_p / \sigma_{\text{weighted}})$.
-13. **Portfolio Volatility Reconciliation**: Confirms $\sqrt{\mathbf{w}^T \mathbf{\Sigma} \mathbf{w}}$ matches portfolio-level return standard deviation.
-14. **Zero-Variance Portfolio Boundary (100% Cash)**: $\sigma_p = 0, \sigma_{\text{weighted}} = 0 \implies DR = 1.0, DBM = 0.0$.
+13. **Portfolio Volatility Reconciliation**: Confirms $\sqrt{\mathbf{w}^T \mathbf{\Sigma}^{\text{ann}} \mathbf{w}}$ matches portfolio-level return standard deviation.
+14. **Zero-Variance Portfolio Boundary (100% Cash)**: $\sigma_{p,\text{ann}} = 0, \sigma_{\text{weighted},\text{ann}} = 0 \implies DR = 1.0, DBM = 0.0$.
 
 ### Group 3: Canonical 8-Class Asset Aggregation & Synchronization (Tests 15–20)
 15. **8-Class Representation Structure**: Exactly 8 canonical asset classes in output array.
@@ -330,11 +333,11 @@ export const CorrelationDiagnosticsSchema = {
 19. **Fixed Class Weight Integrity**: Class weights $w_i / W_c$ remain strictly constant across all timestamps.
 20. **Insufficient Class Observations ($T_{\text{class}} < 20$)**: Class relationship returns `null` with warning.
 
-### Group 4: PCA, Final Spectrum, Tolerance & PSD Repair (Tests 21–26)
-21. **Final Spectrum Trace Invariant ($\sum \lambda_k^{\text{final}} = N$)**: Trace sum equals $N \pm 10^{-6}$ on final repaired matrix.
-22. **Variance Explained Monotonicity**: $\lambda_1^{\text{final}} \ge \dots \ge \lambda_N^{\text{final}} \ge 0$.
-23. **Tiny Negative Eigenvalue Noise Clamping (C7.4-R6)**: Clamps $-10^{-10} \to 0.0$ without failing.
-24. **Materially Negative Eigenvalue Detection**: Rejects $\lambda < -10^{-8}$ with `DEGRADED` status.
+### Group 4: PCA, Effective Spectrum, Tolerance & PSD Repair (Tests 21–26)
+21. **Effective Spectrum Trace Invariant ($\sum \lambda_{k,\text{effective}} = N$)**: Trace sum equals $N \pm 10^{-6}$ on effective spectrum.
+22. **Variance Explained Monotonicity**: $\lambda_{1,\text{eff}} \ge \dots \ge \lambda_{N,\text{eff}} \ge 0$.
+23. **Raw vs Effective Eigenvalue Treatment (C7.4-R6 & C7.4-R10)**: Raw $-10^{-10} \to \text{effective } 0.0$ for PCA metrics.
+24. **Materially Negative Eigenvalue Detection**: Rejects $\lambda_{\text{raw}} < -10^{-8}$ with `DEGRADED` status.
 25. **Effective Number of Independent Factors ($N_{\text{factors}}$)**: Exact calculation across identity and singular correlation structures.
 26. **$K_{80}$ and $K_{90}$ Factor Thresholds**: Accurate component counts for cumulative variance.
 
