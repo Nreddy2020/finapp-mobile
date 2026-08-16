@@ -39,7 +39,7 @@ Current Stage:
 C.7.3_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.3_ARCHITECTURE_PROPOSED_PENDING_REVIEW
+C.7.3_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -64,7 +64,7 @@ C.7.3_ARCHITECTURE_PROPOSED_PENDING_REVIEW
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
-| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟡 ARCHITECTURE PROPOSED (IN REVIEW) |
+| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟡 ARCHITECTURE REMEDIATED (IN REVIEW) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED |
@@ -78,10 +78,10 @@ Stage:
 C.7.3 (Architecture Planning: Volatility, Drawdown & Downside Risk Engine)
 
 Objective:
-Author Stage C.7.3 Master Architecture Plan (`docs/C7_3_ARCHITECTURE_PLAN.md`) detailing mathematical formulation for Annualized Volatility ($\sigma_p$), High-Watermark Maximum Drawdown ($MaxDD$), Downside Deviation ($DD_{\text{MAR}}$), Parametric/Historical VaR, Conditional VaR (Expected Shortfall), Money-Flow Neutrality via synthetic TWR NAV, and 32-Point Acceptance Matrix.
+Remediate Stage C.7.3 Master Architecture Plan (`docs/C7_3_ARCHITECTURE_PLAN.md`) resolving items C7.3-R1 to C7.3-R5 (True historical subperiod TWR vs explicitly labeled fixed-weight synthetic fallback, 252-observation contract for historical VaR/CVaR, correct multi-day parametric VaR/CVaR scaling, deterministic discrete empirical percentile convention, deterministic peak/trough/recovery tie-breaking, and 34-point acceptance matrix).
 
 Architecture Gate:
-ACTIVE (Architecture Proposed — Zero-Code Gate Active 🔒)
+ACTIVE (Architecture Remediated — Zero-Code Gate Active 🔒)
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -151,10 +151,10 @@ PASS (5-store deep snapshot verified) 🟢
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed authoring of `docs/C7_3_ARCHITECTURE_PLAN.md`. Pushed to GitHub. Awaiting Architect review and Stage C.7.3 implementation authorization.
+Completed remediation of `docs/C7_3_ARCHITECTURE_PLAN.md` resolving C7.3-R1 through C7.3-R5. Pushed to GitHub. Awaiting Architect review and Stage C.7.3 implementation authorization.
 
 Architect:
-Review `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate Decision.
+Review remediated `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate Decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -165,7 +165,7 @@ Review `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate Decision.
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
-- **Stage C.7.3**: 🟡 ARCHITECTURE PROPOSED (IN REVIEW)
+- **Stage C.7.3**: 🟡 ARCHITECTURE REMEDIATED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.3+)
 
 
