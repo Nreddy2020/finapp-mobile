@@ -15,6 +15,7 @@ import { useGlobalFinance } from '../../components/context/GlobalFinanceContext'
 import PortfolioOverviewCard from '../../components/investments/PortfolioOverviewCard';
 import PortfolioHeader from '../../components/investments/PortfolioHeader';
 import AssetAllocationCard from '../../components/investments/AssetAllocationCard';
+import PerformanceGrowthTimelineCard from '../../components/investments/PerformanceGrowthTimelineCard';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -25,11 +26,13 @@ export default function InvestmentsScreen() {
     const [isCrisisMode, setIsCrisisMode] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Stage C.5.1 & C.5.2 Portfolio Analytics State
+    // Stage C.5.1, C.5.2 & C.5.3 Portfolio Analytics State
     const [selectedPortfolioId, setSelectedPortfolioId] = useState(null); // null = ALL_PORTFOLIOS
     const [availablePortfolios, setAvailablePortfolios] = useState([]);
     const [portfolioSummary, setPortfolioSummary] = useState(null);
     const [allocationSummary, setAllocationSummary] = useState(null);
+    const [performanceMetrics, setPerformanceMetrics] = useState(null);
+    const [performanceTimeline, setPerformanceTimeline] = useState([]);
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
     const requestIdRef = useRef(0);
 
@@ -66,15 +69,60 @@ export default function InvestmentsScreen() {
                 name: id === 'default' ? 'Main Account' : (id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '))
             }));
 
-            // 2. Compute C.4.1 Portfolio Summary & C.4.2 Allocation Summary
-            const [summary, allocSummary] = await Promise.all([
+            // 2. Compute C.4.1 Portfolio Summary, C.4.2 Allocation Summary & C.4.3 Performance Snapshots
+            const now = new Date();
+            const t0 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+            const t1 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+            const t2 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+            const tNow = now;
+
+            const [summary, allocSummary, perfNow, perfT0, perfT1, perfT2] = await Promise.all([
                 InvestingAnalyticsEngine.getPortfolioSummary({
                     portfolioId: targetPortfolioId
                 }),
                 InvestingAnalyticsEngine.getAssetAllocationSummary({
                     portfolioId: targetPortfolioId
+                }),
+                InvestingAnalyticsEngine.getPerformanceMetrics({
+                    portfolioId: targetPortfolioId,
+                    asOfDate: tNow
+                }),
+                InvestingAnalyticsEngine.getPerformanceMetrics({
+                    portfolioId: targetPortfolioId,
+                    asOfDate: t0
+                }),
+                InvestingAnalyticsEngine.getPerformanceMetrics({
+                    portfolioId: targetPortfolioId,
+                    asOfDate: t1
+                }),
+                InvestingAnalyticsEngine.getPerformanceMetrics({
+                    portfolioId: targetPortfolioId,
+                    asOfDate: t2
                 })
             ]);
+
+            // Construct timeline points with monotonic ordering and deduplication
+            const rawPoints = [
+                { date: t0.toISOString().slice(0, 10), timestamp: t0.getTime(), ...perfT0 },
+                { date: t1.toISOString().slice(0, 10), timestamp: t1.getTime(), ...perfT1 },
+                { date: t2.toISOString().slice(0, 10), timestamp: t2.getTime(), ...perfT2 },
+                { date: tNow.toISOString().slice(0, 10), timestamp: tNow.getTime(), ...perfNow }
+            ];
+
+            const timeline = rawPoints
+                .map(pt => ({
+                    date: pt.date,
+                    timestamp: pt.timestamp,
+                    terminalMarketValue: pt.cashFlowSummary?.terminalMarketValue || 0,
+                    historicalOutflows: pt.cashFlowSummary?.historicalOutflows || 0,
+                    historicalInflows: pt.cashFlowSummary?.historicalInflows || 0,
+                    xirrPercent: pt.xirrPercent || 0,
+                    cagrPercent: pt.cagrPercent || 0,
+                    absoluteReturnPercent: pt.absoluteReturnPercent || 0,
+                    performanceType: pt.performanceType || 'ABSOLUTE',
+                    valuationBasis: pt.valuationBasis || 'EMPTY'
+                }))
+                .sort((a, b) => a.timestamp - b.timestamp);
 
             // 3. Sourced Quote Timestamps
             const cachedQuotes = await loadMarketQuotes();
@@ -97,6 +145,8 @@ export default function InvestmentsScreen() {
             setAvailablePortfolios(discoveredPortfolios);
             setPortfolioSummary(summary);
             setAllocationSummary(allocSummary);
+            setPerformanceMetrics(perfNow);
+            setPerformanceTimeline(timeline);
             setLastRefreshTime(latestQuoteTime);
             setHoldings(currentHoldings);
 
@@ -113,6 +163,7 @@ export default function InvestmentsScreen() {
             }
         }
     };
+
 
     const handleSelectPortfolio = (pId) => {
 
@@ -341,7 +392,15 @@ export default function InvestmentsScreen() {
                         allocationSummary={allocationSummary}
                         loading={loading}
                     />
+
+                    {/* Stage C.5.3 Performance & XIRR Growth Timeline Visualizer */}
+                    <PerformanceGrowthTimelineCard
+                        performanceMetrics={performanceMetrics}
+                        timeline={performanceTimeline}
+                        loading={loading}
+                    />
                 </View>
+
 
 
 
