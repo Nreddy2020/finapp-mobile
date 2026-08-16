@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-c29629d
+4f541b6
 
 Last Certified Commit:
-c29629d
+4f541b6
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.7
 
 Current Stage:
-C.7.3_IMPLEMENTATION_COMPLETE
+C.7.4_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.3_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.7.4_ARCHITECTURE_PROPOSED_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -64,8 +64,8 @@ C.7.3_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
-| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **IMPLEMENTATION COMPLETE (40/40 PASS)** |
-| ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
+| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟡 ARCHITECTURE PROPOSED (IN REVIEW) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
@@ -75,16 +75,19 @@ C.7.3_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-C.7.3 (Volatility, Drawdown & Downside Risk Engine)
+C.7.4 (Correlation, Covariance & Cross-Asset Risk Engine)
 
 Objective:
-Implement pure read-only quantitative risk calculations in `services/volatilityDrawdownEngine.js` according to Master Architectural Standard `C7_3_V1`: money-flow-neutral True TWR & synthetic return series, annualized volatility with multi-frequency scaling, high-watermark drawdown & deterministic recovery chronology, downside semi-deviation & Sortino ratio against MAR, parametric VaR/CVaR with multi-day mean and volatility scaling, historical VaR/CVaR (>=252 observations) with discrete 0-indexed tail percentiles, mandatory deterministic `asOfDate`, and 40/40 acceptance tests.
+Author architecture plan in `docs/C7_4_ARCHITECTURE_PLAN.md` covering sample covariance matrix with Bessel's correction, Pearson correlation matrix with zero-variance protection, portfolio-weighted average correlation, Diversification Ratio (DR), Diversification Benefit Multiplier, Principal Component Analysis (PCA) eigenvalue decomposition, effective factor count, 8-class asset-level aggregation, PSD repair, versioned policy `C7_4_V1`, and 32-scenario acceptance matrix.
 
-Implementation Status:
-100% COMPLETE 🟢 (40/40 acceptance tests pass)
+Architecture Gate:
+PROPOSED — PENDING GATE REVIEW (Zero-Code Gate Active 🔒)
+
+Implementation:
+LOCKED (Zero-Code Gate Active 🔒)
 
 Certified Baseline:
-c29629d
+4f541b6
 
 
 ## 4. CERTIFIED & FROZEN BASELINES
@@ -104,7 +107,7 @@ Certified & Frozen contracts (100% Locked 🔒):
 - `components/investments/OrderPreviewModal.js` 🔒 (100% Certified C.6.4)
 - `services/riskTaxonomy.js` 🔒 (100% Certified C.7.1 at `d80af93`)
 - `services/concentrationEngine.js` 🔒 (100% Certified C.7.2 at `c29629d`)
-- `services/volatilityDrawdownEngine.js` 🟢 (Newly Implemented C.7.3 Service)
+- `services/volatilityDrawdownEngine.js` 🔒 (100% Certified C.7.3 at `4f541b6`)
 
 
 ## 5. ACCEPTANCE STATUS
@@ -145,17 +148,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.3 Implementation Complete.
-- Zero-Code Gate remains ACTIVE for Stage C.7.4+.
+- Stage C.7.3 is Master Certified at `4f541b6`.
+- Zero-Code Gate is ACTIVE for Stage C.7.4.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed C.7.3 implementation (`services/volatilityDrawdownEngine.js`) and 40-scenario acceptance test suite (`tests/test_c73.mjs`). Submitted for Stage C.7.3 Certification Review.
+Authored Stage C.7.4 Architecture Plan (`docs/C7_4_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's review and implementation gate authorization before creating `services/correlationEngine.js` and `tests/test_c74.mjs`.
 
 Architect:
-Perform Stage C.7.3 Certification Review.
+Review Stage C.7.4 Architecture Plan and issue gate decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -166,7 +169,8 @@ Perform Stage C.7.3 Certification Review.
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
-- **Stage C.7.3**: 🟢 IMPLEMENTATION COMPLETE (`40/40 PASS`)
+- **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
+- **Stage C.7.4**: 🟡 ARCHITECTURE PROPOSED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.4+)
 
 
