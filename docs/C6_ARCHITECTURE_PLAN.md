@@ -1,14 +1,14 @@
 # Phase C.6 Master Architecture Plan
 ## Intelligent Portfolio Rebalancing & Tax-Aware Decision Engine
 
-**Status**: AMENDED / PENDING FINAL ARCHITECTURE GATE APPROVAL  
+**Status**: HARDENED / READY FOR FINAL A–J GATE APPROVAL  
 **Certified Baseline Commit**: [`1dc480f`](https://github.com/Nreddy2020/finapp-mobile/commit/1dc480f)  
 **Execution Branch**: `fintech-using-chatgpt`  
 **Author**: Lead Architecture & Implementation Agent  
 
 ---
 
-## 1. Executive Summary & Strategic Objective
+## 1. Executive Summary & Strategic Paradigm
 
 **Phase C.6** transforms FinLife Investing from **passive analytics and visualization (Phases C.4 & C.5)** into an **actionable, intelligent, tax-aware decision-support engine**.
 
@@ -17,9 +17,9 @@ $$\text{Observe (C.4)} \longrightarrow \text{Understand (C.5)} \longrightarrow \
 
 Phase C.6 provides:
 1. **Target Allocation Policy Engine (C.6.1)**: Define and validate reproducible target asset allocation policies across FinLife's certified 8-asset taxonomy, with external liquidity separation.
-2. **Drift & Rebalancing Calculator (C.6.2)**: Calculate exact percentage-point drift, actionability tagging, and share-rounded rebalancing trade deltas.
-3. **Tax-Efficient Rebalancing Optimizer (C.6.3)**: Fresh-cash-first strategy and multi-objective FIFO tax-lot optimization (Loss harvesting $\to$ LTCG $\to$ STCG last).
-4. **Rebalancing Visualizer & Order Preview UI (C.6.4)**: Interactive dual-bar drift charts, action cards, tax drag estimation, and a strictly read-only Order Preview modal.
+2. **Drift & Rebalancing Calculator (C.6.2)**: Calculate exact percentage-point drift, deterministic intra-asset holding selection, tradability feasibility, and share-rounded rebalancing trade deltas.
+3. **Tax-Efficient Rebalancing Optimizer (C.6.3)**: Fresh-cash-first strategy and multi-objective open FIFO tax-lot optimization (Loss harvesting $\to$ LTCG $\to$ STCG last).
+4. **Rebalancing Visualizer & Order Preview UI (C.6.4)**: Interactive dual-bar drift charts, action cards, tax drag estimation, feasibility warnings, and a strictly read-only Order Preview modal.
 
 ---
 
@@ -80,15 +80,42 @@ interface TaxPolicy {
 }
 ```
 
-### 3.3 Asset Tradability & Quote Status (Blocker C6-04)
+### 3.3 Asset Tradability & Quote Execution Eligibility (Blockers C6-04 & C6-13)
 ```typescript
-type AssetTradeability = 'TRADEABLE' | 'NON_TRADEABLE' | 'INSUFFICIENT_QUOTE' | 'STALE_QUOTE' | 'UNKNOWN';
+type AssetTradeability = 'TRADEABLE' | 'NON_TRADEABLE' | 'FALLBACK_VALUATION_ONLY' | 'INSUFFICIENT_QUOTE' | 'STALE_QUOTE';
 type RebalanceAction = 'BUY' | 'SELL' | 'HOLD_BALANCED' | 'HOLD_NON_TRADEABLE' | 'REQUIRES_PRICE_REFRESH';
 ```
-- **Rule**: `REAL_ESTATE` and physical/illiquid assets are classified as `NON_TRADEABLE`. They participate in allocation weights and drift calculations, but generate action `HOLD_NON_TRADEABLE` and produce $0$ trade orders.
-- **Rule**: Holdings with `STALE` or `UNAVAILABLE` quotes produce `REQUIRES_PRICE_REFRESH` with a warning flag, preventing fake orders from inaccurate prices.
+- **Tradeability Rules**:
+  - `STOCK`, `MUTUAL_FUND`, `ETF`, `CRYPTO`, `BOND`: Classified as `TRADEABLE` when backed by a `LIVE` market quote.
+  - `REAL_ESTATE`, physical assets: Classified as `NON_TRADEABLE`. Participate in allocation & drift, produce action `HOLD_NON_TRADEABLE` and $0$ orders.
+- **Quote Execution Eligibility (Blocker C6-13)**:
+  - `LIVE` quote $\implies$ `isExecutable: true`, standard BUY/SELL recommendations generated.
+  - `FALLBACK` quote (valued at cost basis) $\implies$ `isExecutable: false`, `tradeability: 'FALLBACK_VALUATION_ONLY'`, `action: 'REQUIRES_PRICE_REFRESH'`. Provides analytical estimates only; zero fake orders generated.
+  - `STALE` / `UNAVAILABLE` quote $\implies$ `isExecutable: false`, `action: 'REQUIRES_PRICE_REFRESH'`.
 
-### 3.4 Rebalancing Recommendation DTO (`RebalancingRecommendation`)
+### 3.4 Open Tax Lot Data Contract (Blocker C6-11)
+```typescript
+interface OpenTaxLot {
+    lotId: string;
+    symbol: string;
+    portfolioId: string | null;
+    assetType: string;
+    buyDate: string;               // ISO-8601 string
+    originalQuantity: number;
+    remainingQuantity: number;
+    buyPrice: number;
+    remainingCostBasis: number;
+    currentPrice: number;
+    currentMarketValue: number;
+    unrealizedGain: number;
+    holdingPeriodDays: number;
+    taxCategory: 'STCG' | 'LTCG';
+    applicableTaxRate: number;
+    estimatedTaxImpact: number;
+}
+```
+
+### 3.5 Rebalancing Recommendation DTO (`RebalancingRecommendation`)
 ```typescript
 interface RebalancingRecommendation {
     assetType: string;
@@ -100,18 +127,19 @@ interface RebalancingRecommendation {
     driftPercentagePoints: number; // currentWeightPercent - targetWeightPercent
     action: RebalanceAction;
     tradeability: AssetTradeability;
+    isExecutable: boolean;
     quoteStatus: 'LIVE' | 'STALE' | 'FALLBACK' | 'UNAVAILABLE';
     referencePrice: number;
     requiredNotional: number;      // Positive for buy, negative for sell
     rawEstimatedQuantity: number;  // Unrounded
     roundedTradeQuantity: number;  // Rounded by precision rule
-    roundingMode: 'FLOOR_WHOLE' | 'DECIMAL_4';
+    roundingMode: 'FLOOR_WHOLE' | 'DECIMAL_4' | 'NONE';
     estimatedTaxImpact: number;    // Estimated tax liability for sells
     reason: string;
 }
 ```
 
-### 3.5 Rebalancing Summary DTO (`RebalancingSummary`)
+### 3.6 Rebalancing Summary DTO (`RebalancingSummary`) (Blocker C6-12)
 ```typescript
 interface RebalancingSummary {
     policyId: string;
@@ -127,8 +155,9 @@ interface RebalancingSummary {
     targetAllocation: Array<{ assetType: string; targetWeightPercent: number }>;
     recommendations: RebalancingRecommendation[];
     projectedAllocation: Array<{ assetType: string; projectedValue: number; projectedWeightPercent: number }>;
-    residualDriftPercentagePoints: number; // Max residual drift post-rounding
-    rebalancingStatus: 'BALANCED' | 'DRIFT_DETECTED' | 'ACTION_RECOMMENDED' | 'PRICE_REFRESH_REQUIRED';
+    residualDriftPercentagePoints: number; // Achievable residual drift post-rounding and non-tradeable constraints
+    rebalancingStatus: 'BALANCED' | 'ACTION_RECOMMENDED' | 'PARTIALLY_FEASIBLE' | 'INFEASIBLE' | 'PRICE_REFRESH_REQUIRED';
+    feasibilityWarnings: string[];
     isConsistent: boolean;
     integrityWarnings: string[];
 }
@@ -152,48 +181,47 @@ $$\text{Drift Status}(c) = \begin{cases}
 - $+\theta + 0.01\% \implies \text{OVERWEIGHT}$
 - $-\theta - 0.01\% \implies \text{UNDERWEIGHT}$
 
-### 4.2 Notional Delta & Exact Quantity Rounding (Blocker C6-03)
-$$\text{TargetValue}(c) = V_{\text{portfolio}} \times \left( \frac{w_{\text{target}}(c)}{100} \right)$$
-$$\Delta V(c) = \text{TargetValue}(c) - V_{\text{class}}(c) = -\left( \frac{\text{Drift}_{\text{pp}}(c)}{100} \right) \times V_{\text{portfolio}}$$
+### 4.2 Deterministic Intra-Asset-Class Holding Selection (Blocker C6-10)
 
-**Quantity Rounding Rule**:
+For an asset class with notional delta $\Delta V(c)$:
+
+1. **Underweight Asset Class ($\Delta V(c) > 0 \implies \text{BUY}$)**:
+   - **Case A (Existing Holdings)**: Allocate buy notional across existing `TRADEABLE` holdings with `LIVE` quotes in proportion to their existing market weights. If multiple holdings have identical weights, tie-break deterministically by `symbol` ascending (A $\to$ Z).
+   - **Case B (Zero Holdings in Asset Class)**: Generate a class-level aggregate recommendation (`symbol: null`, `action: 'BUY'`, `reason: 'NEW_ASSET_CLASS_DEPLOYMENT'`).
+2. **Overweight Asset Class ($\Delta V(c) < 0 \implies \text{SELL}$)**:
+   - Holding and lot selection is governed deterministically by the **Tax Optimizer** (Section 4.5) across all open lots in the asset class:
+     $$\text{Lot Priority}: \text{Tier 1 (Loss Harvest)} \longrightarrow \text{Tier 2 (LTCG)} \longrightarrow \text{Tier 3 (STCG)}$$
+   - Tie-breaker within same tax tier: `symbol` ascending (A $\to$ Z), then `buyDate` ascending (FIFO).
+
+### 4.3 Quantity Rounding & Residual Drift (Blocker C6-03)
 For holding $h$ with reference price $P_h > 0$:
 $$\text{RawQty}_h = \frac{|\Delta V_h|}{P_h}$$
 $$\text{RoundedQty}_h = \begin{cases}
 \lfloor \text{RawQty}_h \rfloor, & \text{assetType} \in \{\text{STOCK}, \text{ETF}\} \text{ (Floor whole shares)} \\
 \text{round}(\text{RawQty}_h, 4), & \text{assetType} \in \{\text{MUTUAL_FUND}, \text{CRYPTO}, \text{GOLD}\} \text{ (4 decimals)} \\
-0, & \text{tradeability} = \text{NON_TRADEABLE}
+0, & \text{tradeability} = \text{NON_TRADEABLE} \lor \text{quoteStatus} \ne \text{'LIVE'}
 \end{cases}$$
 
-**Residual Drift Invariant**:
-$$\text{ProjectedValue}(c) = V_{\text{class}}(c) + \sum_{h \in c} (\text{Direction}_h \times \text{RoundedQty}_h \times P_h)$$
+**Realistic Projected Allocation & Achievable Drift**:
+$$\text{ExecutableDelta}_h = \begin{cases} +\text{RoundedQty}_h \times P_h, & \text{action} = \text{BUY} \land \text{isExecutable} \\ -\text{RoundedQty}_h \times P_h, & \text{action} = \text{SELL} \land \text{isExecutable} \\ 0, & \text{otherwise} \end{cases}$$
+$$\text{ProjectedValue}(c) = V_{\text{class}}(c) + \sum_{h \in c} \text{ExecutableDelta}_h$$
 $$\text{ResidualDrift}_{\text{pp}}(c) = \left( \frac{\text{ProjectedValue}(c)}{\sum_k \text{ProjectedValue}(k)} \times 100 \right) - w_{\text{target}}(c)$$
 
-### 4.3 Liquidity Constraints & Fresh-Cash-First (Blocker C6-07)
-Given available liquid cash $C_{\text{avail}} \ge 0$:
-$$\text{UnderweightDeficit} = \sum_{c: \Delta V(c) > 0} \Delta V(c)$$
-1. **Full Cash Coverage** ($C_{\text{avail}} \ge \text{UnderweightDeficit}$):
-   - Deployed cash $= \text{UnderweightDeficit}$.
-   - Buy orders funded 100% by cash.
-   - **Taxable Sells Required $= 0$** (Zero capital gains tax triggered).
-2. **Partial Cash Coverage** ($0 < C_{\text{avail}} < \text{UnderweightDeficit}$):
-   - Deployed cash $= C_{\text{avail}}$.
-   - Remaining deficit to be funded by sells: $\text{SellNeed} = \text{UnderweightDeficit} - C_{\text{avail}}$.
-   - Cash allocated proportionally across underweight assets:
-     $$\text{CashFunded}(c) = C_{\text{avail}} \times \left( \frac{\Delta V(c)}{\text{UnderweightDeficit}} \right)$$
-3. **Zero Cash Coverage** ($C_{\text{avail}} = 0$):
-   - SellNeed $= \text{UnderweightDeficit}$. Sells funded entirely from overweight assets.
+### 4.4 Rebalancing Feasibility with Non-Tradeable Assets (Blocker C6-12)
+If an overweight asset class contains non-tradeable assets (e.g. `REAL_ESTATE`):
+- The non-tradeable portion produces `action: 'HOLD_NON_TRADEABLE'`, `roundedTradeQuantity: 0`.
+- If tradeable assets can fully compensate, `rebalancingStatus = 'PARTIALLY_FEASIBLE'`.
+- If 100% of drift is locked in non-tradeable assets, `rebalancingStatus = 'INFEASIBLE'`.
+- Feasibility warning emitted: `"REAL_ESTATE overweight cannot be reduced because asset is non-tradeable."`
 
-### 4.4 Multi-Objective Tax Optimization Contract (Blocker C6-06)
-When sells are required, the optimizer minimizes tax drag subject to portfolio constraints:
+### 4.5 Open Tax-Lot Adapter & Optimization Contract (Blockers C6-06 & C6-11)
+To inspect currently open tax lots without modifying frozen C.4 engines, a pure read-only helper `services/openTaxLotAdapter.js` reads confirmed investment events and active holdings, matching confirmed historical sells to derive active open lots.
 
-$$\min \text{EstimatedTaxLiability} = \sum_{\text{lots sold } l} \text{TaxRate}(l) \times \max(0, \text{RealizedGain}_l)$$
-$$\text{subject to: } \sum_{l} \text{Proceeds}_l = \text{SellNeed}, \quad |\text{ResidualDrift}_{\text{pp}}(c)| \le \theta \quad \forall c$$
+**Optimization Objective**:
+$$\min \text{EstimatedTaxImpact} = \sum_{\text{lots sold } l} \text{applicableTaxRate}(l) \times \max(0, \text{UnrealizedGain}_l)$$
+$$\text{subject to: } \sum_{l} \text{GrossProceeds}_l = \text{SellNeed}, \quad |\text{ResidualDrift}_{\text{pp}}(c)| \le \theta \quad \forall c$$
 
-**Deterministic Lot Selection Order** (consuming C.4.4 FIFO lot records):
-1. **Tier 1 (Tax Loss Harvesting)**: Unrealized Gain $< 0$. Offsets gains, zero tax.
-2. **Tier 2 (Long-Term Capital Gains)**: Holding period $>$ threshold (Tax rate $= \text{longTermRate}$).
-3. **Tier 3 (Short-Term Capital Gains)**: Holding period $\le$ threshold (Tax rate $= \text{shortTermRate}$, sold last).
+*Note on Tax Semantics*: The engine computes **Estimated Tax Impact** for trade comparison purposes, explicitly defined as an analytical decision-support estimate rather than an exhaustive tax filing engine.
 
 ---
 
@@ -210,7 +238,7 @@ $$\text{subject to: } \sum_{l} \text{Proceeds}_l = \text{SellNeed}, \quad |\text
        taxPolicy
    });
    ```
-   Zero implicit `new Date()` calls in business math.
+   Zero implicit `new Date()` calls in financial math.
 2. **Order Preview $\neq$ Execution Invariant**:
    The output is strictly a **Rebalancing Order Preview**. It is **read-only decision support**.
    - Zero MoneyFlow transactions written.
@@ -233,7 +261,7 @@ $$\text{subject to: } \sum_{l} \text{Proceeds}_l = \text{SellNeed}, \quad |\text
 
 ## 7. Phase C.6 Verification Strategy (42-Scenario Acceptance Matrix)
 
-The test suite `tests/test_c6.mjs` will cover **42 comprehensive scenarios** with strict `process.exit(1)` failure enforcement:
+The test suite `tests/test_c6.mjs` will cover **42 explicit behavioral scenarios** with strict `process.exit(1)` failure enforcement:
 
 1. **Target Policy (Tests 1–8)**:
    - 100.00% target allocation validation.
@@ -262,21 +290,21 @@ The test suite `tests/test_c6.mjs` will cover **42 comprehensive scenarios** wit
    - Liquidity strictly excluded from investment allocation denominator.
    - Cash deficit never manufactured.
    - Residual drift exposed post-cash deployment.
-4. **Tax-Efficient Optimizer (Tests 25–30)**:
-   - Loss harvesting lot selection priority (Tier 1).
-   - LTCG lot selection priority over STCG (Tier 2).
+4. **Tax-Efficient Optimizer & Open Lots (Tests 25–30)**:
+   - Loss harvesting open-lot priority (Tier 1).
+   - LTCG open-lot priority over STCG (Tier 2).
    - STCG sold last (Tier 3).
    - Versioned tax policy consumption (no hardcoded rates).
-   - Tax liability impact calculation accuracy.
+   - Open tax-lot adapter read-only derivation.
    - Zero tax impact on 100% buy rebalancing.
-5. **Asset Tradability & Market Data (Tests 31–34)**:
-   - Non-tradeable asset (`REAL_ESTATE`) produces `HOLD_NON_TRADEABLE` with 0 orders.
-   - Stale quote flags `REQUIRES_PRICE_REFRESH`.
-   - Missing quote fallback valuation handling.
+5. **Tradability & Market Data (Tests 31–34)**:
+   - Non-tradeable asset (`REAL_ESTATE`) produces `HOLD_NON_TRADEABLE` and `PARTIALLY_FEASIBLE`/`INFEASIBLE` status.
+   - Stale quote flags `REQUIRES_PRICE_REFRESH` and `isExecutable: false`.
+   - Fallback quote flags `FALLBACK_VALUATION_ONLY` and `isExecutable: false`.
    - Zero market value portfolio safety (0 drift, no NaN).
-6. **Multi-Portfolio Isolation (Tests 35–37)**:
+6. **Intra-Asset Selection & Multi-Portfolio (Tests 35–37)**:
+   - Deterministic intra-asset buy proportional allocation & alphabetical tie-breaker.
    - Scoped Portfolio A vs Portfolio B rebalancing isolation.
-   - Same symbol across separate portfolios.
    - Global universe rebalancing aggregation (`portfolioId: null`).
 7. **Invariants, Safety & Preview (Tests 38–41)**:
    - Deterministic `asOfDate` evaluation across time.
@@ -290,5 +318,5 @@ The test suite `tests/test_c6.mjs` will cover **42 comprehensive scenarios** wit
 
 ## 8. Gate Approval Request
 
-All 9 blockers (`C6-01` through `C6-09`) are completely addressed and mathematically locked in this amended plan.  
-We respectfully request the **Consolidated Phase C.6 Architecture Gate Approval (A–J)**.
+All blockers (`C6-01` through `C6-13`) are mathematically formulated and locked in this plan.  
+We respectfully request the **Consolidated Phase C.6 Architecture Gate Approval (A–J)** and authorization to proceed with **Stage C.6.1**.

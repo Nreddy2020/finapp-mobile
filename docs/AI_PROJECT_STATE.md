@@ -30,9 +30,7 @@ Last Certified Commit:
 1dc480f
 
 Current HEAD:
-0a7fe49
-
-
+PENDING_COMMIT
 
 Current Phase:
 C.6
@@ -41,7 +39,7 @@ Current Stage:
 C.6.0_ARCHITECTURE_PLANNING
 
 Overall Status:
-PHASE_C5_COMPLETE_READY_FOR_C6_PLANNING
+C.6_ARCHITECTURE_AMENDED_PENDING_GATE_AUTHORIZATION
 
 
 ## 2. MASTER ROADMAP
@@ -58,7 +56,7 @@ PHASE_C5_COMPLETE_READY_FOR_C6_PLANNING
 | ↳ C.5.2 | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
 | ↳ C.5.3 | Performance & XIRR Growth Timeline | 🟢 CERTIFIED (`3269cbc`) |
 | ↳ C.5.4 | Master Statement & Tax Report View / Export | 🟢 CERTIFIED (`1dc480f`) |
-| **Phase C.6** | **Phase C.6 Milestone / Advanced Integrations** | ⏳ PENDING ARCHITECTURE |
+| **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟡 IN GATE REVIEW |
 
 
 ## 3. CURRENT STAGE
@@ -67,7 +65,7 @@ Stage:
 C.6.0 Architecture Planning
 
 Objective:
-Define Phase C.6 scope, mathematical contracts, and technical architecture (Blockers C6-01 through C6-09 resolved)
+Define Phase C.6 scope, mathematical contracts, and technical architecture (Blockers C6-01 through C6-13 resolved)
 
 Architecture:
 AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_ARCHITECTURE_PLAN.md`)
@@ -80,8 +78,6 @@ Stage Baseline:
 
 Previous Certified Baseline:
 1dc480f
-
-
 
 
 ## 4. CERTIFIED ENGINES & PRESENTATION BOUNDARIES
@@ -128,26 +124,28 @@ PASS (emulator-5554, screen_c54_proof.png) 🟢
 
 ## 6. BLOCKERS LOG
 
-All prior blockers (Phase C.4, Phase C.5) are 100% resolved and certified.
+- Initial Architecture Blockers (C6-01 through C6-09): 🟢 RESOLVED in `docs/C6_ARCHITECTURE_PLAN.md`
+- Second-Review Blockers:
+  - C6-10 (Intra-Asset Holding Selection): 🟢 RESOLVED (Proportional buy allocation, tax-optimized sell priority, alphabetical tie-breaker)
+  - C6-11 (Open Tax Lot Data Contract): 🟢 RESOLVED (Read-only OpenTaxLot interface & adapter over confirmed events without engine mutation)
+  - C6-12 (Feasibility & Non-Tradeable Assets): 🟢 RESOLVED (PARTIALLY_FEASIBLE / INFEASIBLE status, feasibilityWarnings, realistic projected allocation)
+  - C6-13 (Quote Fallback Execution Status): 🟢 RESOLVED (FALLBACK/STALE/UNAVAILABLE quotes marked isExecutable: false, action: REQUIRES_PRICE_REFRESH)
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Stand by under Zero-Code Gate. Await Phase C.6 Master Roadmap and Architecture Specification from Architect.
+Stand by under Zero-Code Gate. Await Architect final A–J Architecture Gate decision.
 
 Architect:
-Define Phase C.6 requirements and architectural boundaries.
+Perform single consolidated final A–J gate review on amended `docs/C6_ARCHITECTURE_PLAN.md`.
 
 
 ## 8. CERTIFICATION RECORD
 
 - **Phase C.4 Complete**: 🟢 CERTIFIED (`012d0f7`)
-- **Stage C.5.1**: 🟢 CERTIFIED (`6a734f1`)
-- **Stage C.5.2**: 🟢 CERTIFIED (`398b99c`)
-- **Stage C.5.3**: 🟢 CERTIFIED (`3269cbc`)
-- **Stage C.5.4**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
+- **Phase C.6 Architecture Gate**: 🟡 AMENDED PENDING FINAL REVIEW
 - **Zero-Code Gate**: ACTIVE 🔒
 
 
