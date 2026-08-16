@@ -1,111 +1,130 @@
-# Fintech Mobile App
+# FinLife Mobile (Fintech Super App)
 
-A comprehensive, offline-first personal finance and lifestyle management application built with React Native (Expo). This app goes beyond simple expense tracking to cover every aspect of a user's financial life, from daily budgeting to long-term wealth planning, career growth, and education.
+A comprehensive, offline-first personal finance, investment, and lifestyle management mobile application built with React Native and Expo. FinLife goes beyond standard expense tracking to provide an end-to-end financial operating system covering daily cash flow, enterprise-grade investment ledger accounting, asset management, debt optimization, and career tools.
 
-## 🚀 Features Overview
+---
 
-The application is structured into 13 major feature batches, providing a holistic "Super App" experience.
+## 🚀 Key Modules & Capabilities
 
-### 1. Core Financials
--   **Income & Expenses**: Track daily transactions with smart categorization.
--   **Budgets**: Set monthly limits per category with visual progress bars.
--   **Savings Goals**: Create and track goals (e.g., "New Car", "Vacation") with auto-progress calculation.
--   **Bills & EMIs**: Manage recurring payments, loan EMIs, and utility bills with due date tracking.
--   **Cashbooks**: Manage multiple ledgers for petty cash or specific events.
+### 1. Core Cash Flow & Money Management
+- **Smart Transactions & Categorization**: Track daily income and expenses with automatic classification.
+- **Budgeting Engine**: Category-level monthly spending limits with real-time visual pacing and alerts.
+- **Savings Goals**: Milestone-based goal tracking (e.g., Emergency Fund, House Down Payment) with automated progress pacing.
+- **Bills, Subscriptions & EMIs**: Recurring bill scheduler, loan EMI tracking, and payment reminders.
+- **Multi-Ledger Cashbooks**: Dedicated sub-ledgers for petty cash, business cashbooks, and event expense management.
 
-### 2. Assets & Liabilities
--   **Properties**: Track real estate assets, valuation, and rental income.
--   **Investments**: Manage portfolio (Stocks, Mutual Funds, Gold) with ROI tracking.
--   **Loans**: Track borrowed money, interest rates, and repayment schedules.
--   **Net Worth**: Real-time aggregation of all Assets - Liabilities.
+### 2. Enterprise-Grade Investment Engine (Phase C.3 & C.4)
+- **Weighted Average Cost (WAC) Engine**: Exact holding cost basis tracking with fractional share support and immutability rules.
+- **Double-Entry Ledger Service**: Synchronized BUY/SELL order execution linked directly to MoneyFlow accounts with atomic balance updates.
+- **Market Valuation & Price Feed**: Multi-state quote lifecycle (`LIVE`, `STALE`, `UNAVAILABLE`) with automatic cost-basis fallback.
+- **SIP Automation Engine**: Automated Systematic Investment Plan scheduler supporting Daily, Weekly, Monthly, and Quarterly frequencies with price-unavailable deferrals.
+- **Dividends & Realization Service**: Corporate dividend distribution tracking with tax withholding isolation, avoiding double-counting in cash flow.
+- **Corporate Actions Engine**: Non-cash corporate action support (Stock Splits and Bonus Share issues) with hard cost-basis invariance assertions and state-aware recovery.
+- **Portfolio Analytics & P&L Engine**: Real-time valuation aggregation, point-in-time historical SELL P&L reconstruction, net economic return metrics, and quote reliability coverage tracking.
 
-### 3. Life & Lifestyle
--   **Family Expenses**: Split bills, manage family member profiles, and track shared costs.
--   **Career Growth**: Resume builder, skill gap analysis, and career goal tracking.
--   **Education Hub**: Track courses, certifications, and financial literacy progress.
--   **Wellness**: Basic health tracking integration (placeholder for future expansion).
--   **Time Management**: Productivity tools and daily planners.
+### 3. Assets, Liabilities & Net Worth
+- **Real Estate & Property Management**: Track properties, purchase costs, rental yields, and current valuations.
+- **Loan & Debt Optimizer**: Loan amortization schedules and debt payoff strategies (Snowball vs. Avalanche).
+- **P2P Lending Tracker**: Informal borrower/lender loan tracking with repayment milestones.
+- **Consolidated Net Worth**: Real-time aggregation of all liquid cash, investments, properties, and outstanding liabilities.
 
-### 4. Business & Advanced Tools
--   **Business Tools**: Retail/Service daily sales tracker with inventory basics.
--   **Debt Calculator**: Simulate payoff strategies (Snowball vs. Avalanche).
--   **Emergency Fund**: Calculate and track 6-month survival runway.
--   **Income Calendar**: Visual tracker for daily gig/freelance income.
--   **Fee Planner**: School/College fee schedule management.
+### 4. Lifestyle & Productivity Tools
+- **Family & Group Expenses**: Shared bill splitting and family budget allocation.
+- **Business CRM & Sales**: Daily Kirana/retail and service sales tracking with revenue metrics.
+- **Hostel & Rental Accommodation**: Bed occupancy, tenant management, and rent tracking.
+- **Career & Education Hub**: Skill gap analysis, course tracking, and financial literacy guides.
 
-### 5. Utilities & Intelligence
--   **Reports & Analytics**: Comprehensive dashboard with Income vs Expense charts, Category breakdowns, and Financial Health Score.
--   **Pending Tracker**: Track informal debts (IOUs) - "To Collect" and "To Pay".
--   **Notifications**: Local system for reminders and alerts.
--   **Feedback**: Built-in user feedback mechanism.
+---
 
 ## 🛠 Tech Stack
 
--   **Framework**: React Native (Expo Router)
--   **Styling**: NativeWind (TailwindCSS) + Expo Linear Gradient
--   **Icons**: Lucide React Native
--   **Persistence**: `@react-native-async-storage/async-storage` (Offline-first)
--   **Charts**: `react-native-svg` (Custom implementations)
--   **Navigation**: File-based routing (Expo Router)
+- **Core Framework**: React Native (Expo SDK 54 / Expo Router v6)
+- **Language**: JavaScript (ES6+ / Node.js 20 LTS)
+- **Styling**: NativeWind (TailwindCSS v3) & Expo Linear Gradient
+- **Icons**: Lucide React Native
+- **Storage Layer**: `@react-native-async-storage/async-storage` (Offline-first architecture)
+- **Charts & Visualization**: `react-native-svg` (Custom responsive SVG charts)
+- **E2E & Testing**: Puppeteer, Node Test Runners, GitHub Actions CI
 
-## 📂 Project Structure
+---
+
+## 📂 Architecture & Directory Structure
 
 ```
 fintech-mobile/
-├── app/                    # Screens & Routes (Expo Router)
-│   ├── (tabs)/             # Main Tab Navigation
-│   ├── business/           # Business Sub-modules
-│   ├── cashbook/           # Cashbook Detail Views
-│   ├── ...                 # Individual feature screens
-├── components/             # Reusable UI Components
-│   ├── ui/                 # Core Design System (LuxuryCard, AnimatedScreen)
-│   ├── charts/             # Custom SVG Charts
-│   ├── ...                 # Feature-specific components
-├── services/               # Logic & Persistence Layer
-│   ├── storage.js          # AsyncStorage Wrapper
-│   ├── [feature].js        # Feature-specific services
-├── constants/              # Theme & Config
-├── assets/                 # Images & Fonts
+├── .github/workflows/      # GitHub Actions CI/CD workflows
+├── app/                    # File-based routing & UI screens (Expo Router)
+│   ├── (tabs)/             # Main tab navigation screens
+│   ├── business/           # Business & retail tools
+│   ├── cashbook/           # Multi-ledger cashbook views
+│   └── ...                 # Feature-specific routes
+├── components/             # Reusable UI components
+│   ├── ui/                 # Core design system (LuxuryCard, AnimatedScreen)
+│   └── charts/             # Custom SVG charts
+├── services/               # Core Domain, Ledger & Storage Engines
+│   ├── storage.js          # Unified AsyncStorage persistence layer
+│   ├── moneyFlowEngine.js  # Cash flow & account balance engine
+│   ├── investingEngine.js  # Pure investment mathematics & WAC calculations
+│   ├── investingLedgerService.js          # Order execution & MoneyFlow linkage
+│   ├── marketDataService.js               # Price feed abstraction & quote caching
+│   ├── sipEngine.js                       # SIP automation & scheduling engine
+│   ├── investingRealizationService.js     # Dividends, standalone fees & taxes
+│   ├── investingCorporateActionsService.js# Stock splits & bonus share issues
+│   └── investingAnalyticsEngine.js        # Portfolio valuation & P&L analytics
+├── tests/                  # Automated E2E test suites
+│   └── e2e/                # Headless Puppeteer E2E tests for CI
+└── scripts/                # Verification, seeding & utility scripts
 ```
 
-## 🏃‍♂️ How to Run
+---
 
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
+## 🏃‍♂️ Getting Started
 
-2.  **Start Development Server**:
-    ```bash
-    npx expo start
-    ```
+### 1. Prerequisites
+- Node.js (v20 or newer)
+- npm or yarn
+- Expo Go app on mobile (or Android/iOS emulator)
 
-3.  **Run on Device/Emulator**:
-    -   Scan QR code with Expo Go (Android/iOS).
-    -   Press `a` for Android Emulator.
-    -   Press `i` for iOS Simulator.
-    -   Press `w` for Web (limited functionality compared to mobile).
+### 2. Installation
+```bash
+# Clone the repository
+git clone https://github.com/Nreddy2020/finapp-mobile.git
+cd finapp-mobile
 
-## 💾 Data Persistence
+# Install dependencies
+npm install
+```
 
-The app uses a **Service-Layer Architecture** to decouple UI from data storage. All data is persisted locally using `AsyncStorage`.
--   **Storage Service**: `services/storage.js` handles raw JSON serialization/encryption.
--   **Feature Services**: Each module (e.g., `services/income.js`) handles business logic and calls Storage Service.
+### 3. Running Locally
+```bash
+# Start Expo development server
+npm run start
 
-## 🎨 Design System
+# Launch on specific targets
+npm run android   # Android emulator / connected device
+npm run ios       # iOS simulator (macOS only)
+npm run web       # Local web browser view
+```
 
-The app features a **"Luxury Fintech"** aesthetic:
--   **Dark Mode First**: Deep blacks and dark greys (`#000000`, `#18181B`).
--   **Gradients**: Subtle linear gradients for depth.
--   **Motion**: `AnimatedScreen` wrapper for smooth entry animations.
--   **Cards**: `LuxuryCard` component with glassmorphism effects and glow.
+### 4. Running Automated Tests & CI
+```bash
+# Run Headless E2E Test Suite
+npm run test:e2e-ci
 
-## 🤝 Contribution
-
-This project is a comprehensive prototype. Future enhancements could include:
--   Cloud Sync (Supabase/Firebase).
--   Bank API Integration (Account Aggregator).
--   AI Financial Advisor.
+# Type checking
+npm run type-check
+```
 
 ---
-*Built with ❤️ by Antigravity*
+
+## 🔒 Branch & Quality Protocol
+
+- **`main`**: Protected production baseline containing certified releases.
+- **`fintech-using-chatgpt`**: Active development and stage implementation branch.
+- **Zero-Code Gate & Contract Freezing**: Core domain engines (WAC, Ledger, Realization, Analytics) enforce strict financial invariants, finite numerical validations, and non-double-counting accounting rules.
+
+---
+
+## 📄 License
+
+Private repository — All rights reserved.
