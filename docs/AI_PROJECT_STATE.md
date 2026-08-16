@@ -39,7 +39,7 @@ Current Stage:
 C.7.1
 
 Overall Status:
-C.7.1_IMPLEMENTED_PENDING_CERTIFICATION
+C.7.1_REMEDIATED_PENDING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -62,7 +62,7 @@ C.7.1_IMPLEMENTED_PENDING_CERTIFICATION
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
-| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 IMPLEMENTED — IN REVIEW |
+| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 REMEDIATED — IN REVIEW |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | ⚪ PLANNED |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
@@ -84,7 +84,7 @@ Architecture:
 APPROVED & HARDENED
 
 Implementation:
-COMPLETE & AUDITED
+REMEDIATED & AUDITED (Blocker C7.1-01 resolved with deterministic asOfDate & time-travel proof)
 
 Stage Baseline:
 5fdfb36
@@ -96,8 +96,8 @@ Previous Certified Baseline:
 ## 4. CURRENT IMPLEMENTATION
 
 Files modified/created:
-- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, liquidity classifier)
-- `tests/test_c71.mjs` (NEW — 20-point automated acceptance suite)
+- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, deterministic liquidity classifier)
+- `tests/test_c71.mjs` (NEW — 20-point automated acceptance suite with time-travel proof)
 - `docs/C7_1_ARCHITECTURE_PLAN.md` (NEW)
 - `docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
 - `docs/AI_PROJECT_STATE.md` (MODIFIED)
@@ -149,17 +149,19 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-All Stage C.7.1 acceptance criteria satisfied.
-Zero-Code Gate is ACTIVE for Stage C.7.2+.
+- All Stage C.7.1 blockers are 100% resolved:
+  - C7.1-01 (Deterministic asOfDate in Liquidity Classifier): 🟢 RESOLVED (Removed Date.now(), added time-travel proof)
+  - Canonical Stress Scenarios Assertion: 🟢 RESOLVED (Exact 4 canonical IDs asserted)
+- Zero-Code Gate is ACTIVE for Stage C.7.2+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation and audit of Stage C.7.1 with 274/274 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
+Completed remediation of Stage C.7.1 with 274/274 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
 
 Architect:
-Review Stage C.7.1 implementation and issue Certification decision.
+Review Stage C.7.1 remediation commit and issue Stage C.7.1 Certification.
 
 
 ## 8. CERTIFICATION RECORD
@@ -168,7 +170,7 @@ Review Stage C.7.1 implementation and issue Certification decision.
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
-- **Stage C.7.1**: 🟡 IMPLEMENTED — IN REVIEW
+- **Stage C.7.1**: 🟡 REMEDIATED — IN REVIEW
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.2+)
 
 

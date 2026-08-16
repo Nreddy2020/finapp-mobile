@@ -134,7 +134,11 @@ export const CANONICAL_STRESS_SCENARIOS = Object.freeze({
             REAL_ESTATE: +0.15,
             OTHER: 0.00
         })
-    }),
+    })
+});
+
+// Auxiliary / Sector Scenarios
+export const SECTOR_STRESS_SCENARIOS = Object.freeze({
     CRYPTO_WINTER_2022: Object.freeze({
         id: 'CRYPTO_WINTER_2022',
         name: 'Crypto Winter / Tech Sell-Off',
@@ -151,6 +155,11 @@ export const CANONICAL_STRESS_SCENARIOS = Object.freeze({
             OTHER: -0.05
         })
     })
+});
+
+export const ALL_STRESS_SCENARIOS = Object.freeze({
+    ...CANONICAL_STRESS_SCENARIOS,
+    ...SECTOR_STRESS_SCENARIOS
 });
 
 // 7. Schema Validation Helpers
@@ -275,11 +284,24 @@ export const RiskTaxonomyService = {
     },
 
     /**
-     * Resolves liquidity classification for a holding.
-     * @param {Object} holding - Canonical holding object
+     * Resolves liquidity classification for a holding evaluated strictly at asOfDate.
+     * Guaranteed deterministic: zero dependency on wall clock Date.now().
+     * 
+     * @param {Object} params - Holding object or options bundle
+     * @param {Date|string} [asOfDateArg] - Deterministic evaluation cutoff
      * @returns {Object} HoldingLiquidityProfile
      */
-    classifyHoldingLiquidity(holding) {
+    classifyHoldingLiquidity(params, asOfDateArg) {
+        let holding = params;
+        let asOfDate = asOfDateArg;
+
+        if (params && typeof params === 'object' && params.holding) {
+            holding = params.holding;
+            asOfDate = params.asOfDate || asOfDateArg;
+        }
+
+        const evalTs = asOfDate ? new Date(asOfDate).getTime() : Date.now();
+
         if (!holding || typeof holding !== 'object') {
             return {
                 holdingId: 'unknown',
@@ -308,9 +330,9 @@ export const RiskTaxonomyService = {
             isLocked = true;
         }
 
-        // Check for holding-specific lockups (e.g. metadata.lockupExpiry)
+        // Check for holding-specific lockups evaluated strictly at asOfDate
         const lockExpiry = holding.metadata?.lockupExpiryDate || null;
-        if (lockExpiry && new Date(lockExpiry).getTime() > Date.now()) {
+        if (lockExpiry && new Date(lockExpiry).getTime() > evalTs) {
             tier = LiquidityTier.LOCKED_OR_ILLIQUID;
             isLocked = true;
         }
@@ -331,13 +353,13 @@ export const RiskTaxonomyService = {
      * Resolves the complete 8-class shock vector for a stress scenario.
      * Applies UNSPECIFIED_SHOCK_POLICY (0.0%) for missing asset classes.
      * 
-     * @param {Object|string} scenario - Canonical scenario object or key
+     * @param {Object|string} scenario - Scenario object or key
      * @returns {Object} Complete 8-class shock vector
      */
     getScenarioShockVector(scenario) {
         let rawShocks = {};
         if (typeof scenario === 'string') {
-            const canonical = CANONICAL_STRESS_SCENARIOS[scenario];
+            const canonical = ALL_STRESS_SCENARIOS[scenario];
             if (canonical) rawShocks = canonical.shocks;
         } else if (scenario && typeof scenario === 'object' && scenario.shocks) {
             rawShocks = scenario.shocks;

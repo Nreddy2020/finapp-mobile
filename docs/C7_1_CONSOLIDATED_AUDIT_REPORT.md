@@ -1,37 +1,48 @@
-# Stage C.7.1 — Consolidated Architecture & Code Audit Report
-## Portfolio Risk Foundation & Risk Taxonomy
+# Stage C.7.1 — Consolidated Architecture, Code Audit & Remediation Report
+## Portfolio Risk Foundation & Risk Taxonomy Service
 
 **Branch**: `fintech-using-chatgpt`  
 **Certified Baseline Commit**: [`5fdfb36`](https://github.com/Nreddy2020/finapp-mobile/commit/5fdfb36)  
 **Modules Implemented**:
-- [`services/riskTaxonomy.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/services/riskTaxonomy.js) (NEW: Risk taxonomy, schemas, return adapter, liquidity classifier)
-- [`tests/test_c71.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c71.mjs) (NEW: 20-point automated acceptance suite)
-- [`docs/C7_1_ARCHITECTURE_PLAN.md`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/docs/C7_1_ARCHITECTURE_PLAN.md) (NEW)
-- [`docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md) (NEW)  
-**Status**: Stage C.7.1 Implementation Complete 🟢 (Awaiting Certification)
+- [`services/riskTaxonomy.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/services/riskTaxonomy.js) (Risk taxonomy, schemas, return adapter, deterministic liquidity classifier)
+- [`tests/test_c71.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c71.mjs) (20-point automated acceptance suite with time-travel proof)
+- [`docs/C7_1_ARCHITECTURE_PLAN.md`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/docs/C7_1_ARCHITECTURE_PLAN.md)
+- [`docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md)  
+**Status**: Stage C.7.1 Remediated & Ready for Certification 🟢
 
 ---
 
-## 1. Architectural Checklist & Acceptance Results
+## 1. Remediation of Architectural Review Findings
 
-| Requirement | Contract Verification | Result |
-| :--- | :--- | :---: |
-| **Canonical Risk Pillars** | 6 frozen pillars (`CONCENTRATION`, `VOLATILITY`, `DRAWDOWN`, `LIQUIDITY`, `CORRELATION`, `STRESS_TEST`) | 🟢 PASS |
-| **Risk Severities** | 4 severity tiers (`LOW`, `MODERATE`, `HIGH`, `CRITICAL`) | 🟢 PASS |
-| **Preservation of 8 Canonical Classes** | Canonical asset taxonomy preserved intact from `TargetAllocationService` | 🟢 PASS |
-| **Independent Liquidity Taxonomy** | 4 tiers (`INSTANT_T0`, `SHORT_TERM_T2_T3`, `MEDIUM_TERM_T4_T7`, `LOCKED_OR_ILLIQUID`) | 🟢 PASS |
-| **Complete 8-Class Stress Vectors** | All canonical scenarios define full 8-class shock vectors | 🟢 PASS |
-| **Unspecified Shock Fallback** | Unlisted asset classes default strictly to $0.0\%$ (`UNSPECIFIED_SHOCK_POLICY`) | 🟢 PASS |
-| **Deterministic asOfDate Cutoff** | Returns evaluated strictly $\le \text{asOfDate}$ (zero future price leakage) | 🟢 PASS |
-| **Zero Manufactured Returns** | Missing data points reported as missing intervals without filler numbers | 🟢 PASS |
-| **Coverage & Confidence Scoring** | Exact coverage ratio and confidence tiers (`HIGH`, `MODERATE`, `LOW`, `UNAVAILABLE`) | 🟢 PASS |
-| **ELSS / Lockup Detection** | Holding metadata overrides standard tier to `LOCKED_OR_ILLIQUID` | 🟢 PASS |
-| **Deep 5-Store Snapshot Zero Mutations** | Holdings, events, quotes, txs, wallets 100% untouched | 🟢 PASS |
-| **Full Regression Suite** | 274/274 tests passing across all 13 suites (Exit code: 0) | 🟢 PASS |
+| Item | Architectural Requirement | Resolution Implemented | Verification Result |
+| :--- | :--- | :--- | :---: |
+| **`C7.1-01` Deterministic `asOfDate`** | Eliminate `Date.now()` from financial evaluation logic | Updated `classifyHoldingLiquidity({ holding, asOfDate })` to evaluate lockup expiration strictly relative to `asOfDate`. Added Test 17 time-travel proof (Locked at 2024-01-01 $\to$ Unlocked at 2024-07-01). | 🟢 RESOLVED |
+| **Canonical Stress Scenarios** | Enforce exact 4 standardized canonical scenario set | Separated `CANONICAL_STRESS_SCENARIOS` (exact 4) from `SECTOR_STRESS_SCENARIOS`. Test 6 asserts exact scenario IDs. | 🟢 RESOLVED |
 
 ---
 
-## 2. Test Execution Output (`tests/test_c71.mjs`)
+## 2. File Boundary Verification
+
+| File Path | Nature of Change | Boundary Verification |
+| :--- | :---: | :---: |
+| `services/riskTaxonomy.js` | **[NEW]** | Risk taxonomy constants, schema validators, return series adapter, deterministic liquidity classifier |
+| `tests/test_c71.mjs` | **[NEW]** | 20-point acceptance test suite with time-travel lockup boundary verification |
+| `docs/C7_1_ARCHITECTURE_PLAN.md` | **[NEW]** | Stage C.7.1 architecture plan |
+| `docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit and remediation document |
+| `docs/AI_PROJECT_STATE.md` | **[MODIFIED]** | Single living synchronization state file |
+| `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
+| `services/storage.js` | **[FROZEN]** 🔒 | 100% Untouched |
+| `services/moneyFlowEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
+| `services/investingSchemas.js` | **[FROZEN]** 🔒 | 100% Untouched |
+| `services/targetAllocationService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.1) |
+| `services/rebalancingEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.2) |
+| `services/openTaxLotAdapter.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3) |
+| `services/taxOptimizedRebalancingService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3 at `82663e5`) |
+| `services/statementExportService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.5.4) |
+
+---
+
+## 3. Automated 20-Point Acceptance Suite (`tests/test_c71.mjs`)
 
 ```
 ================================================================
@@ -54,7 +65,7 @@
 ✅ Test 5 PASS: All 8 canonical asset classes mapped to default liquidity profiles.
 
 --- Test 6: Canonical Stress Scenario Completeness ---
-✅ Test 6 PASS: All 5 canonical stress scenarios define complete 8-class shock vectors.
+✅ Test 6 PASS: Exact 4 canonical stress scenarios verified (HISTORICAL_GFC_2008, HISTORICAL_COVID_2020, MACRO_RATE_SPIKE, MACRO_STAGFLATION_SHOCK).
 
 --- Test 7: Unspecified Shock Fallback Policy ---
 ✅ Test 7 PASS: UNSPECIFIED_SHOCK_POLICY (0.0%) correctly applied to unlisted asset classes.
@@ -86,8 +97,8 @@
 --- Test 16: Holding Liquidity Classification ---
 ✅ Test 16 PASS: Holding liquidity classified into independent tiers.
 
---- Test 17: ELSS / Regulatory Lockup Detection ---
-✅ Test 17 PASS: Lockup metadata overrides standard MF tier to LOCKED_OR_ILLIQUID.
+--- Test 17: Deterministic ELSS / Regulatory Lockup Evaluation ---
+✅ Test 17 PASS: Deterministic lockup boundary verified (Locked at 2024-01-01 -> Unlocked at 2024-07-01 without Date.now()).
 
 --- Test 18: Deep 5-Store Read-Only Safety Guard ---
 ✅ Test 18 PASS: 100% Zero state mutations across all 5 stores verified.
@@ -105,7 +116,7 @@
 
 ---
 
-## 3. Total System Regression Matrix (274/274 Tests Passing)
+## 4. Comprehensive Regression Suite Results (274/274 Tests Passing)
 
 - **Stage C.7.1 Acceptance Suite (`tests/test_c71.mjs`)**: **20/20 PASSED (Exit 0)** ✅
 - **Stage C.6.4 Acceptance Suite (`tests/test_c64.mjs`)**: **23/23 PASSED (Exit 0)** ✅

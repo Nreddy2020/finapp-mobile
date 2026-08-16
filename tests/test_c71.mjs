@@ -73,11 +73,13 @@ async function runC71AcceptanceSuite() {
             console.error('❌ Test 5 FAIL: Asset liquidity mapping incomplete:', DEFAULT_ASSET_LIQUIDITY_MAP);
         }
 
-        // Test 6: Canonical Stress Scenario Completeness (8/8 Classes)
+        // Test 6: Canonical Stress Scenario Completeness (Exact 4-Scenario Architecture Set)
         console.log('\n--- Test 6: Canonical Stress Scenario Completeness ---');
-        const scenarioKeys = Object.keys(CANONICAL_STRESS_SCENARIOS);
+        const expectedCanonicalIds = ['HISTORICAL_GFC_2008', 'HISTORICAL_COVID_2020', 'MACRO_RATE_SPIKE', 'MACRO_STAGFLATION_SHOCK'];
+        const actualCanonicalIds = Object.keys(CANONICAL_STRESS_SCENARIOS);
+        
         let allScenariosComplete = true;
-        for (const k of scenarioKeys) {
+        for (const k of actualCanonicalIds) {
             const sc = CANONICAL_STRESS_SCENARIOS[k];
             for (const cls of CANONICAL_ASSET_CLASSES) {
                 if (typeof sc.shocks[cls] !== 'number') {
@@ -86,11 +88,15 @@ async function runC71AcceptanceSuite() {
                 }
             }
         }
-        if (allScenariosComplete && scenarioKeys.length >= 4) {
-            console.log(`✅ Test 6 PASS: All ${scenarioKeys.length} canonical stress scenarios define complete 8-class shock vectors.`);
+        
+        const hasExactCanonicalSet = expectedCanonicalIds.length === actualCanonicalIds.length &&
+            expectedCanonicalIds.every(id => actualCanonicalIds.includes(id));
+
+        if (allScenariosComplete && hasExactCanonicalSet) {
+            console.log(`✅ Test 6 PASS: Exact 4 canonical stress scenarios verified (${expectedCanonicalIds.join(', ')}).`);
             passCount++;
         } else {
-            console.error('❌ Test 6 FAIL: Scenario shock vectors incomplete.');
+            console.error('❌ Test 6 FAIL: Canonical scenario mismatch:', actualCanonicalIds);
         }
 
         // Test 7: Unspecified Shock Fallback Policy
@@ -233,21 +239,36 @@ async function runC71AcceptanceSuite() {
             console.error('❌ Test 16 FAIL: Holding classification failed:', { profStock, profGold });
         }
 
-        // Test 17: ELSS / Regulatory Lockup Detection
-        console.log('\n--- Test 17: ELSS / Regulatory Lockup Detection ---');
-        const futureDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        // Test 17: Deterministic ELSS / Regulatory Lockup Evaluation (Time-Travel Proof)
+        console.log('\n--- Test 17: Deterministic ELSS / Regulatory Lockup Evaluation ---');
+        const fixedLockupExpiry = '2024-06-30T00:00:00.000Z';
         const elssHolding = {
             id: 'h_elss',
             symbol: 'AXIS_ELSS',
             assetType: 'MUTUAL_FUND',
-            metadata: { lockupExpiryDate: futureDate, exitPenaltyPercent: 0 }
+            metadata: { lockupExpiryDate: fixedLockupExpiry, exitPenaltyPercent: 0 }
         };
-        const profElss = RiskTaxonomyService.classifyHoldingLiquidity(elssHolding);
-        if (profElss.liquidityTier === LiquidityTier.LOCKED_OR_ILLIQUID && profElss.isLocked === true) {
-            console.log('✅ Test 17 PASS: Lockup metadata overrides standard MF tier to LOCKED_OR_ILLIQUID.');
+
+        // Evaluation 1: asOfDate prior to lockup expiry (e.g. Jan 1, 2024 -> LOCKED)
+        const profBeforeExpiry = RiskTaxonomyService.classifyHoldingLiquidity({
+            holding: elssHolding,
+            asOfDate: '2024-01-01T00:00:00.000Z'
+        });
+
+        // Evaluation 2: asOfDate after lockup expiry (e.g. July 1, 2024 -> UNLOCKED)
+        const profAfterExpiry = RiskTaxonomyService.classifyHoldingLiquidity({
+            holding: elssHolding,
+            asOfDate: '2024-07-01T00:00:00.000Z'
+        });
+
+        if (profBeforeExpiry.liquidityTier === LiquidityTier.LOCKED_OR_ILLIQUID &&
+            profBeforeExpiry.isLocked === true &&
+            profAfterExpiry.liquidityTier === LiquidityTier.SHORT_TERM_T2_T3 &&
+            profAfterExpiry.isLocked === false) {
+            console.log('✅ Test 17 PASS: Deterministic lockup boundary verified (Locked at 2024-01-01 -> Unlocked at 2024-07-01 without Date.now()).');
             passCount++;
         } else {
-            console.error('❌ Test 17 FAIL: Lockup detection failed:', profElss);
+            console.error('❌ Test 17 FAIL: Deterministic lockup evaluation failed:', { profBeforeExpiry, profAfterExpiry });
         }
 
         // Test 18: Deep 5-Store Read-Only Safety Guard
