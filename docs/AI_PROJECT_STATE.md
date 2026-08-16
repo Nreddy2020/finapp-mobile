@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-87fe111
+f462013
 
 Last Certified Commit:
-87fe111
+f462013
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.8
 
 Current Stage:
-C.8.6_ACTION_IMPACT_SIMULATOR
+C.8.7_DECISION_PRESENTATION_ADAPTER
 
 Overall Status:
-C.8.6_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
+C.8.7_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -70,30 +70,30 @@ C.8.6_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | 🟢 **MASTER CERTIFIED & APP-MOUNTED** (`7e71b8d`) |
-| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **IN PROGRESS (Stage C.8.6 Implemented)** |
+| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **IN PROGRESS (Stage C.8.7 Implemented)** |
 | ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | 🟢 **MASTER CERTIFIED** (`ba785a9`) |
 | ↳ C.8.2 | Goal Funding, Inflation & Wealth Projection Engine | 🟢 **MASTER CERTIFIED** (`c49e866`) |
 | ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | 🟢 **MASTER CERTIFIED** (`5116d0d`) |
 | ↳ C.8.4 | Cross-Domain Opportunity & Vulnerability Aggregator | 🟢 **MASTER CERTIFIED** (`377b4ed`) |
 | ↳ C.8.5 | Next Best Action Prioritization Engine | 🟢 **MASTER CERTIFIED** (`87fe111`) |
-| ↳ C.8.6 | Action Impact Simulator ("Before vs After" Health & Goals) | 🟢 IMPLEMENTATION COMPLETE (26/26 PASS) |
-| ↳ C.8.7 | Decision Intelligence Presentation Adapter | ⚪ PLANNED (Gate Locked 🔒) |
-| ↳ C.8.8 | Goal & Financial Action Command Center UI | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.6 | Action Impact Simulator ("Before vs After" Health & Goals) | 🟢 **MASTER CERTIFIED** (`f462013`) |
+| ↳ C.8.7 | Decision Intelligence Presentation Adapter | 🟢 IMPLEMENTATION COMPLETE (26/26 PASS) |
+| ↳ C.8.8 | Goal & Financial Action Command Center UI | ⚪ PLANNED (Final Stage, Gate Locked 🔒) |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-Stage C.8.6 Action Impact Simulator ("Before vs After" Health, Risk, Runway & Goal Solvency)
+Stage C.8.7 Decision Intelligence Presentation Adapter
 
 Objective:
-Implemented `services/actionImpactSimulator.js` under architectural safety lock `C8-F2`. It executes hypothetical financial actions against isolated virtual state clones and feeds both baseline and simulated states through the complete authoritative calculation chain (`portfolioHealthScoreEngine.js`, `wealthProjectionEngine.js`, `goalGlidepathService.js`) to generate precise Before vs After deltas without synthetic/invented numbers.
+Implemented `components/investments/decisionPresentationAdapter.js` under strict zero-recalculation invariants. Converts certified C.8.1–C.8.6 decision intelligence DTOs into structured ViewModels for Goal Solvency, Opportunities, Ranked Actions, and What-If Simulations, implementing the FACT → DERIVED_INSIGHT → RECOMMENDATION → HYPOTHETICAL_OUTCOME 4-part narrative standard.
 
 Implementation Status:
 IMPLEMENTATION COMPLETE (26/26 PASS) 🟢
 
 Certified Baseline:
-87fe111
+f462013
 
 
 ## 4. CERTIFIED & FROZEN BASELINES
@@ -130,9 +130,13 @@ Certified & Frozen contracts (100% Locked 🔒):
 - `services/goalGlidepathService.js` 🔒 (100% Master Certified C.8.3 at `5116d0d`)
 - `services/financialOpportunityAggregator.js` 🔒 (100% Master Certified C.8.4 at `377b4ed`)
 - `services/actionPrioritizationEngine.js` 🔒 (100% Master Certified C.8.5 at `87fe111`)
+- `services/actionImpactSimulator.js` 🔒 (100% Master Certified C.8.6 at `f462013`)
 
 
 ## 5. ACCEPTANCE STATUS
+
+Stage C.8.7 Acceptance (`tests/test_c87.mjs`):
+26/26 PASS (Strict exit 0) 🟢
 
 Stage C.8.6 Acceptance (`tests/test_c86.mjs`):
 26/26 PASS (Strict exit 0) 🟢
@@ -165,7 +169,7 @@ Phase C.4 Full Suite (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
 Total Master System Regression:
-753/753 PASS (100%, Strict exit 0) 🟢
+779/779 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -173,17 +177,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.8.6 Acceptance 26/26 PASS.
-- Zero-Code Gate remains ACTIVE 🔒 for Stage C.8.7+.
+- Stage C.8.7 Acceptance 26/26 PASS.
+- Zero-Code Gate remains ACTIVE 🔒 for Stage C.8.8 (Final Stage).
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed Stage C.8.6 implementation and 26-test acceptance suite. Full regression 753/753 PASS. Awaiting Architect's Stage C.8.6 Master Certification Review.
+Completed Stage C.8.7 implementation and 26-test acceptance suite. Full regression 779/779 PASS. Awaiting Architect's Stage C.8.7 Master Certification Review.
 
 Architect:
-Perform Stage C.8.6 Master Certification Review.
+Perform Stage C.8.7 Master Certification Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -197,7 +201,8 @@ Perform Stage C.8.6 Master Certification Review.
 - **Stage C.8.3 Complete**: 🟢 100% MASTER CERTIFIED (`5116d0d`)
 - **Stage C.8.4 Complete**: 🟢 100% MASTER CERTIFIED (`377b4ed`)
 - **Stage C.8.5 Complete**: 🟢 100% MASTER CERTIFIED (`87fe111`)
-- **Stage C.8.6 Status**: 🟢 IMPLEMENTATION COMPLETE (Awaiting Certification)
+- **Stage C.8.6 Complete**: 🟢 100% MASTER CERTIFIED (`f462013`)
+- **Stage C.8.7 Status**: 🟢 IMPLEMENTATION COMPLETE (Awaiting Certification)
 
 
 ## 9. AGENT PROTOCOL RULES
