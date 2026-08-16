@@ -39,7 +39,7 @@ Current Stage:
 C.7.5_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.5_ARCHITECTURE_PROPOSED_PENDING_GATE_DECISION
+C.7.5_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -66,7 +66,7 @@ C.7.5_ARCHITECTURE_PROPOSED_PENDING_GATE_DECISION
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
-| ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟡 ARCHITECTURE PROPOSED (IN REVIEW) |
+| ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟡 ARCHITECTURE REMEDIATED (IN REVIEW) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED (Gate Locked 🔒) |
@@ -78,10 +78,10 @@ Stage:
 C.7.5 (Liquidity & Cash-Flow Stress Engine)
 
 Objective:
-Author Architecture Plan in `docs/C7_5_ARCHITECTURE_PLAN.md` covering 4-tier liquidity horizon decomposition (T0, T2_T3, T4_T7, LOCKED_ILLIQUID, UNKNOWN), precedence resolution contract, liquidity haircut modeling (No Haircut, Moderate, Severe), recurring cash-flow & emergency runway modeling against essential survival burn, 4-scenario deterministic stress matrix (Base, Income Shock, Portfolio Haircut, Combined Severe Stress), lockup / ELSS / maturity schedule breakdown, bottleneck diagnostics, composite liquidity stress score (0-100) and tiers (HEALTHY, WATCH, STRESSED, CRITICAL), versioned policy `C7_5_V1`, and 42-scenario acceptance matrix.
+Incorporate Architect remediations C7.5-Q1 (FD early-break accessibility date contract, maturity arrival handling, and 2.0% penalty haircut precedence) and C7.5-Q2 (unsplit burn 70% policy fallback, confidence degradation to MODERATE, actual vs estimated burn DTO separation, and 50%/70%/85% sensitivity spectrum) into `docs/C7_5_ARCHITECTURE_PLAN.md` with an expanded 48-scenario acceptance test matrix.
 
 Architecture Gate:
-PROPOSED — PENDING GATE REVIEW (Zero-Code Gate Active 🔒)
+REMEDIATED — PENDING FINAL GATE REVIEW (Zero-Code Gate Active 🔒)
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -159,10 +159,10 @@ PASS (5-store deep snapshot verified) 🟢
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Authored Stage C.7.5 Architecture Plan (`docs/C7_5_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's review and implementation gate authorization before creating `services/liquidityStressEngine.js` and `tests/test_c75.mjs`.
+Remediated Stage C.7.5 Architecture Plan (`docs/C7_5_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's final architecture gate review and implementation authorization.
 
 Architect:
-Review Stage C.7.5 Architecture Plan and issue gate decision.
+Review remediated Stage C.7.5 Architecture Plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -175,7 +175,7 @@ Review Stage C.7.5 Architecture Plan and issue gate decision.
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
 - **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
-- **Stage C.7.5**: 🟡 ARCHITECTURE PROPOSED (IN REVIEW)
+- **Stage C.7.5**: 🟡 ARCHITECTURE REMEDIATED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.5+)
 
 
