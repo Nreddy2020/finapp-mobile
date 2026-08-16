@@ -39,7 +39,7 @@ Current Stage:
 C.8_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.8_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
+C.8_ARCHITECTURE_PLAN_V1.1.0_SUBMITTED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -70,7 +70,7 @@ C.8_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | 🟢 **MASTER CERTIFIED & APP-MOUNTED** (`7e71b8d`) |
-| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)** |
+| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **ARCHITECTURE PLAN V1.1.0 SUBMITTED (Gate Locked 🔒)** |
 | ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.2 | Goal Funding, Inflation & Wealth Projection Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | ⚪ PLANNED (Gate Locked 🔒) |
@@ -84,10 +84,10 @@ C.8_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
 ## 3. CURRENT STAGE
 
 Stage:
-Phase C.8 Architecture Planning (`docs/C8_ARCHITECTURE_PLAN.md`)
+Phase C.8 Architecture Planning (`docs/C8_ARCHITECTURE_PLAN.md` v1.1.0)
 
 Objective:
-Authored and submitted Phase C.8 Master Architecture Plan defining the Goal Planning & Actionable Decision Intelligence Pipeline: C.8.1 (Goal Schema & Inflation Policy), C.8.2 (Wealth Projection & SIP Gap Solver), C.8.3 (Target-Date Glidepath Engine), C.8.4 (Cross-Domain Opportunity/Vulnerability Aggregator), C.8.5 (Next Best Action Prioritization), C.8.6 (Action Impact Simulator), C.8.7 (Presentation Adapter), C.8.8 (Command Center UI). Enforces zero recalculation of C.4–C.7 metrics, recommendation-execution separation, pure hypothetical simulation without store mutations, and 599+ test regression floor.
+Remediated and hardened Phase C.8 Architecture Plan v1.1.0 across C8-R1 through C8-R14: deterministic 4-tier goal hierarchy, closed-form inflation policy, versioned wealth projection policy `C8_WEALTH_PROJECTION_V1`, exact SIP gap solver with $r=0$ boundary, glidepath non-mutation authority boundary, full opportunity provenance tracking, closed-form multi-objective Next Best Action ranking (weights $0.30 U + 0.25 R + 0.15 T + 0.20 G - 0.10 F = 1.00$), certified engine delegation for in-memory virtual simulation, FACT/INSIGHT/RECOMMENDATION/HYPOTHETICAL advice safety typology, 7-state goal funding state machine, action lifecycle separation, and 72-scenario acceptance matrix.
 
 Implementation Status:
 GATE LOCKED 🔒 (Zero-Code Gate Active)
@@ -150,17 +150,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Phase C.8 Architecture Plan Submitted.
+- Phase C.8 Architecture Plan v1.1.0 Submitted.
 - Zero-Code Gate remains ACTIVE 🔒 for Phase C.8 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Authored and submitted Phase C.8 Master Architecture Plan (`docs/C8_ARCHITECTURE_PLAN.md`). Zero-Code Gate is ACTIVE. Awaiting Architect's Gate Review.
+Authored and submitted Phase C.8 Master Architecture Plan v1.1.0 (`docs/C8_ARCHITECTURE_PLAN.md`). Zero-Code Gate is ACTIVE. Awaiting Architect's Final Gate Review.
 
 Architect:
-Perform Phase C.8 Master Architecture Gate Review.
+Perform Phase C.8 Master Architecture Final Gate Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -169,7 +169,7 @@ Perform Phase C.8 Master Architecture Gate Review.
 - **Phase C.5 Complete**: 🟢 100% MASTER CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 100% MASTER CERTIFIED (`5fdfb36`)
 - **Phase C.7 Complete**: 🟢 100% MASTER CERTIFIED & CLOSED (`7e71b8d`)
-- **Phase C.8 Status**: 🟡 ARCHITECTURE PLAN SUBMITTED (Gate Locked 🔒)
+- **Phase C.8 Status**: 🟡 ARCHITECTURE PLAN V1.1.0 SUBMITTED (Gate Locked 🔒)
 
 
 ## 9. AGENT PROTOCOL RULES
