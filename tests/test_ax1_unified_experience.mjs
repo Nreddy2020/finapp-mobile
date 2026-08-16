@@ -248,7 +248,7 @@ async function main() {
         assert.ok(content.includes('/(tabs)/self?tab=flow'), 'Must deep-link to Money Flow');
         assert.ok(content.includes('/investments'), 'Must deep-link to Investments');
         assert.ok(content.includes('/savings'), 'Must deep-link to Goals');
-        assert.ok(content.includes('/wealth/loans'), 'Must deep-link to Liabilities');
+        assert.ok(content.includes('/loans'), 'Must deep-link to Liabilities');
     });
 
     // -------------------------------------------------------------------

@@ -449,7 +449,7 @@ export default function Dashboard() {
                     {/* Pillar 4: Liabilities */}
                     <TouchableOpacity
                         style={styles.pillarCard}
-                        onPress={() => router.push('/wealth/loans')}
+                        onPress={() => router.push('/loans')}
                     >
                         <View style={[styles.pillarIconWrap, { backgroundColor: '#EF444420' }]}>
                             <CreditCard size={20} color="#EF4444" />

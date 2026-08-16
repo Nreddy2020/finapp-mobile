@@ -34,7 +34,7 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     };
 
     const moneySubTabs = [
-        { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/money' },
+        { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/self?tab=flow' },
         { id: 'expenses', name: 'Expenses', icon: PieChart, route: '/transactions' },
         { id: 'income', name: 'Income', icon: TrendingUp, route: '/income' },
         { id: 'budgets', name: 'Budget', icon: PieChart, route: '/budgets' },
@@ -46,17 +46,17 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     ];
 
     const wealthSubTabs = [
-        { id: 'banking', name: 'Banking', icon: Landmark, route: '/wealth/banking' },
-        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/wealth/loans' },
+        { id: 'banking', name: 'Banking', icon: Landmark, route: '/accounts' },
+        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/loans' },
         { id: 'emis', name: 'EMI Tracker', icon: Calendar, route: '/emis' },
-        { id: 'p2p', name: 'P2P Network', icon: Users, route: '/wealth/p2p' },
+        { id: 'p2p', name: 'P2P Network', icon: Users, route: '/(tabs)/self?tab=p2p' },
         { id: 'assets', name: 'Assets', icon: Building2, route: '/assets' },
         { id: 'properties', name: 'Property', icon: Building2, route: '/properties' },
         { id: 'investments', name: 'Investments', icon: TrendingUp, route: '/investments' }
     ];
 
     const lifeSubTabs = [
-        { id: 'family', name: 'Family', icon: Users, route: '/life/family' },
+        { id: 'family', name: 'Family', icon: Users, route: '/family' },
         { id: 'time-management', name: 'Time Mgmt', icon: CheckSquare, route: '/time-management' },
         { id: 'todos', name: 'Tasks / Goals', icon: CheckSquare, route: '/todos' },
         { id: 'career', name: 'Career', icon: Wrench, route: '/career' },
@@ -214,10 +214,8 @@ export default function TabLayout() {
                     }}
                 >
                     <Tabs.Screen name="index" />
-                    <Tabs.Screen name="money" />
-                    <Tabs.Screen name="wealth" />
-                    <Tabs.Screen name="life" />
-                    <Tabs.Screen name="business" />
+                    <Tabs.Screen name="self" options={{ href: null }} />
+                    <Tabs.Screen name="business" options={{ href: null }} />
 
                     {/* Hidden tab screens */}
                     <Tabs.Screen name="profile" options={{ href: null }} />
