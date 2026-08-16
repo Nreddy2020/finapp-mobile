@@ -30,7 +30,8 @@ Last Certified Commit:
 1dc480f
 
 Current HEAD:
-1dc480f
+7eb1c44
+
 
 Current Phase:
 C.6
@@ -65,10 +66,10 @@ Stage:
 C.6.0 Architecture Planning
 
 Objective:
-Define Phase C.6 scope and technical architecture
+Define Phase C.6 scope, mathematical contracts, and technical architecture
 
 Architecture:
-PENDING_PROPOSAL
+PROPOSED_IN_REVIEW (`docs/C6_ARCHITECTURE_PLAN.md`)
 
 Implementation:
 LOCKED 🔒
@@ -78,6 +79,7 @@ Stage Baseline:
 
 Previous Certified Baseline:
 1dc480f
+
 
 
 ## 4. CERTIFIED ENGINES & PRESENTATION BOUNDARIES
