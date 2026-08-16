@@ -24,22 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-82663e5
+5fdfb36
 
 Last Certified Commit:
-82663e5
+5fdfb36
 
 Current HEAD:
-PENDING_COMMIT
+5fdfb36
 
 Current Phase:
-C.6
+C.7
 
 Current Stage:
-C.6.4
+C.7_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.6.4_REMEDIATED_PENDING_MASTER_CERTIFICATION
+PHASE_C.6_COMPLETE_CERTIFIED
 
 
 ## 2. MASTER ROADMAP
@@ -56,47 +56,35 @@ C.6.4_REMEDIATED_PENDING_MASTER_CERTIFICATION
 | ↳ C.5.2 | Asset Allocation Visualizer & Risk Gauges | 🟢 CERTIFIED (`398b99c`) |
 | ↳ C.5.3 | Performance & XIRR Growth Timeline | 🟢 CERTIFIED (`3269cbc`) |
 | ↳ C.5.4 | Master Statement & Tax Report View / Export | 🟢 CERTIFIED (`1dc480f`) |
-| **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟡 IN REVIEW |
+| **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟢 **100% MASTER CERTIFIED** (`5fdfb36`) |
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
-| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟡 REMEDIATED — IN REVIEW |
+| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
+| **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 ARCHITECTURE PLANNING |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.6.4
+C.7 (Architecture Planning & Scope Definition)
 
 Objective:
-Rebalancing Visualizer Card and Order Preview Modal UI Presentation (100% Frozen C.6.3 Engine, Presentation Adapter for UI Gauge, 5-Store Deep Snapshot Read-Only Verification, and Committed Android Runtime Proof)
+Define Phase C.7 vision, boundaries, risk analytics mathematical specifications, stress-testing models, and acceptance criteria.
 
-Architecture:
-LOCKED & APPROVED
+Architecture Gate:
+ACTIVE (Architecture Planning Mode)
 
 Implementation:
-REMEDIATED & FULLY HARDENED
+LOCKED (Zero-Code Gate Active)
 
-Stage Baseline:
-82663e5
-
-Previous Certified Baseline:
-82663e5
+Certified Baseline:
+5fdfb36
 
 
-## 4. CURRENT IMPLEMENTATION
+## 4. CERTIFIED & FROZEN BASELINES
 
-Files modified/created:
-- `components/investments/rebalancingPresentationAdapter.js` (NEW — pure presentation mapping adapter)
-- `components/investments/RebalancingVisualizerCard.js` (NEW — 0 UI math, binds adapter)
-- `components/investments/OrderPreviewModal.js` (NEW — 0 UI math, binds DTO requiredNotional)
-- `app/(tabs)/investments.js` (MODIFIED — deterministic timestamp & guarded preview trigger)
-- `tests/test_c64.mjs` (NEW — 23-point suite with 5-store deep snapshot read-only proof)
-- `screen_c64_proof.png` (NEW — committed Android runtime proof)
-- `docs/C6_4_ARCHITECTURE_PLAN.md` (MODIFIED)
-- `docs/C6_4_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
-
-Certified & Frozen contracts:
+Certified & Frozen contracts (100% Locked 🔒):
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
 - `services/storage.js` 🔒 (100% Certified)
 - `services/moneyFlowEngine.js` 🔒 (100% Certified)
@@ -104,79 +92,59 @@ Certified & Frozen contracts:
 - `services/targetAllocationService.js` 🔒 (100% Certified C.6.1)
 - `services/rebalancingEngine.js` 🔒 (100% Certified C.6.2)
 - `services/openTaxLotAdapter.js` 🔒 (100% Certified C.6.3)
-- `services/taxOptimizedRebalancingService.js` 🔒 (100% Certified C.6.3 at `82663e5`)
+- `services/taxOptimizedRebalancingService.js` 🔒 (100% Certified C.6.3)
 - `services/statementExportService.js` 🔒 (100% Certified C.5.4)
+- `components/investments/rebalancingPresentationAdapter.js` 🔒 (100% Certified C.6.4)
+- `components/investments/RebalancingVisualizerCard.js` 🔒 (100% Certified C.6.4)
+- `components/investments/OrderPreviewModal.js` 🔒 (100% Certified C.6.4)
 
 
 ## 5. ACCEPTANCE STATUS
 
-C.6.4 Acceptance (`tests/test_c64.mjs`):
-23/23 PASS (Strict exit 0) 🟢
-
-C.6.3 Regression (`tests/test_c63.mjs`):
-34/34 PASS (Strict exit 0) 🟢
-
-C.6.2 Regression (`tests/test_c62.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.6.1 Regression (`tests/test_c61.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.5.4 Regression (`tests/test_c54.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.5.3 Regression (`tests/test_c53.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.5.2 Regression (`tests/test_c52.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.5.1 Regression (`tests/test_c51.mjs`):
-20/20 PASS (Strict exit 0) 🟢
-
-C.4 Regression (C.4.1–C.4.4):
+Phase C.4 Regression (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
-Total Committed System Tests:
+Phase C.5 Regression (C.5.1–C.5.4):
+80/80 PASS (Strict exit 0) 🟢
+
+Phase C.6 Acceptance (C.6.1–C.6.4):
+97/97 PASS (Strict exit 0) 🟢
+
+Total Certified System Tests:
 254/254 PASS (100%, Strict exit 0) 🟢
 
 Android Runtime Proof:
 PASS (emulator-5554 operational, screen_c64_proof.png committed in repo and artifact directory) 🟢
 
-Git Boundary Audit:
-PASS (`services/taxOptimizedRebalancingService.js` 100% untouched and matching baseline `82663e5`) 🟢
+Zero-Mutation Invariant:
+PASS (5-store deep snapshot verified) 🟢
 
 
 ## 6. BLOCKERS LOG
 
-- All blockers through Stage C.6.4 are 100% resolved:
-  - C6.4-B1 (Frozen C.6.3 Engine Boundary): 🟢 RESOLVED (`taxOptimizedRebalancingService.js` frozen at `82663e5`)
-  - C6.4-B2 (Verifiable Android Proof): 🟢 RESOLVED (`screen_c64_proof.png` committed to repo)
-  - C6.4-01 (Semantic Theme-Token Compliance): 🟢 RESOLVED
-  - C6.4-02 (Service-Driven Simulation & Concurrency Guard): 🟢 RESOLVED
-  - C6.4-R1 (Zero UI Financial Math): 🟢 RESOLVED (`rebalancingPresentationAdapter.js`)
-  - C6.4-R2 (5-Store Deep Snapshot Read-Only Verification): 🟢 RESOLVED
+All Phase C.6 blockers are 100% closed and certified.
+Zero-Code Gate is ACTIVE for Phase C.7.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed full hardening of Stage C.6.4 with frozen C.6.3 boundary preserved, verified 254/254 tests, committed Android screenshot proof, and pushed to GitHub. Awaiting Architect final review for Phase C.6 Master Certification.
+Phase C.6 is closed and master certified. Ready to collaborate with the Architect on Phase C.7 vision, architecture planning, mathematical foundations, and boundary definitions.
 
 Architect:
-Review Stage C.6.4 commit and issue Phase C.6 Master Certification.
+Provide Phase C.7 thematic directives, problem statement, and architectural requirements.
 
 
 ## 8. CERTIFICATION RECORD
 
 - **Phase C.4 Complete**: 🟢 CERTIFIED (`012d0f7`)
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
-- **Phase C.6 Architecture Gate**: 🟢 APPROVED (`ba0372f`)
+- **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
 - **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
 - **Stage C.6.3**: 🟢 CERTIFIED (`82663e5`)
-- **Stage C.6.4**: 🟡 REMEDIATED — IN REVIEW
-- **Zero-Code Gate**: ACTIVE 🔒 (for Phase C.7+)
+- **Stage C.6.4**: 🟢 CERTIFIED (`5fdfb36`)
+- **Zero-Code Gate**: ACTIVE 🔒 (for Phase C.7)
 
 
 ## 9. AGENT PROTOCOL RULES
