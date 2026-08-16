@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-d80af93
+c29629d
 
 Last Certified Commit:
-d80af93
+c29629d
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.7
 
 Current Stage:
-C.7.2
+C.7.3_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.2_IMPLEMENTED_PENDING_CERTIFICATION
+C.7.3_ARCHITECTURE_PROPOSED_PENDING_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -63,8 +63,8 @@ C.7.2_IMPLEMENTED_PENDING_CERTIFICATION
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
-| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 IMPLEMENTED — IN REVIEW |
-| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
+| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
+| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟡 ARCHITECTURE PROPOSED (IN REVIEW) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED |
@@ -75,32 +75,22 @@ C.7.2_IMPLEMENTED_PENDING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-C.7.2
+C.7.3 (Architecture Planning: Volatility, Drawdown & Downside Risk Engine)
 
 Objective:
-Concentration & Diversification Diagnostics Engine (`services/concentrationEngine.js`), Dual-Level HHI, Top-k Concentration Ratios, Inverse Simpson Index ($N_{\text{eff}}$), Shannon Entropy, Diversification Ratio, Policy Warnings, and 28-Point Automated Acceptance Suite (`tests/test_c72.mjs`).
+Author Stage C.7.3 Master Architecture Plan (`docs/C7_3_ARCHITECTURE_PLAN.md`) detailing mathematical formulation for Annualized Volatility ($\sigma_p$), High-Watermark Maximum Drawdown ($MaxDD$), Downside Deviation ($DD_{\text{MAR}}$), Parametric/Historical VaR, Conditional VaR (Expected Shortfall), Money-Flow Neutrality via synthetic TWR NAV, and 32-Point Acceptance Matrix.
 
-Architecture:
-APPROVED & HARDENED
+Architecture Gate:
+ACTIVE (Architecture Proposed — Zero-Code Gate Active 🔒)
 
 Implementation:
-COMPLETED & AUDITED
+LOCKED (Zero-Code Gate Active 🔒)
 
-Stage Baseline:
-d80af93
-
-Previous Certified Baseline:
-d80af93
+Certified Baseline:
+c29629d
 
 
-## 4. CURRENT IMPLEMENTATION
-
-Files modified/created:
-- `services/concentrationEngine.js` (NEW — Concentration & Diversification Diagnostics Engine)
-- `tests/test_c72.mjs` (NEW — 28-point automated acceptance suite with AST source verification)
-- `docs/C7_2_ARCHITECTURE_PLAN.md` (NEW)
-- `docs/C7_2_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
-- `docs/AI_PROJECT_STATE.md` (MODIFIED)
+## 4. CERTIFIED & FROZEN BASELINES
 
 Certified & Frozen contracts (100% Locked 🔒):
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
@@ -116,6 +106,7 @@ Certified & Frozen contracts (100% Locked 🔒):
 - `components/investments/RebalancingVisualizerCard.js` 🔒 (100% Certified C.6.4)
 - `components/investments/OrderPreviewModal.js` 🔒 (100% Certified C.6.4)
 - `services/riskTaxonomy.js` 🔒 (100% Certified C.7.1 at `d80af93`)
+- `services/concentrationEngine.js` 🔒 (100% Certified C.7.2 at `c29629d`)
 
 
 ## 5. ACCEPTANCE STATUS
@@ -153,17 +144,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- All Stage C.7.2 architectural requirements (C7.2-01 to C7.2-07) are 100% satisfied.
-- Zero-Code Gate is ACTIVE for Stage C.7.3+.
+- Stage C.7.2 is 100% Master Certified.
+- Zero-Code Gate is ACTIVE for Stage C.7.3.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation and 303/303 test verification of Stage C.7.2. Pushed to GitHub. Awaiting Architect review for Stage C.7.2 Certification.
+Completed authoring of `docs/C7_3_ARCHITECTURE_PLAN.md`. Pushed to GitHub. Awaiting Architect review and Stage C.7.3 implementation authorization.
 
 Architect:
-Review Stage C.7.2 implementation commit and issue Stage C.7.2 Certification.
+Review `docs/C7_3_ARCHITECTURE_PLAN.md` and issue Stage C.7.3 Gate Decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -173,7 +164,8 @@ Review Stage C.7.2 implementation commit and issue Stage C.7.2 Certification.
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
-- **Stage C.7.2**: 🟡 IMPLEMENTED — IN REVIEW
+- **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
+- **Stage C.7.3**: 🟡 ARCHITECTURE PROPOSED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.3+)
 
 
