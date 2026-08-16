@@ -1,7 +1,7 @@
 # Phase C.7 Architecture Plan: Portfolio Intelligence, Risk Diagnostics & Stress-Testing Engine
 
 **Phase**: C.7  
-**Status**: ARCHITECTURE PLANNING (Zero-Code Gate Active 🔒)  
+**Status**: ARCHITECTURE PLANNING — HARDENED (Zero-Code Gate Active 🔒)  
 **Certified Baseline**: [`5fdfb36`](https://github.com/Nreddy2020/finapp-mobile/commit/5fdfb36)  
 **Author**: Antigravity AI & System Architect  
 
@@ -10,194 +10,407 @@
 ## 1. Executive Summary & Problem Space
 
 ### 1.1 The Fundamental Problem
-While Phases C.4–C.6 provide definitive financial truth (Valuation, WAC, XIRR, Statements) and actionable rebalancing optimization (Target Policies, Drift Calculation, Tax Optimization), they primarily answer retrospective and current-state questions:
+Phases C.4–C.6 provide certified financial accounting (Valuation, WAC, XIRR, Statements) and actionable rebalancing optimization (Target Policies, Drift Calculation, Tax Optimization). However, they primarily answer retrospective and current-state questions:
 - *What is my net worth and lifetime return?* (C.4 / C.5)
 - *How far has my allocation drifted from my target model?* (C.6.1 / C.6.2)
 - *How can I rebalance with minimal tax liability?* (C.6.3 / C.6.4)
 
 They do not answer forward-looking risk and resilience questions:
 - **"What could go wrong with my current portfolio?"**
-- **"How much money could I lose in a severe market crash (2008 GFC, 2020 COVID shock, Crypto winter)?"**
+- **"How much money could I lose in a severe market crash (2008 GFC, 2020 COVID shock, Stagflation, Rate spike)?"**
 - **"Where are my hidden concentration, correlation, and liquidity vulnerabilities?"**
 - **"How resilient is my portfolio across varied economic regimes?"**
 - **"What specific, diagnostic actions will improve my portfolio's health and downside protection?"**
 
 ### 1.2 Phase C.7 Mission
-**Phase C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)** creates a read-only, institutional-grade analytical engine that quantifies portfolio risk, simulates severe macroeconomic shocks, diagnoses structural vulnerabilities, and synthesizes a holistic **Portfolio Health Score (0–100)** with auditable, plain-English explanations.
-
-```
-═══════════════════════════════════════════════════════════════════════════
-                           PHASE C.7 INTELLIGENCE STACK
-═══════════════════════════════════════════════════════════════════════════
-
-                       ┌─────────────────────────┐
-                       │   C.4 / C.6 CERTIFIED   │
-                       │     FINANCIAL TRUTH     │
-                       └────────────┬────────────┘
-                                    │
-                                    ▼
-       ┌─────────────────────────────────────────────────────────┐
-       │             C.7 RISK & DIAGNOSTICS ENGINES              │
-       │                                                         │
-       │  ┌────────────────────┐      ┌───────────────────────┐  │
-       │  │ Concentration Risk │      │ Volatility & Drawdown │  │
-       │  │ (Decomposed HHI)   │      │ (VaR / CVaR / MaxDD)  │  │
-       │  └──────────┬─────────┘      └──────────┬────────────┘  │
-       │             │                           │               │
-       │  ┌──────────▼─────────┐      ┌──────────▼────────────┐  │
-       │  │ Liquidity & Lockup │      │ Cross-Asset Exposure  │  │
-       │  │ (Redemption Risk)  │      │ & Correlation Matrix  │  │
-       │  └──────────┬─────────┘      └──────────┬────────────┘  │
-       │             │                           │               │
-       │             └─────────────┬─────────────┘               │
-       │                           ▼                             │
-       │              ┌───────────────────────────┐              │
-       │              │  Macro Scenario & Stress  │              │
-       │              │  Testing Engine (Shocks)  │              │
-       │              └────────────┬──────────────┘              │
-       └───────────────────────────┼─────────────────────────────┘
-                                   │
-                                   ▼
-             ┌───────────────────────────────────────────┐
-             │       COMPOSITE PORTFOLIO HEALTH SCORE    │
-             │       (0–100 Multidimensional Rubric)     │
-             │                     +                     │
-             │        DIAGNOSTIC EXPLANATION ENGINE      │
-             └───────────────────────────────────────────┘
-```
+**Phase C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)** creates an institutional-grade, read-only analytical engine that quantifies multi-dimensional portfolio risk, simulates macroeconomic shocks, diagnoses structural vulnerabilities, and synthesizes a versioned **Portfolio Health Score (0–100)** with auditable, plain-English explanations.
 
 ---
 
-## 2. Core Architectural Principles & Invariants
+## 2. Decoupled Architecture & Dependency Hierarchy
 
-1. **Strict Zero-Mutation Boundary (100% Read-Only)**:
-   - C.7 never writes to `Holdings`, `InvestmentEvents`, `MoneyFlow`, or `Storage`.
-   - All stress simulations and scenario shocks are completely ephemeral in-memory calculations.
-2. **Pure Composition Over Certified C.4–C.6 Engines**:
-   - C.7 consumes outputs from `InvestingAnalyticsEngine` (C.4), `TargetAllocationService` (C.6.1), `RebalancingEngine` (C.6.2), and `TaxOptimizedRebalancingService` (C.6.3).
-   - Zero duplication or re-implementation of WAC, realized gain, FIFO lots, or tax rates.
-3. **Deterministic Evaluation Context (`asOfDate`)**:
-   - All historical analytics, volatility measures, drawdown series, and valuations evaluate strictly $\le \text{asOfDate}$.
-   - Guarantees identical risk metrics regardless of runtime execution time.
-4. **Canonical 8-Class Asset Taxonomy**:
-   - Consistently evaluates risk across the 8 canonical classes: `STOCK`, `MUTUAL_FUND`, `ETF`, `GOLD`, `CRYPTO`, `BOND`, `REAL_ESTATE`, `OTHER`.
-5. **No Trade Execution / No Order Routing**:
-   - C.7 provides intelligence and diagnostics only. Zero broker integrations or execution triggers.
-
----
-
-## 3. Comprehensive Risk Taxonomy & Mathematical Specifications
-
-Phase C.7 measures risk across six core dimensions:
+C.7 consumes certified C.4 financial truth directly, decoupling basic risk analysis from rebalancing execution:
 
 ```
-                      ┌─────────────────────────────────┐
-                      │    C.7 PORTFOLIO RISK TAXONOMY  │
-                      └────────────────┬────────────────┘
+                  ┌─────────────────────────────────────────┐
+                  │       C.4 CERTIFIED FINANCIAL TRUTH     │
+                  │  (Holdings, Events, WAC, Market Values) │
+                  └────────────────────┬────────────────────┘
                                        │
-     ┌──────────────┬──────────────────┼──────────────────┬──────────────┐
-     │              │                  │                  │              │
-     ▼              ▼                  ▼                  ▼              ▼
-Concentration  Downside & VaR      Liquidity         Correlation     Scenario
-  Risk           Risk               Risk              Risk            Stress
+                                       ▼
+                  ┌─────────────────────────────────────────┐
+                  │       C.7.1 RISK DATA FOUNDATION        │
+                  │  ├── Canonical Risk Taxonomy            │
+                  │  ├── Historical Return Series Adapter   │
+                  │  ├── EvaluationContext & asOfDate       │
+                  │  └── Data-Quality & Confidence Contract │
+                  └────────────────────┬────────────────────┘
+                                       │
+       ┌───────────────────────────────┼───────────────────────────────┐
+       │                               │                               │
+       ▼                               ▼                               ▼
+┌──────────────┐              ┌─────────────────┐             ┌─────────────────┐
+│    C.7.2     │              │      C.7.3      │             │      C.7.4      │
+│Concentration │              │Downside / Vol / │             │  Correlation &  │
+│Diagnostics   │              │   VaR / CVaR    │             │ Diversification │
+└──────┬───────┘              └────────┬────────┘             └────────┬────────┘
+       │                               │                               │
+       │                               │                               │
+       ▼                               ▼                               ▼
+┌──────────────┐              ┌─────────────────┐             ┌─────────────────┐
+│    C.7.5     │              │      C.7.6      │             │C.6.1 POLICY REF │
+│  Liquidity & │              │  Macro Scenario │             │ (Target Weights │
+│ Lockup Stress│              │& Stress Testing │             │ for Drift Risk) │
+└──────┬───────┘              └────────┬────────┘             └────────┬────────┘
+       │                               │                               │
+       └───────────────────────────────┼───────────────────────────────┘
+                                       │
+                                       ▼
+                  ┌─────────────────────────────────────────┐
+                  │                  C.7.7                  │
+                  │    COMPOSITE PORTFOLIO HEALTH SCORE     │
+                  │   (Policy Version: "C7_V1", 0–100)      │
+                  │                   +                     │
+                  │       AUDITABLE RISK EXPLANATION        │
+                  └────────────────────┬────────────────────┘
+                                       │
+                                       ▼
+                  ┌─────────────────────────────────────────┐
+                  │                  C.7.8                  │
+                  │     RISK INTELLIGENCE DASHBOARD UI      │
+                  │  (Health Radar, Stress Lab, Diagnostics)│
+                  └─────────────────────────────────────────┘
 ```
 
-### 3.1 Concentration & Diversification Risk (Pillar 1)
-- **Asset Class HHI**:
-  $$\text{HHI}_{\text{class}} = \sum_{c=1}^{8} w_c^2 \times 10,000$$
-- **Single-Holding Concentration ($Top_1, Top_3, Top_5$)**:
-  $$\text{Top}_k = \sum_{i=1}^{k} w_{(i)} \quad \text{where } w_{(1)} \ge w_{(2)} \ge \dots \ge w_{(N)}$$
-- **Effective Number of Constituents ($N_{\text{eff}}$)**:
-  $$N_{\text{eff}} = \frac{1}{\sum_{i=1}^{N} w_i^2}$$
-- **Concentration Risk Tiering**:
-  - `BALANCED`: $\text{HHI} \le 1800 \land Top_1 \le 20\%$
-  - `MODERATE`: $1800 < \text{HHI} \le 3000 \lor 20\% < Top_1 \le 35\%$
-  - `HIGH`: $\text{HHI} > 3000 \lor Top_1 > 35\%$
+---
 
-### 3.2 Downside & Volatility Risk (Pillar 2)
-- **Historical Peak-to-Trough Drawdown ($DD_t$)**:
-  $$DD_t = \frac{V_t - \max_{\tau \le t} V_\tau}{\max_{\tau \le t} V_\tau}$$
-  $$\text{MaxDD} = \min_{t} DD_t$$
-- **Downside Deviation ($\sigma_d$)**:
-  $$\sigma_d = \sqrt{\frac{1}{T} \sum_{t=1}^{T} \min(0, r_t - r_f)^2}$$
-- **Parametric & Historical Value-at-Risk ($95\%$ and $99\%$ 1-Month $\text{VaR}$)**:
-  $$\text{VaR}_{95} = V_{\text{portfolio}} \times \left( z_{0.95} \cdot \sigma_p - \mu_p \right)$$
-- **Conditional Value-at-Risk / Expected Shortfall ($\text{CVaR}_{95}$)**:
-  $$\text{CVaR}_{95} = \mathbb{E}[L \mid L > \text{VaR}_{95}]$$
-- **Risk-Adjusted Return Metrics**:
-  $$\text{Sharpe Ratio} = \frac{R_p - R_f}{\sigma_p}, \quad \text{Sortino Ratio} = \frac{R_p - R_f}{\sigma_d}$$
+## 3. Hardening Specifications (Resolving C7-01 through C7-08)
 
-### 3.3 Liquidity & Lockup Risk (Pillar 3)
-Measures the ability to convert portfolio assets to cash without severe haircut:
-- **Instant Liquidity ($T+0$ to $T+1$)**: Cash, Overnight Debt, Liquid ETFs.
-- **Short-Term Liquidity ($T+2$ to $T+3$)**: Listed Equities, Open-Ended Mutual Funds, Gold ETFs.
-- **Illiquid / Locked ($T > 7$ or Exit Penalties)**: ELSS/Tax-Saving MFs (3-year lockup), Real Estate, Fixed Deposits with penalty, Vesting ESOPs.
-- **Liquidity Coverage Ratio (LCR)**:
-  $$\text{LCR} = \frac{\text{Liquid Assets } (T \le 3)}{\text{Total Portfolio Value}}$$
+### 3.1 C7-01: Historical Market-Data Contract
+C.7 never manufactures return points from incomplete data. Historical analytics require explicit, validated return series contracts:
 
-### 3.4 Correlation & Factor Exposure (Pillar 4)
-- **Cross-Asset Correlation Matrix ($8 \times 8$)**:
-  $$\rho_{ij} = \frac{\text{Cov}(r_i, r_j)}{\sigma_i \sigma_j}$$
-- **Diversification Benefit Ratio ($DBR$)**:
-  $$DBR = 1 - \frac{\sigma_p}{\sum_{i=1}^{N} w_i \sigma_i} \quad (0 \le DBR < 1)$$
-  A higher $DBR$ indicates genuine non-correlated diversification benefit.
+```javascript
+/**
+ * Canonical Historical Market Data Point
+ */
+export const HistoricalMarketDataPointSchema = {
+    symbol: 'STRING',            // e.g. "INFY", "NIFTYBEES"
+    timestamp: 'ISO_DATE_STRING',// e.g. "2024-01-02T00:00:00.000Z"
+    adjustedClose: 'FINITE_POS', // Split/bonus adjusted closing price
+    source: 'STRING',            // e.g. "MockFeedProvider", "NSE_EOD"
+    currency: 'INR',
+    quality: 'VERIFIED' | 'INTERPOLATED' | 'FALLBACK_UNADJUSTED'
+};
 
-### 3.5 Macro Scenario & Stress-Testing Engine (Pillar 5)
-Simulates instantaneous shocks to portfolio value under standardized historical and hypothetical stress scenarios:
+/**
+ * Authoritative Historical Return Series DTO
+ */
+export const HistoricalReturnSeriesSchema = {
+    symbol: 'STRING',
+    frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY',
+    lookbackStart: 'ISO_DATE_STRING',
+    lookbackEnd: 'ISO_DATE_STRING',
+    asOfDate: 'ISO_DATE_STRING',
+    observationCount: 'INTEGER',
+    requiredObservationCount: 'INTEGER', // e.g. 252 for 1Y daily
+    coverageRatio: 'FINITE_NUMBER',      // observationCount / requiredObservationCount [0.0 - 1.0]
+    returns: 'ARRAY_OF_FINITE_NUMBERS',  // Simple arithmetic returns: (P_t - P_{t-1}) / P_{t-1}
+    missingIntervals: 'ARRAY_OF_DATE_RANGES',
+    qualityStatus: 'PRISTINE' | 'ACCEPTABLE' | 'DEGRADED' | 'INSUFFICIENT'
+};
+```
 
-| Scenario Name | Category | Asset Shocks Applied | Description |
-| :--- | :--- | :--- | :--- |
-| **2008 Global Financial Crisis** | Historical | Stock: -55%, MF: -45%, Crypto: -70%, Gold: +25%, Bond: +8% | Severe global credit freeze & equity collapse |
-| **2020 COVID Market Crash** | Historical | Stock: -38%, MF: -32%, Crypto: -50%, Gold: +15%, Bond: +4% | Rapid pandemic lockdown liquidity shock |
-| **Interest Rate Spike (+200 bps)** | Macro | Bond: -12%, Real Estate: -8%, Stock: -15%, Gold: -5% | Aggressive monetary tightening & bond sell-off |
-| **High Inflation Shock** | Macro | Gold: +30%, Real Estate: +15%, Stock: -10%, Bond: -18% | Stagflation regime with hard asset outperformance |
-| **Crypto Winter / Tech Meltdown** | Sector | Crypto: -80%, Stock: -25%, Gold: +5%, Bond: +2% | Speculative risk-off asset liquidation |
-| **Custom Scenario** | Interactive | User-defined percentage shocks across each asset class | Interactive what-if stress lab |
-
-For any scenario $S$ with vector of asset class shocks $\vec{\Delta s} = [\Delta s_{\text{STOCK}}, \dots, \Delta s_{\text{OTHER}}]$:
-$$\Delta V_S = \sum_{c=1}^{8} V_c \cdot \Delta s_c$$
-$$\text{Projected Value}_S = V_{\text{portfolio}} + \Delta V_S$$
-$$\text{Percentage Impact}_S = \frac{\Delta V_S}{V_{\text{portfolio}}} \times 100$$
+**Quality Invariant**: If `coverageRatio < 0.80` (less than 80% expected observations), downstream volatility and covariance calculations are marked `INSUFFICIENT_HISTORY` and return `status: 'INSUFFICIENT_HISTORY'` with explicit warning diagnostics.
 
 ---
 
-## 4. Composite Portfolio Health Score Methodology (0–100)
+### 3.2 C7-02: Explicit VaR / CVaR Methodology
 
-The **Portfolio Health Score** aggregates the five risk pillars into a single intuitive, auditable metric $H \in [0, 100]$:
+#### A. Parametric (Variance-Covariance) VaR:
+- **Horizon**: 1-Day ($1\text{D}$) and 1-Month ($21\text{D}$ trading days).
+- **Confidence Levels**: $\alpha = 0.95$ ($z_{0.95} = 1.6449$) and $\alpha = 0.99$ ($z_{0.99} = 2.3263$).
+- **Portfolio Variance**:
+  $$\sigma_p = \sqrt{\mathbf{w}^T \mathbf{\Sigma} \mathbf{w}}$$
+  where $\mathbf{w}$ is the vector of asset weights and $\mathbf{\Sigma}$ is the sample covariance matrix of historical returns.
+- **Parametric VaR Calculation**:
+  $$\text{VaR}_{\alpha, 1\text{D}} = V_{\text{portfolio}} \times \left( z_\alpha \cdot \sigma_p - \mu_p \right)$$
+  $$\text{VaR}_{\alpha, 1\text{M}} = \text{VaR}_{\alpha, 1\text{D}} \times \sqrt{21}$$
+- **Parametric CVaR (Expected Shortfall)**:
+  $$\text{CVaR}_{\alpha, 1\text{D}} = V_{\text{portfolio}} \times \left( \frac{\phi(z_\alpha)}{1 - \alpha} \cdot \sigma_p - \mu_p \right)$$
+  where $\phi(z)$ is the standard normal probability density function.
 
-$$H = \sum_{k=1}^{5} \omega_k \cdot S_k$$
+#### B. Historical (Empirical) VaR & CVaR:
+- **Lookback Requirement**: Minimum $N = 252$ daily historical observations.
+- **Sorting**: Historical portfolio returns $r_1 \le r_2 \le \dots \le r_N$ sorted ascendingly (losses in left tail).
+- **Percentile Index**: $k = \lfloor (1 - \alpha) \cdot N \rfloor$.
+- **Historical VaR**:
+  $$\text{VaR}_{\alpha}^{\text{hist}} = - V_{\text{portfolio}} \times r_{(k)}$$
+- **Historical CVaR (Expected Shortfall)**:
+  $$\text{CVaR}_{\alpha}^{\text{hist}} = - V_{\text{portfolio}} \times \frac{1}{k} \sum_{i=1}^{k} r_{(i)}$$
 
-| Pillar | Metric / Focus | Weight ($\omega_k$) | Sub-Score Calculation ($S_k \in [0, 100]$) |
-| :--- | :--- | :---: | :--- |
-| **1. Diversification & Concentration** | HHI, $Top_1$, $N_{\text{eff}}$ | **25%** | $100 - \min(100, (\text{HHI} / 5000) \cdot 100)$ |
-| **2. Allocation Alignment** | Drift from Target Policy | **20%** | $100 - \min(100, (\text{Drift}_{\text{pp}} / 25) \cdot 100)$ |
-| **3. Downside Protection** | Max Drawdown, Volatility | **20%** | Scored on benchmark-relative downside deviation |
-| **4. Liquidity Health** | Liquid vs Locked Ratio | **15%** | Normalized ratio of $T \le 3$ liquid holdings vs total |
-| **5. Stress Resilience** | Average Loss across 4 Historical Crises | **20%** | $100 - \min(100, (|\Delta V_{\text{avg}}| / 50) \cdot 100)$ |
-
-### Health Score Tiers:
-- **`EXCELLENT` ($85 - 100$)**: Highly diversified, resilient under stress, disciplined drift, strong liquidity.
-- **`GOOD` ($70 - 84$)**: Well-constructed portfolio with minor concentration or moderate drift.
-- **`FAIR` ($50 - 69$)**: Notable vulnerabilities (e.g. single-asset overweight $> 35\%$, weak stress resilience).
-- **`NEEDS_ATTENTION` ($< 50$)**: Severe concentration risk, high drawdown vulnerability, or extreme allocation drift.
+Both Parametric and Historical values are computed and exposed in `VolatilityRiskSummary`, allowing cross-validation and tail-fatness detection ($\text{CVaR}^{\text{hist}} > \text{CVaR}^{\text{param}}$ flags non-normal tail risk).
 
 ---
 
-## 5. Phase C.7 Staging Roadmap
+### 3.3 C7-03 & C7-04: Canonical Stress Scenarios & Complete 8-Class Shock Vectors
 
-To maintain rigorous certification discipline, Phase C.7 is structured into 8 modular stages:
+#### Standardized Stress Set (Option B):
+To ensure deterministic reproducibility, the Portfolio Health Score evaluates resilience across a canonical set of **4 Standardized Macro Scenarios**:
+
+1. `HISTORICAL_GFC_2008` (2008 Global Financial Crisis Credit Freeze)
+2. `HISTORICAL_COVID_2020` (2020 Rapid Lockdown Liquidity Shock)
+3. `MACRO_RATE_SPIKE` (+200 bps Aggressive Monetary Tightening)
+4. `MACRO_STAGFLATION_SHOCK` (High Inflation + Low Growth Regime)
+
+#### Complete 8-Class Shock Vectors:
+Every stress scenario explicitly defines shocks for all 8 canonical asset classes. Unspecified classes default strictly to $0.0\%$ via `UNSPECIFIED_SHOCK_POLICY`:
+
+```javascript
+export const UNSPECIFIED_SHOCK_POLICY = 0.0; // 0.0% neutral
+
+export const CANONICAL_STRESS_SCENARIOS = {
+    HISTORICAL_GFC_2008: {
+        id: 'HISTORICAL_GFC_2008',
+        name: '2008 Global Financial Crisis',
+        category: 'HISTORICAL_MARKET_CRASH',
+        description: 'Severe global liquidity freeze and synchronized equity market collapse.',
+        shocks: {
+            STOCK: -0.55,        // -55%
+            MUTUAL_FUND: -0.45,  // -45%
+            ETF: -0.50,          // -50%
+            GOLD: +0.25,         // +25% (Safe haven demand)
+            CRYPTO: -0.70,       // -70% (High-beta speculative drawdown)
+            BOND: +0.08,         // +8%  (Flight to sovereign debt / rate cuts)
+            REAL_ESTATE: -0.30,  // -30% (Subprime property decline)
+            OTHER: -0.20         // -20%
+        }
+    },
+    HISTORICAL_COVID_2020: {
+        id: 'HISTORICAL_COVID_2020',
+        name: '2020 COVID Liquidity Crash',
+        category: 'HISTORICAL_MARKET_CRASH',
+        description: 'Rapid pandemic lockdown and global asset liquidation shock.',
+        shocks: {
+            STOCK: -0.38,
+            MUTUAL_FUND: -0.32,
+            ETF: -0.35,
+            GOLD: +0.15,
+            CRYPTO: -0.50,
+            BOND: +0.04,
+            REAL_ESTATE: -0.15,
+            OTHER: -0.10
+        }
+    },
+    MACRO_RATE_SPIKE: {
+        id: 'MACRO_RATE_SPIKE',
+        name: 'Interest Rate Spike (+200 bps)',
+        category: 'MONETARY_TIGHTENING',
+        description: 'Aggressive central bank rate hikes compressing bond durations and equity multiples.',
+        shocks: {
+            STOCK: -0.15,
+            MUTUAL_FUND: -0.12,
+            ETF: -0.14,
+            GOLD: -0.05,
+            CRYPTO: -0.30,
+            BOND: -0.12,         // Duration risk impact
+            REAL_ESTATE: -0.08,  // Higher mortgage / debt cost
+            OTHER: -0.05
+        }
+    },
+    MACRO_STAGFLATION_SHOCK: {
+        id: 'MACRO_STAGFLATION_SHOCK',
+        name: 'Stagflation & Supply Shock',
+        category: 'MACRO_REGIME',
+        description: 'High inflation coupled with economic stagnation favoring commodities over paper assets.',
+        shocks: {
+            STOCK: -0.10,
+            MUTUAL_FUND: -0.08,
+            ETF: -0.09,
+            GOLD: +0.30,         // Inflation hedge outperformance
+            CRYPTO: -0.25,
+            BOND: -0.18,         // Real yield erosion
+            REAL_ESTATE: +0.15,  // Tangible asset price support
+            OTHER: 0.00
+        }
+    },
+    CRYPTO_WINTER_2022: {
+        id: 'CRYPTO_WINTER_2022',
+        name: 'Crypto Winter / Tech Sell-Off',
+        category: 'SECTOR_MELTDOWN',
+        description: 'Severe speculative risk-off liquidation isolated to digital and high-beta tech assets.',
+        shocks: {
+            STOCK: -0.20,
+            MUTUAL_FUND: -0.15,
+            ETF: -0.18,
+            GOLD: +0.05,
+            CRYPTO: -0.80,       // -80% drawdown
+            BOND: +0.02,
+            REAL_ESTATE: 0.00,
+            OTHER: -0.05
+        }
+    }
+};
+```
+
+---
+
+### 3.4 C7-05: Separate Holding Liquidity Classification Contract
+
+The canonical 8-class investment taxonomy (`STOCK`, `MUTUAL_FUND`, `ETF`, etc.) is **preserved 100% untouched**. Holding liquidity is modeled via an orthogonal classification contract:
+
+```javascript
+export const LiquidityTier = {
+    INSTANT_T0: 'INSTANT_T0',              // T+0 to T+1 (Cash, Overnight debt, Liquid ETFs)
+    SHORT_TERM_T2_T3: 'SHORT_TERM_T2_T3',  // T+2 to T+3 (Equities, Open-ended mutual funds)
+    MEDIUM_TERM_T4_T7: 'MEDIUM_TERM_T4_T7',// T+4 to T+7 (Physical metals, Fixed deposits with notice)
+    LOCKED_OR_ILLIQUID: 'LOCKED_OR_ILLIQUID' // T > 7 (ELSS 3Y lockup, Real estate, Unvested ESOPs)
+};
+
+export const HoldingLiquidityProfileSchema = {
+    holdingId: 'STRING',
+    symbol: 'STRING',
+    assetType: 'CANONICAL_8_CLASS', // STOCK, MUTUAL_FUND, etc.
+    liquidityTier: 'LiquidityTier',
+    estimatedSettlementDays: 'INTEGER',
+    isLocked: 'BOOLEAN',
+    lockupExpiryDate: 'ISO_DATE_STRING_OR_NULL',
+    exitPenaltyPercent: 'FINITE_NUMBER' // e.g. 1.0% exit load
+};
+```
+
+**Liquidity Coverage Ratio (LCR)**:
+$$\text{LCR} = \frac{V_{\text{INSTANT}} + V_{\text{SHORT\_TERM}}}{V_{\text{total}}}$$
+
+---
+
+### 3.5 C7-06: Versioned Portfolio Health Score Policy (`C7_V1`)
+
+The Portfolio Health Score is governed by an explicit versioned policy: `HEALTH_SCORE_POLICY_VERSION = "C7_V1"`.
+
+```javascript
+export const HEALTH_SCORE_POLICY_VERSION = "C7_V1";
+
+export const HEALTH_SCORE_CONFIG_V1 = {
+    weights: {
+        CONCENTRATION: 0.25,  // 25%
+        ALLOCATION_DRIFT: 0.20, // 20%
+        DOWNSIDE_RISK: 0.20,    // 20%
+        LIQUIDITY: 0.15,        // 15%
+        STRESS_RESILIENCE: 0.20 // 20%
+    },
+    thresholds: {
+        // Pillar 1: Concentration
+        HHI_EXCELLENT_MAX: 1500,
+        HHI_CRITICAL_MIN: 5000,
+        TOP1_EXCELLENT_MAX: 0.20, // 20%
+        TOP1_CRITICAL_MIN: 0.45,  // 45%
+
+        // Pillar 2: Allocation Drift
+        DRIFT_EXCELLENT_MAX_PP: 5.0,
+        DRIFT_CRITICAL_MIN_PP: 25.0,
+
+        // Pillar 3: Downside Risk
+        MAX_DRAWDOWN_EXCELLENT_MAX: 0.10, // -10%
+        MAX_DRAWDOWN_CRITICAL_MIN: 0.40,  // -40%
+
+        // Pillar 4: Liquidity
+        LCR_EXCELLENT_MIN: 0.70, // 70% liquid
+        LCR_CRITICAL_MAX: 0.20,  // 20% liquid
+
+        // Pillar 5: Stress Resilience (Avg loss across 4 canonical scenarios)
+        AVG_STRESS_LOSS_EXCELLENT_MAX: 0.15, // -15%
+        AVG_STRESS_LOSS_CRITICAL_MIN: 0.45   // -45%
+    }
+};
+```
+
+#### Piecewise-Linear Normalization Function:
+For any raw metric $x$ with `EXCELLENT` threshold $x_{\text{good}}$ and `CRITICAL` threshold $x_{\text{bad}}$:
+$$S(x) = 100 \times \max\left(0, \min\left(1, \frac{x_{\text{bad}} - x}{x_{\text{bad}} - x_{\text{good}}}\right)\right)$$
+
+Composite Health Score:
+$$H = \sum_{k=1}^{5} \omega_k \cdot S_k \quad (H \in [0, 100])$$
+
+---
+
+### 3.6 C7-07: Diversification Benefit Ratio (DBR) & Mathematical Edge Cases
+
+The Diversification Benefit Ratio ($DBR$) quantifies the percentage volatility reduction achieved through cross-asset correlation offsets:
+
+$$DBR = 1 - \frac{\sigma_p}{\sum_{i=1}^{N} w_i \sigma_i}$$
+
+#### Edge Case Guards:
+```javascript
+export const DBR_STATUS = {
+    CALCULATED: 'CALCULATED',
+    INSUFFICIENT_HISTORY: 'INSUFFICIENT_HISTORY',
+    ZERO_COMPONENT_VOLATILITY: 'ZERO_COMPONENT_VOLATILITY',
+    UNSTABLE: 'UNSTABLE'
+};
+
+export function calculateDBR(weights, volatilities, portfolioVolatility, correlationStatus) {
+    if (correlationStatus !== 'VALID') {
+        return { dbr: null, status: DBR_STATUS.INSUFFICIENT_HISTORY };
+    }
+
+    const weightedAvgVol = weights.reduce((sum, w, i) => sum + w * (volatilities[i] || 0), 0);
+
+    if (weightedAvgVol <= 0.0001) {
+        return { dbr: 0.0, status: DBR_STATUS.ZERO_COMPONENT_VOLATILITY };
+    }
+
+    if (portfolioVolatility < 0 || isNaN(portfolioVolatility)) {
+        return { dbr: null, status: DBR_STATUS.UNSTABLE };
+    }
+
+    const rawDbr = 1 - (portfolioVolatility / weightedAvgVol);
+    const boundedDbr = Math.max(0.0, Math.min(0.9999, Number(rawDbr.toFixed(4))));
+
+    return {
+        dbr: boundedDbr,
+        weightedComponentVolatility: Number(weightedAvgVol.toFixed(4)),
+        portfolioVolatility: Number(portfolioVolatility.toFixed(4)),
+        status: DBR_STATUS.CALCULATED
+    };
+}
+```
+
+---
+
+### 3.7 C7-08: First-Class Data Quality, Coverage & Confidence Contract
+
+Every risk calculation returns an explicit data-quality contract ensuring full transparency:
+
+```javascript
+export const RiskMetricDataQualitySchema = {
+    status: 'CALCULATED' | 'INSUFFICIENT_HISTORY' | 'DEGRADED_COVERAGE' | 'FALLBACK_VALUATION',
+    confidence: 'HIGH' | 'MODERATE' | 'LOW' | 'UNAVAILABLE',
+    observationCount: 'INTEGER',
+    requiredObservationCount: 'INTEGER',
+    coverageRatio: 'FINITE_NUMBER', // [0.0 - 1.0]
+    asOfDate: 'ISO_DATE_STRING',
+    policyVersion: 'STRING',
+    warnings: 'ARRAY_OF_STRINGS'
+};
+```
+
+---
+
+## 4. Staging Roadmap & Implementation Gates
+
+Phase C.7 is structured into **8 focused, independently testable stages**:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           PHASE C.7 STAGING ROADMAP                         │
 ├───────────┬───────────────────────────────────────────┬─────────────────────┤
-│ Stage     │ Name / Purpose                            │ Key Artifacts       │
+│ Stage     │ Name / Purpose                            │ Deliverables        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.1** │ Portfolio Risk Foundation & Risk Taxonomy │ riskTaxonomy.js     │
-│           │ (Taxonomy, Schemas, Risk Data Contracts)  │ test_c71.mjs        │
+│           │ (Taxonomy, Schemas, Return Series Adapter)│ test_c71.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.2** │ Concentration & Diversification Diagnostics│ concentrationEngine.js│
-│           │ (HHI Decomp, Top-k, Neff, Entropy)        │ test_c72.mjs        │
+│           │ (HHI Decomp, Top-k, Neff, Concentration)  │ test_c72.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.3** │ Volatility, Drawdown & Downside Risk      │ drawdownEngine.js   │
 │           │ (MaxDD, Downside Deviation, VaR, CVaR)    │ test_c73.mjs        │
@@ -206,13 +419,13 @@ To maintain rigorous certification discipline, Phase C.7 is structured into 8 mo
 │           │ (8x8 Matrix, Diversification Ratio DBR)   │ test_c74.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.5** │ Liquidity & Cash-Flow Stress              │ liquidityEngine.js  │
-│           │ (T+0..T>3 Tiers, LCR, Redemption Buffer)  │ test_c75.mjs        │
+│           │ (Liquidity Tiers, LCR, Redemption Buffer) │ test_c75.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.6** │ Scenario & Stress-Test Engine             │ stressTestEngine.js │
-│           │ (GFC, COVID, Rates, Inflation, Custom Lab)│ test_c76.mjs        │
+│           │ (4 Canonical Scenarios + Custom Lab)      │ test_c76.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.7** │ Portfolio Health Score & Risk Explanation │ portfolioHealth.js  │
-│           │ (0–100 Score, 5 Pillars, Plain English)   │ test_c77.mjs        │
+│           │ (0–100 Score, C7_V1 Policy, Explanations) │ test_c77.mjs        │
 ├───────────┼───────────────────────────────────────────┼─────────────────────┤
 │ **C.7.8** │ Risk Intelligence Dashboard & Stress UI   │ RiskRadarCard.js    │
 │           │ (Health Meter, Radar, Stress Test Modal)  │ test_c78.mjs        │
@@ -221,51 +434,13 @@ To maintain rigorous certification discipline, Phase C.7 is structured into 8 mo
 
 ---
 
-## 6. Integration Contract with Certified C.4–C.6 Baseline
+## 5. Stage C.7.1 Focus & Acceptance Criteria
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      CERTIFIED ENGINE CONSUMPTION MAP                   │
-├───────────────────────────────┬─────────────────────────────────────────┤
-│ Certified Service             │ How C.7 Consumes It                     │
-├───────────────────────────────┼─────────────────────────────────────────┤
-│ `investingAnalyticsEngine.js` │ Source of Portfolio Summary, WAC,       │
-│ (C.4 🔒)                      │ Allocation Breakdown, Market Values     │
-├───────────────────────────────┼─────────────────────────────────────────┤
-│ `targetAllocationService.js`  │ Source of Target Model Weights and      │
-│ (C.6.1 🔒)                    │ Policy Invariants                       │
-├───────────────────────────────┼─────────────────────────────────────────┤
-│ `rebalancingEngine.js`        │ Source of Drift Percentage Points and   │
-│ (C.6.2 🔒)                    │ Asset Class Imbalances                  │
-├───────────────────────────────┼─────────────────────────────────────────┤
-│ `taxOptimizedRebalancingService.js`│ Source of Tax Drag % & Harvestable │
-│ (C.6.3 🔒)                    │ Losses for Tax Risk Pillar              │
-└───────────────────────────────┴─────────────────────────────────────────┘
-```
-
----
-
-## 7. Stage C.7.1 Focus & Scope: Portfolio Risk Foundation & Risk Taxonomy
-
-The foundational stage (`Stage C.7.1`) establishes the core risk data model and contracts:
-1. **Canonical Risk Taxonomy Constants**:
-   - Risk pillars (`CONCENTRATION`, `VOLATILITY`, `DRAWDOWN`, `LIQUIDITY`, `CORRELATION`, `STRESS_TEST`).
-   - Risk severity levels (`LOW`, `MODERATE`, `HIGH`, `CRITICAL`).
-   - Standardized stress scenario identifiers (`HISTORICAL_GFC_2008`, `HISTORICAL_COVID_2020`, `RATE_SPIKE_200BPS`, `HIGH_INFLATION_SHOCK`, `CRYPTO_WINTER_2022`, `CUSTOM_STRESS_LAB`).
-2. **Authoritative Risk DTO Schemas**:
-   - `HoldingRiskProfile`: per-holding liquidity tier, volatility proxy, and concentration contribution.
-   - `ConcentrationRiskSummary`: HHI, $Top_k$, $N_{\text{eff}}$, and single-asset concentration warnings.
-   - `PortfolioRiskProfile`: aggregate 5-pillar risk container.
-3. **Deterministic Evaluation & Pure Validation Helpers**:
-   - Schema validation, range guards ($[0, 100]$ bounds), and invalid input protection.
-   - Pure read-only contracts with zero storage mutations.
-
----
-
-## 8. Zero-Code Gate Verification Checklist for Stage C.7.1
-
-Before opening the Stage C.7.1 implementation gate, the following architecture checks must be confirmed:
-- [x] Zero changes to certified C.4–C.6 services.
-- [x] Clear separation between core mathematical engines and presentation adapters.
-- [x] Authoritative living state file synchronized with certified baseline [`5fdfb36`](https://github.com/Nreddy2020/finapp-mobile/commit/5fdfb36).
-- [x] Comprehensive 20-point acceptance test criteria designed for `test_c71.mjs`.
+When the Stage C.7.1 gate is opened, it will implement:
+1. `services/riskTaxonomy.js`:
+   - Risk pillar constants & severity levels.
+   - Return series schema & validation helpers.
+   - Historical return series adapter (`normalizeHistoricalReturns`).
+   - Confidence scoring & data quality evaluator.
+2. `tests/test_c71.mjs`:
+   - 20-point automated acceptance suite validating return series normalization, lookback validation, coverage ratio thresholds, quality flags, schema invariants, and zero-mutation guarantees.

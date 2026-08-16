@@ -30,8 +30,7 @@ Last Certified Commit:
 5fdfb36
 
 Current HEAD:
-b289587
-
+PENDING_COMMIT
 
 Current Phase:
 C.7
@@ -40,7 +39,7 @@ Current Stage:
 C.7_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7_ARCHITECTURE_PLAN_SUBMITTED_PENDING_GATE_REVIEW
+C.7_ARCHITECTURE_PLAN_HARDENED_PENDING_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -62,21 +61,24 @@ C.7_ARCHITECTURE_PLAN_SUBMITTED_PENDING_GATE_REVIEW
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
-| **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 ARCHITECTURE PLANNING (IN REVIEW) |
-| ↳ C.7.1 | Risk Diagnostics & Concentration Engine | 🟡 ARCHITECTURE PLANNED |
-| ↳ C.7.2 | Volatility, Drawdown & Downside Engine | ⚪ PLANNED |
-| ↳ C.7.3 | Macro Scenario & Stress-Testing Engine | ⚪ PLANNED |
-| ↳ C.7.4 | Composite Portfolio Health & Insights | ⚪ PLANNED |
-| ↳ C.7.5 | Risk Intelligence & Stress Dashboard UI | ⚪ PLANNED |
+| **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 ARCHITECTURE PLANNING (HARDENED) |
+| ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟡 ARCHITECTURE HARDENED |
+| ↳ C.7.2 | Concentration & Diversification Diagnostics | ⚪ PLANNED |
+| ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
+| ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
+| ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
+| ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED |
+| ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED |
+| ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.7 (Architecture Planning & Scope Definition)
+C.7 (Architecture Planning & Scope Hardening)
 
 Objective:
-Author and review the Phase C.7 Master Architecture Plan (`docs/C7_ARCHITECTURE_PLAN.md`) establishing risk taxonomy, mathematical foundations, stress testing models, and staging gates.
+Author and harden the Phase C.7 Master Architecture Plan (`docs/C7_ARCHITECTURE_PLAN.md`) resolving items C7-01 through C7-08 (Historical market data contract, VaR/CVaR methodology, 4 canonical stress scenarios, complete 8-class shock vectors, separate liquidity taxonomy, versioned C7_V1 health score policy, DBR edge cases, and confidence metadata).
 
 Architecture Gate:
 UNDER ARCHITECT REVIEW 🟡
@@ -128,17 +130,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-Zero-Code Gate is ACTIVE for Phase C.7. No implementation files created.
-`docs/C7_ARCHITECTURE_PLAN.md` submitted for Architect Gate Review.
+All C7-01 to C7-08 architectural items are hardened in `docs/C7_ARCHITECTURE_PLAN.md`.
+Zero-Code Gate is ACTIVE for Phase C.7. No implementation code written.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed authoring `docs/C7_ARCHITECTURE_PLAN.md`. Pushed architecture plan to GitHub. Awaiting Architect review and Stage C.7.1 implementation gate decision.
+Completed hardening of `docs/C7_ARCHITECTURE_PLAN.md` incorporating all 8 architectural directives. Pushed to GitHub. Awaiting Architect gate decision for Stage C.7.1 authorization.
 
 Architect:
-Review `docs/C7_ARCHITECTURE_PLAN.md` and issue Stage C.7.1 Gate Decision.
+Review hardened `docs/C7_ARCHITECTURE_PLAN.md` and issue Stage C.7.1 Gate Decision.
 
 
 ## 8. CERTIFICATION RECORD
