@@ -30,7 +30,7 @@ Last Certified Commit:
 398b99c
 
 Current HEAD:
-398b99c
+PENDING_COMMIT
 
 Current Phase:
 C.5
@@ -39,7 +39,7 @@ Current Stage:
 C.5.3
 
 Overall Status:
-C.5.3_ARCHITECTURE_PLAN_SUBMITTED_FOR_GATE_REVIEW
+C.5.3_ARCHITECTURE_PLAN_AMENDED_FOR_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -65,7 +65,7 @@ Objective:
 Performance & XIRR Growth Timeline Visualizer
 
 Architecture:
-SUBMITTED FOR ARCHITECT REVIEW (`docs/C5_3_ARCHITECTURE_PLAN.md`)
+AMENDED & SUBMITTED FOR ARCHITECT REVIEW (`docs/C5_3_ARCHITECTURE_PLAN.md`)
 
 Implementation:
 LOCKED 🔒 (Zero implementation code written until Architecture Gate is approved)
@@ -82,8 +82,8 @@ Previous Certified Baseline:
 Planned Files:
 - `components/investments/PerformanceGrowthTimelineCard.js` (NEW Presentation Card)
 - `app/(tabs)/investments.js` (Mounting Performance Card directly below `AssetAllocationCard`)
-- `tests/test_c53.mjs` (20-Scenario Hardened Acceptance Test Suite)
-- `docs/C5_3_ARCHITECTURE_PLAN.md` (Locked Specification & Acceptance Contract)
+- `tests/test_c53.mjs` (20-Scenario Hardened Acceptance Test Suite with strict exit 1 enforcement)
+- `docs/C5_3_ARCHITECTURE_PLAN.md` (Amended Locked Specification & Acceptance Contract)
 
 Frozen contracts:
 - `services/investingAnalyticsEngine.js` 🔒 (100% Frozen)
@@ -118,10 +118,10 @@ No active blockers. Stages C.4.1–C.4.4, C.5.1, and C.5.2 fully certified.
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Author Stage C.5.3 Master Architecture Plan, commit documentation to GitHub, and await Architect review. Do NOT write UI code until authorized.
+Amended Stage C.5.3 Master Architecture Plan incorporating all Architect requirements (Option A multi-point timeline data contract, separate XIRR/CAGR test assertions, cash-flow reconciliation semantics, semantic theme tokens, and timeline monotonicity/deduplication tests). Awaiting Architect review. Do NOT write UI code until authorized.
 
 Architect:
-Review `docs/C5_3_ARCHITECTURE_PLAN.md` and issue Stage C.5.3 Architecture Gate decision (Authorize / Block).
+Review amended `docs/C5_3_ARCHITECTURE_PLAN.md` and issue Stage C.5.3 Architecture Gate decision (Authorize / Block).
 
 
 ## 8. CERTIFICATION STATUS
