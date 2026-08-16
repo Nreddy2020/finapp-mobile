@@ -36,10 +36,10 @@ Current Phase:
 C.8
 
 Current Stage:
-C.8_ARCHITECTURE_PLANNING
+C.8.1_GOAL_SCHEMA_PRIORITY_INFLATION
 
 Overall Status:
-C.8_ARCHITECTURE_PLAN_V1.2.0_FINALIZED_FOR_AUTHORIZATION
+C.8.1_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -70,8 +70,8 @@ C.8_ARCHITECTURE_PLAN_V1.2.0_FINALIZED_FOR_AUTHORIZATION
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | 🟢 **MASTER CERTIFIED & APP-MOUNTED** (`7e71b8d`) |
-| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **ARCHITECTURE PLAN V1.2.0 FINALIZED (Gate Locked 🔒)** |
-| ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | ⚪ PLANNED (Gate Locked 🔒) |
+| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **IN PROGRESS (Stage C.8.1 Implemented)** |
+| ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | 🟢 IMPLEMENTATION COMPLETE (24/24 PASS) |
 | ↳ C.8.2 | Goal Funding, Inflation & Wealth Projection Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.4 | Cross-Domain Opportunity & Vulnerability Aggregator | ⚪ PLANNED (Gate Locked 🔒) |
@@ -84,13 +84,13 @@ C.8_ARCHITECTURE_PLAN_V1.2.0_FINALIZED_FOR_AUTHORIZATION
 ## 3. CURRENT STAGE
 
 Stage:
-Phase C.8 Architecture Finalization (`docs/C8_ARCHITECTURE_PLAN.md` v1.2.0)
+Stage C.8.1 Goal Schema, Priority Hierarchy & Inflation Policy
 
 Objective:
-Finalized Phase C.8 Master Architecture Plan v1.2.0 recording all 3 final contractual safety locks: C8-F1 (explicit `BEGINNING_OF_PERIOD` annuity due timing in `C8_WEALTH_PROJECTION_V1`), C8-F2 (complete upstream authoritative chain delegation in C.8.6 without partial DTO fabrication), and C8-F3 (exact `NOT_STARTED` boundary: `allocatedHoldingIds.length === 0 && allocatedCashAmount === 0 && monthlyContribution === 0`). Ready for Implementation Authorization.
+Implemented `services/goalPlanningEngine.js` according to Master Architecture Plan v1.2.0: deterministic goal validation, category inflation defaults (Education/Medical 8.0%, Macro 6.0%) with user override support, bounded $i \in [0.0, 0.25]$, closed-form future required corpus $C_{\text{future}} = C_{\text{today}}(1 + i_{\text{eff}})^t$, 4-tier priority hierarchy waterfall (`CRITICAL_TIER_1` $\to$ `LOW_TIER_4`), multi-goal precedence sorting (`Tier ASC` $\to$ `TargetDate ASC` $\to$ `goalId ASC`), monthly savings capacity allocation waterfall, and explicit `NOT_STARTED` boundary (`C8-F3`).
 
 Implementation Status:
-GATE LOCKED 🔒 (Zero-Code Gate Active)
+IMPLEMENTATION COMPLETE (24/24 PASS) 🟢
 
 Certified Baseline:
 7e71b8d
@@ -129,6 +129,9 @@ Certified & Frozen contracts (100% Locked 🔒):
 
 ## 5. ACCEPTANCE STATUS
 
+Stage C.8.1 Acceptance (`tests/test_c81.mjs`):
+24/24 PASS (Strict exit 0) 🟢
+
 Phase C.7 Full Suite (C.7.1–C.7.8):
 305/305 PASS (Strict exit 0) 🟢
 
@@ -142,7 +145,7 @@ Phase C.4 Full Suite (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
 Total Master System Regression:
-599/599 PASS (100%, Strict exit 0) 🟢
+623/623 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -150,17 +153,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Phase C.8 Architecture Plan v1.2.0 Finalized.
-- Zero-Code Gate remains ACTIVE 🔒 pending Implementation Authorization.
+- Stage C.8.1 Acceptance 24/24 PASS.
+- Zero-Code Gate remains ACTIVE 🔒 for Stage C.8.2+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Finalized Phase C.8 Master Architecture Plan v1.2.0 (`docs/C8_ARCHITECTURE_PLAN.md`). Zero-Code Gate is ACTIVE. Awaiting Architect's Implementation Authorization.
+Completed Stage C.8.1 implementation and 24-test acceptance suite. Full regression 623/623 PASS. Awaiting Architect's Stage C.8.1 Master Certification Review.
 
 Architect:
-Issue Phase C.8 Implementation Authorization (Starting with Stage C.8.1).
+Perform Stage C.8.1 Master Certification Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -169,7 +172,7 @@ Issue Phase C.8 Implementation Authorization (Starting with Stage C.8.1).
 - **Phase C.5 Complete**: 🟢 100% MASTER CERTIFIED (`1dc480f`)
 - **Phase C.6 Complete**: 🟢 100% MASTER CERTIFIED (`5fdfb36`)
 - **Phase C.7 Complete**: 🟢 100% MASTER CERTIFIED & CLOSED (`7e71b8d`)
-- **Phase C.8 Status**: 🟡 ARCHITECTURE PLAN V1.2.0 FINALIZED (Gate Locked 🔒)
+- **Stage C.8.1 Status**: 🟢 IMPLEMENTATION COMPLETE (Awaiting Certification)
 
 
 ## 9. AGENT PROTOCOL RULES
