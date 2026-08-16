@@ -24,19 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-012d0f7
+6a734f1
 
 Last Certified Commit:
-012d0f7
+6a734f1
+
+Current HEAD:
+ae69dd6
 
 Current Phase:
 C.5
 
 Current Stage:
-C.5.1
+C.5.2
 
 Overall Status:
-IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C5.1_CERTIFIED_READY_FOR_C5.2_PLANNING
 
 
 ## 2. MASTER ROADMAP
@@ -47,8 +50,8 @@ IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 | **C.4.2** | Asset Allocation & Concentration (HHI) | 🟢 CERTIFIED (`bf58509`) |
 | **C.4.3** | Money-Weighted Returns (XIRR / CAGR) | 🟢 CERTIFIED (`6199c65`) |
 | **C.4.4** | Master Portfolio Statement & FIFO Tax | 🟢 CERTIFIED (`012d0f7`) |
-| **C.5.1** | Portfolio Overview & Executive Dashboard | 🟡 IN REVIEW (`6a734f1`) |
-| **C.5.2** | Asset Allocation Visualizer & Risk Gauges | ⚪ NOT STARTED |
+| **C.5.1** | Portfolio Overview & Executive Dashboard | 🟢 CERTIFIED (`6a734f1`) |
+| **C.5.2** | Asset Allocation Visualizer & Risk Gauges | 🟡 ARCHITECTURE_PLANNING |
 | **C.5.3** | Performance & XIRR Growth Timeline | ⚪ NOT STARTED |
 | **C.5.4** | Master Statement & Tax Report View / Export | ⚪ NOT STARTED |
 
@@ -56,31 +59,32 @@ IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-C.5.1
+C.5.2
 
 Objective:
-Portfolio Overview & Executive Dashboard
+Asset Allocation Visualizer & Concentration Risk Gauges
 
 Architecture:
-LOCKED
+IN PREPARATION / READY FOR REVIEW
 
 Implementation:
-COMPLETE
+LOCKED (Zero-Code Gate: ACTIVE 🔒)
 
-Current Commit:
+Stage Implementation Baseline:
 6a734f1
 
 Previous Certified Baseline:
-012d0f7
+6a734f1
 
 
-## 4. CURRENT IMPLEMENTATION
+## 4. SCOPE & CONTRACT BOUNDARIES
 
-Files allowed to change:
-- `app/(tabs)/investments.js`
-- `components/investments/PortfolioOverviewCard.js`
-- `components/investments/PortfolioHeader.js`
-- `components/investments/ValuationStatusBadge.js`
+Files allowed to change upon C.5.2 authorization:
+- `components/investments/AssetAllocationCard.js` (or `AssetAllocationSection.js`)
+- `components/investments/ConcentrationRiskGauge.js`
+- `components/investments/AssetAllocationDonut.js`
+- `app/(tabs)/investments.js` (to mount C.5.2 visualizer)
+- `docs/C5_2_ARCHITECTURE_PLAN.md`
 
 Frozen contracts:
 - `services/investingAnalyticsEngine.js` 🔒
@@ -91,64 +95,45 @@ Frozen contracts:
 
 ## 5. ACCEPTANCE STATUS
 
-C.5.1 Tests:
-20/20 PASS ✅
+C.5.1 Acceptance Tests:
+20/20 PASS 🟢
 
-C.4 Regression:
-77/77 PASS ✅
+C.4 Regression Suite:
+77/77 PASS 🟢
 
-Total Tests:
-97/97 PASS ✅
+Total System Tests Passing:
+97/97 PASS 🟢
 
 Android Runtime Proof:
-PASS (emulator-5554, screen_c51_proof.png) ✅
-
-Git Boundary Audit:
-PASS (only allowed UI presentation files modified) ✅
+PASS (`screen_c51_proof.png`) 🟢
 
 
-## 6. BLOCKERS RESOLUTION LOG
+## 6. BLOCKERS LOG
 
-C5.1-01:
-Pull-to-refresh must actually refresh the investment quote source through the approved MarketDataService path.
-
-Severity:
-BLOCKER
-
-Status:
-RESOLVED in commit 6a734f1
-
-Resolution:
-In `app/(tabs)/investments.js`, `onRefresh()` queries unique active holding symbols from `loadHoldings()`, fetches fresh quotes concurrently via `MarketDataService.getQuote(sym)`, updates cached quote timestamps, refreshes metals/pulse ticker, and re-executes `InvestingAnalyticsEngine.getPortfolioSummary()`. Wired interactive refresh button in `PortfolioOverviewCard`.
+No active blockers. All prior stage blockers resolved.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation of Stage C.5.1 and resolved C5.1-01. Awaiting Architect review.
+Push `docs/C5_2_ARCHITECTURE_PLAN.md` and updated `AI_PROJECT_STATE.md` to GitHub for Architect review.
 
 Architect:
-Review commit 6a734f1 and issue consolidated certification decision for Stage C.5.1.
+Review Stage C.5.2 Architecture Specification and issue Authorization.
 
-Do NOT start C.5.2 until C.5.1 is CERTIFIED.
+Do NOT implement C.5.2 code until explicitly authorized.
 
 
 ## 8. CERTIFICATION STATUS
 
-Architecture Gate:
-PASS 🟢
+Stage C.5.1:
+🟢 CERTIFIED
 
-Implementation Gate:
-AUTHORIZED 🔓
+Stage C.5.2 Architecture Gate:
+PENDING ARCHITECT REVIEW ⏳
 
-Verification Gate:
-PASS (20/20 acceptance, 77/77 regression) 🟢
-
-Live Proof:
-PASS (Android emulator-5554 operational) 🟢
-
-Final Certification:
-PENDING ARCHITECT REVIEW OF COMMIT 6a734f1 ⏳
+Stage C.5.2 Implementation Gate:
+LOCKED 🔒
 
 
 ## 9. AGENT PROTOCOL RULES
