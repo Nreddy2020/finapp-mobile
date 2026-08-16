@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-c49e866
+5116d0d
 
 Last Certified Commit:
-c49e866
+5116d0d
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.8
 
 Current Stage:
-C.8.3_GOAL_GLIDEPATH_SERVICE
+C.8.4_OPPORTUNITY_VULNERABILITY_AGGREGATOR
 
 Overall Status:
-C.8.3_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
+C.8.4_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -70,11 +70,11 @@ C.8.3_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 | ↳ C.7.6 | Scenario & Stress-Test Engine | 🟢 **MASTER CERTIFIED** (`64c00a1`) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | 🟢 **MASTER CERTIFIED** (`30e4b8a`) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | 🟢 **MASTER CERTIFIED & APP-MOUNTED** (`7e71b8d`) |
-| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **IN PROGRESS (Stage C.8.3 Implemented)** |
+| **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟡 **IN PROGRESS (Stage C.8.4 Implemented)** |
 | ↳ C.8.1 | Goal Schema, Priority Hierarchy & Inflation Policy | 🟢 **MASTER CERTIFIED** (`ba785a9`) |
 | ↳ C.8.2 | Goal Funding, Inflation & Wealth Projection Engine | 🟢 **MASTER CERTIFIED** (`c49e866`) |
-| ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | 🟢 IMPLEMENTATION COMPLETE (24/24 PASS) |
-| ↳ C.8.4 | Cross-Domain Opportunity & Vulnerability Aggregator | ⚪ PLANNED (Gate Locked 🔒) |
+| ↳ C.8.3 | Target-Date Glidepath & Goal Asset Allocation | 🟢 **MASTER CERTIFIED** (`5116d0d`) |
+| ↳ C.8.4 | Cross-Domain Opportunity & Vulnerability Aggregator | 🟢 IMPLEMENTATION COMPLETE (26/26 PASS) |
 | ↳ C.8.5 | Next Best Action Prioritization Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.6 | Action Impact Simulator ("Before vs After" Health & Goals) | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.8.7 | Decision Intelligence Presentation Adapter | ⚪ PLANNED (Gate Locked 🔒) |
@@ -84,16 +84,16 @@ C.8.3_IMPLEMENTATION_COMPLETE_AWAITING_CERTIFICATION
 ## 3. CURRENT STAGE
 
 Stage:
-Stage C.8.3 Target-Date Glidepath & Goal Asset Allocation
+Stage C.8.4 Cross-Domain Opportunity & Vulnerability Aggregator
 
 Objective:
-Implemented `services/goalGlidepathService.js` according to Master Architecture Plan v1.2.0: 5 piecewise-linear glidepath tiers (`AGGRESSIVE_GROWTH`, `BALANCED_ACCUMULATION`, `CAPITAL_PRESERVATION_TRANSITION`, `DEFENSE_AND_DERISKING`, `CASH_AND_ULTRA_SHORT`), actual vs recommended goal asset breakdown, sequence-of-returns vulnerability detection (near maturity horizon $\le 3.0$ yrs with excess equity $> 15.0\%$), and planning-only authority boundary (`C8-R5`) strictly preserving C.6 target policies.
+Implemented `services/financialOpportunityAggregator.js` according to Master Architecture Plan v1.2.0: standardized ingestion of diagnostic DTOs across C.6, C.6.3, C.7.2, C.7.3, C.7.5, C.7.6, C.7.7, C.8.2, C.8.3, and liabilities into structured `OpportunityRecord` and `VulnerabilityRecord` schemas with complete provenance tracking (`C8-R6`), zero recalculation enforcement, and deterministic urgency ranking.
 
 Implementation Status:
-IMPLEMENTATION COMPLETE (24/24 PASS) 🟢
+IMPLEMENTATION COMPLETE (26/26 PASS) 🟢
 
 Certified Baseline:
-c49e866
+5116d0d
 
 
 ## 4. CERTIFIED & FROZEN BASELINES
@@ -127,9 +127,13 @@ Certified & Frozen contracts (100% Locked 🔒):
 - `app/(tabs)/investments.js` 🔒 (100% Master Certified C.7.8 App-Level Integration at `7e71b8d`)
 - `services/goalPlanningEngine.js` 🔒 (100% Master Certified C.8.1 at `ba785a9`)
 - `services/wealthProjectionEngine.js` 🔒 (100% Master Certified C.8.2 at `c49e866`)
+- `services/goalGlidepathService.js` 🔒 (100% Master Certified C.8.3 at `5116d0d`)
 
 
 ## 5. ACCEPTANCE STATUS
+
+Stage C.8.4 Acceptance (`tests/test_c84.mjs`):
+26/26 PASS (Strict exit 0) 🟢
 
 Stage C.8.3 Acceptance (`tests/test_c83.mjs`):
 24/24 PASS (Strict exit 0) 🟢
@@ -153,7 +157,7 @@ Phase C.4 Full Suite (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
 Total Master System Regression:
-675/675 PASS (100%, Strict exit 0) 🟢
+701/701 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -161,17 +165,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.8.3 Acceptance 24/24 PASS.
-- Zero-Code Gate remains ACTIVE 🔒 for Stage C.8.4+.
+- Stage C.8.4 Acceptance 26/26 PASS.
+- Zero-Code Gate remains ACTIVE 🔒 for Stage C.8.5+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed Stage C.8.3 implementation and 24-test acceptance suite. Full regression 675/675 PASS. Awaiting Architect's Stage C.8.3 Master Certification Review.
+Completed Stage C.8.4 implementation and 26-test acceptance suite. Full regression 701/701 PASS. Awaiting Architect's Stage C.8.4 Master Certification Review.
 
 Architect:
-Perform Stage C.8.3 Master Certification Review.
+Perform Stage C.8.4 Master Certification Review.
 
 
 ## 8. CERTIFICATION RECORD
@@ -182,7 +186,8 @@ Perform Stage C.8.3 Master Certification Review.
 - **Phase C.7 Complete**: 🟢 100% MASTER CERTIFIED & CLOSED (`7e71b8d`)
 - **Stage C.8.1 Complete**: 🟢 100% MASTER CERTIFIED (`ba785a9`)
 - **Stage C.8.2 Complete**: 🟢 100% MASTER CERTIFIED (`c49e866`)
-- **Stage C.8.3 Status**: 🟢 IMPLEMENTATION COMPLETE (Awaiting Certification)
+- **Stage C.8.3 Complete**: 🟢 100% MASTER CERTIFIED (`5116d0d`)
+- **Stage C.8.4 Status**: 🟢 IMPLEMENTATION COMPLETE (Awaiting Certification)
 
 
 ## 9. AGENT PROTOCOL RULES
