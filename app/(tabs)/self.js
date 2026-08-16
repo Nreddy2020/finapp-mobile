@@ -2294,7 +2294,7 @@ export default function SelfScreen() {
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* 1. Money Flow */}
                 {activeTab === 'flow' && (
-                    <>
+                    <View style={styles.card}>
                         {/* Stage AX.1 Personal CFO Decision Intelligence Integration Banner */}
                         <View style={{
                             backgroundColor: '#1E1B4B',
@@ -2346,8 +2346,7 @@ export default function SelfScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        <View style={styles.card}>
-                            <Text style={styles.cardTitle}>Personal Spending Table</Text>
+                        <Text style={styles.cardTitle}>Personal Spending Table</Text>
                         {/* Clean Integrated Active Period Selector */}
                         <View style={{ backgroundColor: '#141417', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#27272A', marginBottom: 16 }}>
                             {/* Title & Preset Pills in vertical stack layout for perfect alignment */}
@@ -3559,7 +3558,6 @@ export default function SelfScreen() {
                             </View>
                         )}
                     </View>
-                    </>
                 )}
 
                 {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
