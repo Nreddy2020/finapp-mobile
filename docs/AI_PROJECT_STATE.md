@@ -30,7 +30,7 @@ Last Certified Commit:
 d0f337c
 
 Current HEAD:
-d0f337c
+PENDING_COMMIT
 
 Current Phase:
 C.7
@@ -39,7 +39,7 @@ Current Stage:
 C.7.6_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.5_MASTER_CERTIFIED_C7.6_ZERO_CODE_GATE_LOCKED
+C.7.6_REMEDIATED_ARCHITECTURE_PENDING_GATE_REVIEW
 
 
 ## 2. MASTER ROADMAP
@@ -67,7 +67,7 @@ C.7.5_MASTER_CERTIFIED_C7.6_ZERO_CODE_GATE_LOCKED
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟢 **MASTER CERTIFIED** (`578040f`) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | 🟢 **MASTER CERTIFIED** (`d0f337c`) |
-| ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ ARCHITECTURE PLANNING (Gate Locked 🔒) |
+| ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ REMEDIATED ARCHITECTURE (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.8 | Risk Intelligence Dashboard & Stress UI | ⚪ PLANNED (Gate Locked 🔒) |
 
@@ -78,7 +78,7 @@ Stage:
 C.7.6 (Scenario & Stress-Test Engine)
 
 Objective:
-Architectural planning for Stage C.7.6 Scenario & Stress-Test Engine. The Zero-Code Gate is ACTIVE 🔒. No implementation files or tests may be created until the architecture plan (`docs/C7_6_ARCHITECTURE_PLAN.md`) is authored, reviewed, hardened, and explicitly authorized by the Architect.
+Architectural remediation for Stage C.7.6 Scenario & Stress-Test Engine (`docs/C7_6_ARCHITECTURE_PLAN.md`). Addressed all findings `C7.6-R1` through `C7.6-R16`: Canonical 8-class taxonomy preservation (CASH is not a 9th class), historical proxy semantics (no fabricated returns), beta authority hierarchy (authoritative metadata vs unit beta 1.0; no covariance diagonal inference), authoritative shock composition pipeline with versioned bounds (`MIN_STRESS_RETURN = -1.0`, `MAX_STRESS_GAIN = 1.0`), reverse stress testing solver using stressed valuation bisection, 100% deterministic DTO (0 timestamps), custom scenario schema validation, strict C.7.1–C.7.5 orchestration/delegation boundaries, upstream confidence propagation, loss attribution conservation invariants, and 56 acceptance scenarios.
 
 Implementation Status:
 GATE LOCKED 🔒 (Zero-Code Gate Active)
@@ -153,17 +153,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.5 Master Certified at `d0f337c`.
-- Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.6.
+- Stage C.7.6 Architecture Remediated.
+- Zero-Code Gate remains ACTIVE 🔒 for Stage C.7.6 implementation.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Wait for Stage C.7.6 Architecture Directives from the Architect. Do NOT write code.
+Submitted remediated architecture plan (`docs/C7_6_ARCHITECTURE_PLAN.md`) to the Architect for Final Architecture Gate Review.
 
 Architect:
-Issue Stage C.7.6 Architecture Directives (Scenario & Stress-Test Engine).
+Perform Final Architecture Gate Review for Stage C.7.6.
 
 
 ## 8. CERTIFICATION RECORD
@@ -177,6 +177,7 @@ Issue Stage C.7.6 Architecture Directives (Scenario & Stress-Test Engine).
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
 - **Stage C.7.4**: 🟢 MASTER CERTIFIED (`578040f`)
 - **Stage C.7.5**: 🟢 MASTER CERTIFIED (`d0f337c`)
+- **Stage C.7.6**: ⚪ REMEDIATED ARCHITECTURE (Gate Locked 🔒)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.6+)
 
 

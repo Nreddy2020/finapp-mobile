@@ -1,6 +1,6 @@
 # Master Architectural Plan: Stage C.7.6 Scenario & Stress-Test Engine
 
-**Document Version**: `1.0.0`  
+**Document Version**: `2.0.0`  
 **Master Standard Identifier**: `C7_6_V1`  
 **Stage**: C.7.6 (Scenario & Stress-Test Engine)  
 **Phase**: C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)  
@@ -10,15 +10,11 @@
 
 ---
 
-## 1. Executive Mission & Architectural Scope
+## 1. Executive Scope & Orchestration Architecture
 
 Stage C.7.6 defines the **Scenario & Stress-Test Engine** (`services/scenarioStressEngine.js`), serving as the unified stress-testing orchestration and impact attribution layer for the FinLife financial intelligence platform.
 
-Rather than reinventing or duplicating analytical calculations, Stage C.7.6 acts as a pure, deterministic orchestration engine that applies structured multi-factor shocks to portfolio valuations, cash-flows, and market parameters, and systematically evaluates the resulting post-shock state by consuming certified engines:
-1. **Concentration & Diversification** (`services/concentrationEngine.js` — C.7.2)
-2. **Volatility, Drawdown & Downside Risk** (`services/volatilityDrawdownEngine.js` — C.7.3)
-3. **Correlation, Covariance & PCA Factor Risk** (`services/correlationEngine.js` — C.7.4)
-4. **Liquidity, Lockup & Cash-Flow Runway** (`services/liquidityEngine.js` — C.7.5)
+Stage C.7.6 is strictly an **orchestration, shock-propagation, and impact-attribution layer**. It does not duplicate, recalculate, or replace any certified calculation engines from C.7.1 through C.7.5. Instead, it systematically applies multi-factor market, macro, and custom shocks to portfolio valuations and cash flows, and delegates downstream metric re-evaluations to the frozen certified engines:
 
 ```
                        ┌────────────────────────────────────────────────────────┐
@@ -33,162 +29,384 @@ Rather than reinventing or duplicating analytical calculations, Stage C.7.6 acts
 │ Risk Taxonomy    │  │ Concentration    │  │ Vol/DD   │  │ Correlation / PCA │  │ Liquidity/Flow  │
 │ (riskTaxonomy.js)│  │ (concentration   │  │ (volatil │  │ (correlation      │  │ (liquidity      │
 │ [C.7.1 Certified]│  │  Engine.js)      │  │  ityDD   │  │  Engine.js)       │  │  Engine.js)     │
-│                  │  │ [C.7.2 Certified]│  │  Engine) │  │ [C.7.4 Certified] │  │ [C.7.5 Cert.]   │
+│ [Canonical 8 Cls]│  │ [C.7.2 Certified]│  │  Engine) │  │ [C.7.4 Certified] │  │ [C.7.5 Cert.]   │
+│                  │  │                  │  │ [C.7.3]  │  │                   │  │ [Runway/Tiers]  │
 └──────────────────┘  └──────────────────┘  └──────────┘  └───────────────────┘  └─────────────────┘
 ```
 
 ---
 
-## 2. Core Architectural Invariants
+## 2. Core Architectural Invariants & Remediation Contracts
 
-1. **100% Read-Only Boundary**:
-   - Zero state mutations across the 5 certified stores (`STORAGE_KEYS.HOLDINGS`, `EVENTS`, `QUOTES`, `TRANSACTIONS`, `WALLETS`).
-   - Deep snapshots before and after evaluation must be byte-identical.
-2. **100% Deterministic Execution**:
-   - Mandatory deterministic `asOfDate` ISO string parameter on all entry points.
-   - Zero wall-clock `Date.now()` and zero argument-less `new Date()` calls (verified by AST scan).
-3. **Canonical Scenario Taxonomy & Immutable Definitions**:
-   - Deterministic policy-governed historical and hypothetical scenarios.
-   - No dynamic fabrication or extrapolation of historical drawdowns.
-4. **Zero Double-Counting**:
-   - Shocks are applied orthogonally across asset classes, holding-specific idiosyncratic shocks, and macro-economic factors.
-   - Shock compositions follow linear or calibrated non-linear factor loadings without compounding redundancies.
-5. **Boundedness & Valuation Invariants**:
-   - Under long-only assumptions, post-stress holding valuations satisfy $0.0 \le V_{i}^{\text{stressed}} \le V_i \times (1 + \text{gainMax})$.
-   - Stressed portfolio value $V_p^{\text{stressed}} = \sum_{i} V_i^{\text{stressed}} \ge 0.0$. Total dollar loss $\Delta V_p = V_p - V_p^{\text{stressed}} \le V_p$.
-6. **Reverse Stress Testing Solvency**:
-   - Deterministically solves for the minimum market drawdown or income loss threshold required to breach critical portfolio buffers (e.g., $V_p$ loss $> 30\%$, or runway $< 3.0$ months).
+### 2.1 C7.6-R1: Canonical 8-Class Taxonomy Integrity
+C.7.6 strictly preserves the frozen C.7.1 canonical 8-class taxonomy:
+```javascript
+export const CANONICAL_ASSET_CLASSES = Object.freeze([
+    'STOCK',
+    'MUTUAL_FUND',
+    'ETF',
+    'GOLD',
+    'CRYPTO',
+    'BOND',
+    'REAL_ESTATE',
+    'OTHER'
+]);
+```
+- **CASH is NOT a canonical risk asset class**. Cash instruments are represented as holding-level financial instruments that map into the certified taxonomy (`OTHER` or liquidity tier) without mutating C.7.1.
+- Every scenario shock vector MUST contain exactly the 8 canonical classes.
+- No scenario may introduce a 9th canonical risk class.
 
----
+### 2.2 C7.6-R2: Historical Scenario Semantics (Policy Shock Proxies)
+- The scenarios `HIST_2008_GFC`, `HIST_2020_COVID`, `HIST_2022_TECH_RATES`, and `HIST_2013_TAPER_TANTRUM` are standardized **POLICY SHOCK PROXIES** inspired by historical market regimes.
+- **Contract**: Historical scenarios in C.7.6 are deterministic policy shock vectors inspired by historical market regimes. They are **NOT** reconstructed historical market return series and **MUST NOT** manufacture historical price/return observations.
+- C.7.3 remains the sole authoritative engine for actual historical price/return series, historical VaR, and historical CVaR calculations.
 
-## 3. Scenario Taxonomy & Canonical Catalog
+### 2.3 C7.6-R3: Beta Authority & Precedence
+- The diagonal of the C.7.4 covariance matrix represents constituent periodic variance $\sigma_i^2$, **NOT** beta. Beta is never inferred from variance.
+- Beta resolution follows strict authority hierarchy:
+  1. **Tier 1 (`AUTHORITATIVE_METADATA`)**: Explicit holding metadata `beta` ($\beta_i \in [0.0, 5.0]$).
+  2. **Tier 2 (`DEFAULT_UNIT_BETA`)**: Default unit beta $\beta_i = 1.0$ (when metadata is missing or unspecified).
+- The DTO explicitly exposes `beta` and `betaSource` (`AUTHORITATIVE_METADATA` | `BENCHMARK_CALCULATED` | `DEFAULT_UNIT_BETA`) per holding.
 
-Stage C.7.6 defines four canonical categories of stress scenarios governed by `SCENARIO_POLICY_V1`:
+### 2.4 C7.6-R4 & C7.6-R5: Authoritative Shock Composition Pipeline & Bounds
+All holding-level shocks follow a deterministic, closed-form pipeline:
 
 ```
-                               SCENARIO TAXONOMY
-                                       │
-         ┌──────────────────┬──────────┴──────────┬──────────────────┐
-         │                  │                     │                  │
-         ▼                  ▼                     ▼                  ▼
-┌─────────────────┐ ┌────────────────┐ ┌────────────────────┐ ┌────────────────┐
-│   Historical    │ │  Hypothetical  │ │   Macro-Economic   │ │ Custom User &  │
-│  Crisis Events  │ │ Market Shocks  │ │   Stagflation /    │ │ Reverse Stress │
-│ (2008, 2020, ..)│ │ (Flash Crash)  │ │ Interest Rate Hike │ │ Testing Bounds │
-└─────────────────┘ └────────────────┘ └────────────────────┘ └────────────────┘
+BASE_ASSET_CLASS_SHOCK: R_S(c(i))
+        ↓
+AUTHORITATIVE_BETA_TRANSFORMATION: Δr_{base} = R_S(c(i)) × β_i
+        ↓
+MACRO_FACTOR_ADJUSTMENT: Δr_{macro} = M_S(c(i))
+        ↓
+HOLDING_SPECIFIC_SHOCK: Δr_{holding} = H_S(i)
+        ↓
+RAW_EFFECTIVE_SHOCK: Δr_{raw} = Δr_{base} + Δr_{macro} + Δr_{holding}
+        ↓
+BOUNDED_CLAMP: Δr_{effective} = clamp(Δr_{raw}, MIN_STRESS_RETURN, MAX_STRESS_GAIN)
+        ↓
+STRESSED_VALUATION: V_i^{stressed} = max(0.0, V_i × (1.0 + Δr_{effective}))
 ```
 
-### 3.1 Historical Crisis Scenarios
-| Scenario ID | Name | Core Asset Shock Vector ($\Delta r_c$) | Macro Shock |
-| :--- | :--- | :--- | :--- |
-| `HIST_2008_GFC` | **2008 Global Financial Crisis** | `STOCK`: -45%, `MUTUAL_FUND`: -38%, `ETF`: -45%, `GOLD`: +15%, `CRYPTO`: -60%, `BOND`: +5%, `REAL_ESTATE`: -25%, `OTHER`: -30%, `CASH`: 0% | Income: -20% |
-| `HIST_2020_COVID` | **2020 COVID-19 Flash Crash** | `STOCK`: -32%, `MUTUAL_FUND`: -28%, `ETF`: -32%, `GOLD`: -5%, `CRYPTO`: -40%, `BOND`: +2%, `REAL_ESTATE`: -10%, `OTHER`: -20%, `CASH`: 0% | Income: -30% |
-| `HIST_2022_TECH_RATES` | **2022 Tech & Rate Hike Drawdown** | `STOCK`: -22%, `MUTUAL_FUND`: -18%, `ETF`: -22%, `GOLD`: -2%, `CRYPTO`: -65%, `BOND`: -12%, `REAL_ESTATE`: -8%, `OTHER`: -15%, `CASH`: 0% | Income: 0% |
-| `HIST_2013_TAPER_TANTRUM`| **2013 Emerging Market Taper Tantrum** | `STOCK`: -15%, `MUTUAL_FUND`: -12%, `ETF`: -15%, `GOLD`: -20%, `CRYPTO`: -30%, `BOND`: -8%, `REAL_ESTATE`: -5%, `OTHER`: -10%, `CASH`: 0% | Income: 0% |
+**Versioned Return Constants**:
+- `MIN_STRESS_RETURN = -1.0` (-100% maximum loss for long-only holdings).
+- `MAX_STRESS_GAIN = 1.0` (+100% maximum gain under favorable shock conditions).
+- Holding valuation guarantee: $0.0 \le V_i^{\text{stressed}} \le V_i \times (1.0 + \text{MAX\_STRESS\_GAIN})$.
+- Dollar loss: $\Delta V_i = V_i - V_i^{\text{stressed}}$. Total dollar loss: $\Delta V_p = \sum_{i} \Delta V_i = V_p - V_p^{\text{stressed}}$.
+- Percentage loss: $L_p = \frac{\Delta V_p}{V_p} \in [-\text{MAX\_STRESS\_GAIN}, 1.0]$ for $V_p > 0$.
 
-### 3.2 Hypothetical Stress Scenarios
-| Scenario ID | Name | Description & Shock Vector |
-| :--- | :--- | :--- |
-| `HYPO_EQUITY_CRASH_MODERATE` | **Moderate Equity Correction** | `STOCK`: -15%, `MUTUAL_FUND`: -12%, `ETF`: -15%, `CRYPTO`: -25%, `GOLD`: +5%, `BOND`: +1% |
-| `HYPO_EQUITY_CRASH_SEVERE` | **Severe Equity Crash** | `STOCK`: -35%, `MUTUAL_FUND`: -30%, `ETF`: -35%, `CRYPTO`: -50%, `GOLD`: +10%, `BOND`: +3% |
-| `HYPO_CRYPTO_CAPITULATION` | **Crypto Market Collapse** | `CRYPTO`: -80%, other asset classes unaffected (0%) |
-| `HYPO_REAL_ESTATE_SLUMP` | **Property Liquidity Freeze** | `REAL_ESTATE`: -30%, early exit penalties doubled |
+### 2.5 C7.6-R6: Reverse Stress Testing Solvency Solver
+To determine the critical market shock multiplier $\lambda^* \ge 0$ causing a target portfolio loss ratio $L^* \in (0.0, 1.0]$:
 
-### 3.3 Macro-Economic Stress Scenarios
-| Scenario ID | Name | Macro Shocks | Asset Shock Vector |
-| :--- | :--- | :--- | :--- |
-| `MACRO_STAGFLATION` | **Stagflationary Shock** | Income: -15%, Monthly Burn: +15% | `STOCK`: -20%, `BOND`: -15%, `GOLD`: +25%, `REAL_ESTATE`: -5% |
-| `MACRO_INTEREST_RATE_HIKE`| **Aggressive Central Bank Rate Hike**| Debt Burn: +20% | `BOND`: -10%, `STOCK`: -12%, `REAL_ESTATE`: -10%, `CASH`: +0% |
-| `MACRO_PROLONGED_RECESSION`| **Prolonged Recession & Job Loss** | Income: -50%, Monthly Burn: +10% | `STOCK`: -30%, `MUTUAL_FUND`: -25%, `BOND`: +4%, `REAL_ESTATE`: -15% |
+Let holding sensitivity vector be $s_i = R_S(c(i)) \times \beta_i$. Stressed valuation as a function of scaling factor $\lambda$:
+\[
+V_p(\lambda) = \sum_{i=1}^{N} \max\left(0.0, V_i \times \left(1.0 + \operatorname{clamp}(\lambda \cdot s_i, \text{MIN\_STRESS\_RETURN}, \text{MAX\_STRESS\_GAIN})\right)\right)
+\]
+The portfolio loss ratio is:
+\[
+L_p(\lambda) = 1.0 - \frac{V_p(\lambda)}{V_p} \quad (\text{for } V_p > 0)
+\]
+
+**Solver State Machine & Boundary Handling**:
+1. **Target Loss = 0**: If $L^* \le 0 \implies \lambda^* = 0.0, \text{status: 'ZERO\_TARGET'}$.
+2. **Already Breached at $\lambda = 0$**: If $L_p(0) \ge L^* \implies \lambda^* = 0.0, \text{status: 'ALREADY\_BREACHED'}$.
+3. **Achievable Target**: When $L_p(0) < L^* \le L_p(\lambda_{\max})$ (where $\lambda_{\max} = 3.0$):
+   - Solve via deterministic monotonic bisection on $\lambda \in [0.0, \lambda_{\max}]$ with convergence tolerance $\epsilon = 10^{-4}$ and $\text{maxIterations} = 50$.
+   - Returns $\lambda^*$ and `status: 'SOLVED'`.
+4. **Unreachable Within Bounds**: If $L_p(\lambda_{\max}) < L^* \implies \lambda^* = \text{null}, \text{status: 'UNREACHABLE\_WITHIN\_BOUNDS'}$.
+
+### 2.6 C7.6-R7: 100% Deterministic Execution (0 Timestamps)
+- Zero internally generated timestamps. `evaluationTimestamp` is removed from the analytical DTO; callers provide the mandatory deterministic `asOfDate`.
+- Zero wall-clock `Date.now()` and zero argument-less `new Date()` calls (verified by AST scan in test suite).
+
+### 2.7 C7.6-R8: Custom Scenario Schema & Strict Validation
+A formal `CustomScenarioSchema` governs user-defined scenarios:
+```typescript
+interface CustomScenarioInput {
+  scenarioId: string; // Required, non-empty alphanumeric string
+  scenarioName: string; // Required, descriptive string
+  scenarioCategory: 'CUSTOM';
+  assetClassShockVector: {
+    STOCK?: number; // [-1.0, 1.0]
+    MUTUAL_FUND?: number;
+    ETF?: number;
+    GOLD?: number;
+    CRYPTO?: number;
+    BOND?: number;
+    REAL_ESTATE?: number;
+    OTHER?: number;
+  };
+  holdingSpecificShocks?: { [holdingId: string]: number }; // [-1.0, 1.0]
+  incomeShock?: number; // [0.0, 1.0] (fractional income reduction)
+  burnShock?: number; // [-0.5, 2.0] (fractional burn increase/decrease)
+  haircutMultiplier?: number; // [0.0, 3.0] (haircut scaling)
+}
+```
+**Validation Rules**:
+- Rejects `NaN`, `Infinity`, unknown asset classes, duplicate scenario IDs, and malformed numeric values.
+- Unspecified asset class shocks default strictly to `UNSPECIFIED_SHOCK_POLICY = 0.0%`.
+- Custom scenarios cannot bypass statutory ELSS/PPF locks or C.7.5 liquidity authority hierarchy.
+
+### 2.8 C7.6-R9 & C7.6-R13: Strict Orchestration Boundary & C.7.5 Delegation
+- C.7.6 does not perform its own liquidity classification, lockup evaluation, or runway calculations.
+- C.7.6 constructs stressed holding valuations $V_i^{\text{stressed}}$ and stressed monthly cash flows ($I_S, B_S^{\text{total}}, B_S^{\text{survival}}$), and passes them into C.7.5 `calculateLiquidityBreakdown` and `evaluateCashFlowAndRunway` using identical holding IDs and authoritative metadata.
+- C.7.5 remains the sole authority for liquidity tiers, lockups, FD early-break penalties, accessible capital, and runway compression.
+
+### 2.9 C7.6-R10: Data Quality & Confidence Level Propagation
+Authoritative confidence propagation rules:
+- **`HIGH`**: All required upstream metrics (`hasValuationData: true`, `hasCashFlowData: true`, coverage ratio $\ge 0.95$, no estimated burn).
+- **`MODERATE`**: No required upstream metric is `LOW` or `UNAVAILABLE`, but estimated burn ratio was applied in C.7.5 or coverage ratio $\in [0.80, 0.95)$.
+- **`LOW`**: Any required upstream metric is `LOW`, or coverage ratio $< 0.80$, or unknown asset class exposure $> 15\%$.
+- **`UNAVAILABLE`**: Missing valuation data or empty portfolio.
+
+### 2.10 C7.6-R12: Loss Attribution Conservation Invariants
+For any positive portfolio valuation ($V_p > 0$):
+1. **Dollar Loss Conservation**:
+   \[
+   \sum_{c \in \mathcal{C}} \Delta V_c = \Delta V_p \pm 10^{-4}
+   \]
+2. **Loss Contribution Share Conservation**:
+   - If $\Delta V_p > 0 \implies \text{Share}_c = \frac{\Delta V_c}{\Delta V_p} \ge 0.0$ and $\sum_{c} \text{Share}_c = 1.0 \pm 10^{-6}$.
+   - If $\Delta V_p \le 0$ (gain or zero loss) $\implies \text{Share}_c = \text{null}$ (never fabricate artificial loss shares).
+3. **Deterministic Top Loss Holdings Ranking**:
+   Rank order: $\Delta V_i \text{ DESC} \to V_i \text{ DESC} \to \text{symbol ASC} \to \text{holdingId ASC}$.
 
 ---
 
-## 4. Mathematical Modeling & Stress Propagation Formulas
+## 3. Canonical Scenario Catalog (`SCENARIO_POLICY_V1`)
 
-### 4.1 Asset-Class & Holding-Level Valuation Shock
-Let portfolio have $N$ holdings with pre-stress market values $V_i$ and canonical asset classes $c(i) \in \mathcal{C}$.
-Each scenario $S$ defines class-level shock rates $R_S(c) \in [-1.0, 1.0]$.
+All canonical scenarios explicitly define all 8 canonical asset classes.
 
-If holding $i$ possesses an authoritative beta coefficient $\beta_i$ relative to its asset class benchmark (from metadata or C.7.4 correlation/covariance diagonal):
-\[
-\Delta r_i = 
-\begin{cases}
-R_S(c(i)) \times \beta_i, & \text{if } \beta_i \text{ is authoritative and finite} \\
-R_S(c(i)), & \text{otherwise}
-\end{cases}
-\]
+```javascript
+export const SCENARIO_POLICY_VERSION = "C7_6_V1";
 
-The post-stress holding valuation is bounded strictly:
-\[
-V_i^{\text{stressed}} = \max\left(0.0, V_i \times (1.0 + \Delta r_i)\right)
-\]
-The total stressed portfolio valuation is:
-\[
-V_p^{\text{stressed}} = \sum_{i=1}^{N} V_i^{\text{stressed}}
-\]
-The dollar portfolio loss is:
-\[
-\Delta V_p = V_p - V_p^{\text{stressed}}
-\]
-The percentage portfolio loss is:
-\[
-L_p = \frac{\Delta V_p}{V_p}, \quad \text{for } V_p > 0
-\]
+export const SCENARIO_POLICY_V1 = Object.freeze({
+    policyVersion: SCENARIO_POLICY_VERSION,
+    limits: Object.freeze({
+        MIN_STRESS_RETURN: -1.0,
+        MAX_STRESS_GAIN: 1.0,
+        UNSPECIFIED_SHOCK_POLICY: 0.0,
+        REVERSE_STRESS_MAX_LAMBDA: 3.0,
+        REVERSE_STRESS_TOLERANCE: 1e-4,
+        REVERSE_STRESS_MAX_ITERATIONS: 50
+    }),
+    canonicalScenarios: Object.freeze({
+        // 1. HISTORICAL POLICY SHOCK PROXIES
+        HIST_2008_GFC: Object.freeze({
+            id: 'HIST_2008_GFC',
+            name: '2008 Global Financial Crisis (Proxy)',
+            category: 'HISTORICAL_PROXY',
+            assetShocks: Object.freeze({
+                STOCK: -0.45,
+                MUTUAL_FUND: -0.38,
+                ETF: -0.45,
+                GOLD: 0.15,
+                CRYPTO: -0.60,
+                BOND: 0.05,
+                REAL_ESTATE: -0.25,
+                OTHER: -0.30
+            }),
+            incomeShock: 0.20, // 20% income loss
+            burnShock: 0.0,
+            haircutMultiplier: 1.5
+        }),
+        HIST_2020_COVID: Object.freeze({
+            id: 'HIST_2020_COVID',
+            name: '2020 COVID-19 Flash Crash (Proxy)',
+            category: 'HISTORICAL_PROXY',
+            assetShocks: Object.freeze({
+                STOCK: -0.32,
+                MUTUAL_FUND: -0.28,
+                ETF: -0.32,
+                GOLD: -0.05,
+                CRYPTO: -0.40,
+                BOND: 0.02,
+                REAL_ESTATE: -0.10,
+                OTHER: -0.20
+            }),
+            incomeShock: 0.30,
+            burnShock: 0.0,
+            haircutMultiplier: 1.2
+        }),
+        HIST_2022_TECH_RATES: Object.freeze({
+            id: 'HIST_2022_TECH_RATES',
+            name: '2022 Tech & Rate Hike Drawdown (Proxy)',
+            category: 'HISTORICAL_PROXY',
+            assetShocks: Object.freeze({
+                STOCK: -0.22,
+                MUTUAL_FUND: -0.18,
+                ETF: -0.22,
+                GOLD: -0.02,
+                CRYPTO: -0.65,
+                BOND: -0.12,
+                REAL_ESTATE: -0.08,
+                OTHER: -0.15
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.0
+        }),
+        HIST_2013_TAPER_TANTRUM: Object.freeze({
+            id: 'HIST_2013_TAPER_TANTRUM',
+            name: '2013 Taper Tantrum (Proxy)',
+            category: 'HISTORICAL_PROXY',
+            assetShocks: Object.freeze({
+                STOCK: -0.15,
+                MUTUAL_FUND: -0.12,
+                ETF: -0.15,
+                GOLD: -0.20,
+                CRYPTO: -0.30,
+                BOND: -0.08,
+                REAL_ESTATE: -0.05,
+                OTHER: -0.10
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.0
+        }),
 
-### 4.2 Loss Attribution Decomposition
-Loss is deterministically decomposed along two orthogonal dimensions:
-1. **Asset Class Loss Attribution**:
-\[
-\Delta V_c = \sum_{i \in c} (V_i - V_i^{\text{stressed}}), \quad \text{Share}_c = \frac{\Delta V_c}{\Delta V_p} \quad (\text{if } \Delta V_p > 0)
-\]
-2. **Top Holding Loss Contributors**:
-Deterministic ranking: $\Delta V_i \text{ DESC} \to V_i \text{ DESC} \to \text{symbol ASC} \to \text{holdingId ASC}$.
+        // 2. HYPOTHETICAL STRESS SCENARIOS
+        HYPO_EQUITY_CRASH_MODERATE: Object.freeze({
+            id: 'HYPO_EQUITY_CRASH_MODERATE',
+            name: 'Moderate Equity Correction',
+            category: 'HYPOTHETICAL',
+            assetShocks: Object.freeze({
+                STOCK: -0.15,
+                MUTUAL_FUND: -0.12,
+                ETF: -0.15,
+                GOLD: 0.05,
+                CRYPTO: -0.25,
+                BOND: 0.01,
+                REAL_ESTATE: 0.0,
+                OTHER: -0.05
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.0
+        }),
+        HYPO_EQUITY_CRASH_SEVERE: Object.freeze({
+            id: 'HYPO_EQUITY_CRASH_SEVERE',
+            name: 'Severe Equity Crash',
+            category: 'HYPOTHETICAL',
+            assetShocks: Object.freeze({
+                STOCK: -0.35,
+                MUTUAL_FUND: -0.30,
+                ETF: -0.35,
+                GOLD: 0.10,
+                CRYPTO: -0.50,
+                BOND: 0.03,
+                REAL_ESTATE: -0.05,
+                OTHER: -0.15
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.3
+        }),
+        HYPO_CRYPTO_CAPITULATION: Object.freeze({
+            id: 'HYPO_CRYPTO_CAPITULATION',
+            name: 'Crypto Market Capitulation',
+            category: 'HYPOTHETICAL',
+            assetShocks: Object.freeze({
+                STOCK: 0.0,
+                MUTUAL_FUND: 0.0,
+                ETF: 0.0,
+                GOLD: 0.0,
+                CRYPTO: -0.80,
+                BOND: 0.0,
+                REAL_ESTATE: 0.0,
+                OTHER: 0.0
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.0
+        }),
+        HYPO_REAL_ESTATE_SLUMP: Object.freeze({
+            id: 'HYPO_REAL_ESTATE_SLUMP',
+            name: 'Real Estate Illiquidity Freeze',
+            category: 'HYPOTHETICAL',
+            assetShocks: Object.freeze({
+                STOCK: -0.05,
+                MUTUAL_FUND: -0.05,
+                ETF: -0.05,
+                GOLD: 0.0,
+                CRYPTO: 0.0,
+                BOND: 0.0,
+                REAL_ESTATE: -0.30,
+                OTHER: -0.10
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.0,
+            haircutMultiplier: 1.5
+        }),
 
-### 4.3 Post-Stress Liquidity & Cash-Flow Runway Compression
-Applying macro cash-flow shocks $(1 - \Delta \text{Income}_S)$ and $(1 + \Delta \text{Burn}_S)$:
-\[
-I_S = \max(0.0, I_{\text{base}} \times (1.0 - \Delta \text{Income}_S))
-\]
-\[
-B_S^{\text{total}} = B_{\text{base}}^{\text{total}} \times (1.0 + \Delta \text{Burn}_S)
-\]
-\[
-B_S^{\text{survival}} = B_{\text{base}}^{\text{survival}} \times (1.0 + \Delta \text{Burn}_S)
-\]
-
-Post-stress accessible liquidity $V_{\text{accessible}}^{\text{stressed}}$ is evaluated by feeding $V_i^{\text{stressed}}$ into C.7.5 `calculateLiquidityBreakdown` with scenario-specific haircut multipliers.
-
-The post-stress emergency runway is computed:
-\[
-\text{Runway}_S = 
-\begin{cases}
-\frac{V_{\text{accessible}}^{\text{stressed}}}{\max(B_S^{\text{survival}} - I_S, B_S^{\text{survival}})}, & \text{if deficit exists or } I_S = 0 \\
-\frac{V_{\text{accessible}}^{\text{stressed}}}{B_S^{\text{survival}}}, & \text{if self-sustaining } (I_S \ge B_S^{\text{survival}})
-\end{cases}
-\]
-
-### 4.4 Reverse Stress Testing (Breach Threshold Solver)
-Reverse stress testing answers: *"What is the minimum uniform market drop $X^*$ that causes a portfolio loss of $L_{\text{target}}$ (e.g. 25%)?"* or *"What is the maximum income disruption duration the portfolio can survive?"*
-
-For a target loss ratio $L^* \in (0.0, 1.0)$:
-Let $w_c = \frac{\sum_{i \in c} V_i}{V_p}$ and relative scenario sensitivity vector $\mathbf{s} = (s_1, \dots, s_8)$.
-\[
-L_p(\lambda) = \sum_{c \in \mathcal{C}} w_c \cdot \min(1.0, \lambda \cdot s_c)
-\]
-Using deterministic monotonic bisection on $\lambda \in [0.0, 2.0]$, solve for $\lambda^*$ such that $|L_p(\lambda^*) - L^*| < 10^{-4}$.
+        // 3. MACRO-ECONOMIC STRESS SCENARIOS
+        MACRO_STAGFLATION: Object.freeze({
+            id: 'MACRO_STAGFLATION',
+            name: 'Stagflationary Shock',
+            category: 'MACRO',
+            assetShocks: Object.freeze({
+                STOCK: -0.20,
+                MUTUAL_FUND: -0.18,
+                ETF: -0.20,
+                GOLD: 0.25,
+                CRYPTO: -0.35,
+                BOND: -0.15,
+                REAL_ESTATE: -0.05,
+                OTHER: -0.10
+            }),
+            incomeShock: 0.15, // 15% income drop
+            burnShock: 0.15,   // 15% inflation on living burn
+            haircutMultiplier: 1.2
+        }),
+        MACRO_INTEREST_RATE_HIKE: Object.freeze({
+            id: 'MACRO_INTEREST_RATE_HIKE',
+            name: 'Central Bank Rate Shock',
+            category: 'MACRO',
+            assetShocks: Object.freeze({
+                STOCK: -0.12,
+                MUTUAL_FUND: -0.10,
+                ETF: -0.12,
+                GOLD: -0.05,
+                CRYPTO: -0.25,
+                BOND: -0.10,
+                REAL_ESTATE: -0.10,
+                OTHER: -0.05
+            }),
+            incomeShock: 0.0,
+            burnShock: 0.20, // 20% increase in debt service burn
+            haircutMultiplier: 1.0
+        }),
+        MACRO_PROLONGED_RECESSION: Object.freeze({
+            id: 'MACRO_PROLONGED_RECESSION',
+            name: 'Prolonged Recession & Job Loss',
+            category: 'MACRO',
+            assetShocks: Object.freeze({
+                STOCK: -0.30,
+                MUTUAL_FUND: -0.25,
+                ETF: -0.30,
+                GOLD: 0.10,
+                CRYPTO: -0.50,
+                BOND: 0.04,
+                REAL_ESTATE: -0.15,
+                OTHER: -0.20
+            }),
+            incomeShock: 0.50, // 50% severe income disruption
+            burnShock: 0.10,
+            haircutMultiplier: 1.5
+        })
+    })
+});
+```
 
 ---
 
-## 5. Master DTO Specification & Contract
-
-The primary evaluation entry point `evaluatePortfolioStressScenarios(portfolioData, asOfDate, options)` returns:
+## 4. Master DTO Specification (`C7_6_V1`)
 
 ```typescript
 interface ScenarioStressEvaluationDTO {
   portfolioId: string | null;
-  asOfDate: string; // ISO 8601
+  asOfDate: string; // ISO 8601 mandatory deterministic timestamp
   policyVersion: "C7_6_V1";
-  status: "EVALUATED" | "EMPTY_PORTFOLIO" | "INSUFFICIENT_DATA";
+  status: "EVALUATED" | "EMPTY_PORTFOLIO" | "INVALID_INPUT" | "INSUFFICIENT_DATA" | "DEGRADED";
   
   dataQuality: {
     confidenceLevel: "HIGH" | "MODERATE" | "LOW" | "UNAVAILABLE";
@@ -196,7 +414,12 @@ interface ScenarioStressEvaluationDTO {
     hasCashFlowData: boolean;
     hasValuationData: boolean;
     unknownHoldingCount: number;
-    evaluationTimestamp: string;
+    upstreamQualitySummary: {
+      concentrationConfidence: string;
+      volatilityConfidence: string;
+      correlationConfidence: string;
+      liquidityConfidence: string;
+    };
   };
 
   baseline: {
@@ -213,10 +436,10 @@ interface ScenarioStressEvaluationDTO {
     [scenarioId: string]: {
       scenarioId: string;
       scenarioName: string;
-      scenarioCategory: "HISTORICAL" | "HYPOTHETICAL" | "MACRO" | "CUSTOM";
+      scenarioCategory: "HISTORICAL_PROXY" | "HYPOTHETICAL" | "MACRO" | "CUSTOM";
       stressedPortfolioValue: number;
       dollarLoss: number;
-      percentageLoss: number;
+      percentageLoss: number | null;
       postStressAccessibleLiquidity: number;
       postStressMonthlyDeficit: number;
       postStressRunwayMonths: number | null;
@@ -229,17 +452,19 @@ interface ScenarioStressEvaluationDTO {
           preStressValue: number;
           postStressValue: number;
           dollarLoss: number;
-          percentageLoss: number;
-          lossContributionShare: number;
+          percentageLoss: number | null;
+          lossContributionShare: number | null;
         }>;
         topLossHoldings: Array<{
           holdingId: string;
           symbol: string;
           assetClass: string;
+          beta: number;
+          betaSource: "AUTHORITATIVE_METADATA" | "DEFAULT_UNIT_BETA";
           preStressValue: number;
           postStressValue: number;
           dollarLoss: number;
-          lossContributionShare: number;
+          lossContributionShare: number | null;
         }>;
       };
       
@@ -249,19 +474,26 @@ interface ScenarioStressEvaluationDTO {
 
   // Reverse Stress Testing Results
   reverseStressTest: {
-    marketDropToCause20PctLoss: number | null; // e.g. 0.24 (24% market drop)
-    marketDropToCause35PctLoss: number | null;
-    marketDropToExhaustEmergencyRunway: number | null;
-    criticalVulnerabilityFactor: string | null; // e.g. "EQUITY_CONCENTRATION"
+    marketDropToCause20PctLoss: {
+      solvedLambda: number | null;
+      status: "SOLVED" | "ZERO_TARGET" | "ALREADY_BREACHED" | "UNREACHABLE_WITHIN_BOUNDS";
+      iterations: number;
+    };
+    marketDropToCause35PctLoss: {
+      solvedLambda: number | null;
+      status: "SOLVED" | "ZERO_TARGET" | "ALREADY_BREACHED" | "UNREACHABLE_WITHIN_BOUNDS";
+      iterations: number;
+    };
+    criticalVulnerabilityFactor: string | null; // e.g. "EQUITY_CONCENTRATION", "CRYPTO_SPECULATION"
   };
 
   // Cross-Scenario Resilience Summary
   resilienceSummary: {
-    worstCaseScenarioId: string;
+    worstCaseScenarioId: string | null;
     worstCaseDollarLoss: number;
-    worstCasePercentageLoss: number;
+    worstCasePercentageLoss: number | null;
     worstCaseRunwayMonths: number | null;
-    averagePercentageLoss: number;
+    averagePercentageLoss: number | null;
     overallStressResilienceTier: "ROBUST" | "RESILIENT" | "VULNERABLE" | "HIGHLY_VULNERABLE";
   };
 
@@ -271,23 +503,90 @@ interface ScenarioStressEvaluationDTO {
 
 ---
 
-## 6. Acceptance Testing Strategy (50+ Scenarios)
+## 5. Comprehensive 56-Scenario Acceptance Matrix (`tests/test_c76.mjs`)
 
-The acceptance suite `tests/test_c76.mjs` will cover:
-1. **Group 1: Canonical Historical Scenarios (GFC 2008, COVID 2020, Tech 2022, Taper Tantrum 2013)**
-2. **Group 2: Hypothetical Flash Crash & Sector Shocks (Equity, Crypto, Real Estate)**
-3. **Group 3: Macro Stagflation, Rate Hike & Prolonged Recession Scenarios**
-4. **Group 4: Holding-Level Beta & Asset-Class Loss Attribution Integrity**
-5. **Group 5: Post-Stress Liquidity & Runway Compression Coupling with C.7.5**
-6. **Group 6: Reverse Stress Testing & Critical Threshold Bisection Solvers**
-7. **Group 7: Boundary Cases (Empty Portfolio, Single Cash Asset, 100% Real Estate, Zero Burn)**
-8. **Group 8: Data Quality, Confidence Propagation & Zero Double-Counting Invariants**
-9. **Group 9: Determinism, AST Wall-Clock Scan, Deep 5-Store Read-Only Safety & Master System Regression (439+ Tests)**
+The acceptance test suite will cover the 32 mandated test categories:
+
+1. **Group 1: Canonical 8-Class Completeness & Taxonomy Invariance (Tests 1–6)**:
+   - Test 1: All 11 canonical scenarios define all 8 canonical asset classes.
+   - Test 2: CASH holding mapped to existing taxonomy without creating a 9th class.
+   - Test 3: Unspecified shock policy strictly defaults to 0.0%.
+   - Test 4: Historical proxy semantic disclaimer verified on DTO.
+   - Test 5: Rejection of non-canonical asset class in scenario shock vector.
+   - Test 6: Deterministic canonical policy versioning (`C7_6_V1`).
+
+2. **Group 2: Beta Authority & Precedence Hierarchy (Tests 7–12)**:
+   - Test 7: Authoritative metadata beta applied ($\beta = 1.4$).
+   - Test 8: Missing beta resolves to `DEFAULT_UNIT_BETA` ($\beta = 1.0$).
+   - Test 9: Invalid / NaN / negative beta falls back safely to unit beta.
+   - Test 10: DTO exposes `beta` and `betaSource` per holding.
+   - Test 11: Beta scaling produces exact linear holding shock before clamping.
+   - Test 12: Covariance diagonal strictly isolated from beta calculation.
+
+3. **Group 3: Authoritative Shock Composition & Boundedness Pipeline (Tests 13–18)**:
+   - Test 13: Base + Macro + Holding additive composition order exactness.
+   - Test 14: Clamping at `MIN_STRESS_RETURN = -1.0` (100% loss max).
+   - Test 15: Clamping at `MAX_STRESS_GAIN = 1.0` (+100% gain max).
+   - Test 16: Non-negativity invariant: $V_i^{\text{stressed}} \ge 0.0$ for all holdings.
+   - Test 17: Positive market shock produces gain without distorting loss shares.
+   - Test 18: Zero market shock produces exact identity ($V_p^{\text{stressed}} = V_p$).
+
+4. **Group 4: Loss Attribution & Deterministic Conservation (Tests 19–24)**:
+   - Test 19: Conservation of dollar loss: $\sum \Delta V_c = \Delta V_p$.
+   - Test 20: Conservation of loss share: $\sum \text{Share}_c = 1.0$ when $\Delta V_p > 0$.
+   - Test 21: Loss shares evaluated as `null` when $\Delta V_p \le 0$ (gain/zero loss).
+   - Test 22: Deterministic 4-tier tie-breaking for top loss holdings.
+   - Test 23: Single holding portfolio loss attribution.
+   - Test 24: Multi-asset cross-class loss attribution decomposition.
+
+5. **Group 5: Post-Stress Liquidity & C.7.5 Delegation (Tests 25–30)**:
+   - Test 25: Stressed holding valuations passed cleanly into C.7.5.
+   - Test 26: Post-stress accessible liquidity respects early-break penalties.
+   - Test 27: Post-stress emergency runway compression evaluated accurately.
+   - Test 28: Macro income shock (50% drop) compresses runway deterministically.
+   - Test 29: Macro inflation shock (+15% burn) compresses runway deterministically.
+   - Test 30: Self-sustaining cash flow state handles 0 monthly deficit.
+
+6. **Group 6: Custom Scenario Schema & Strict Validation (Tests 31–36)**:
+   - Test 31: Valid custom scenario evaluates successfully.
+   - Test 32: Malformed custom scenario (NaN shock) rejected with `INVALID_INPUT`.
+   - Test 33: Duplicate custom scenario ID rejected.
+   - Test 34: Out-of-bounds custom shock ($> 1.0$ or $< -1.0$) clamped/rejected.
+   - Test 35: Custom scenario cannot override statutory ELSS lockup.
+   - Test 36: Custom scenario cannot bypass C.7.5 5-tier liquidity hierarchy.
+
+7. **Group 7: Reverse Stress Testing & Solver Edge Cases (Tests 37–44)**:
+   - Test 37: Achievable target loss (20%) solved via bisection ($|L_p(\lambda^*) - 0.20| < 10^{-4}$).
+   - Test 38: Achievable target loss (35%) solved via bisection.
+   - Test 39: Target loss = 0 returns $\lambda^* = 0.0$ (`ZERO_TARGET`).
+   - Test 40: Target loss already breached at $\lambda = 0$ returns $\lambda^* = 0.0$ (`ALREADY_BREACHED`).
+   - Test 41: Target loss unreachable within $\lambda_{\max} = 3.0$ returns `UNREACHABLE_WITHIN_BOUNDS`.
+   - Test 42: Mixed positive/negative asset shocks handled safely by monotonic bisection.
+   - Test 43: Solver convergence within 50 iterations verified.
+   - Test 44: Critical vulnerability factor identification.
+
+8. **Group 8: Boundary Conditions & Empty Portfolio Safety (Tests 45–48)**:
+   - Test 45: Empty portfolio boundary ($N = 0$) returns `EMPTY_PORTFOLIO` with null loss shares.
+   - Test 46: 100% Cash portfolio boundary (0% asset loss).
+   - Test 47: 100% Locked Real Estate portfolio under property slump.
+   - Test 48: Zero recurring burn boundary handling.
+
+9. **Group 9: Data Quality, Determinism, AST Scan & Regression (Tests 49–56)**:
+   - Test 49: Upstream data quality & confidence propagation (HIGH, MODERATE, LOW, UNAVAILABLE).
+   - Test 50: Estimated burn from C.7.5 degrades confidence to MODERATE.
+   - Test 51: Mandatory deterministic `asOfDate` enforced (no internal timestamps).
+   - Test 52: AST wall-clock scan confirms 0 `Date.now()` and 0 argument-less `new Date()`.
+   - Test 53: Deep 5-store read-only safety guard (100% zero store mutations).
+   - Test 54: Deterministic output repeatability across consecutive runs.
+   - Test 55: Frozen services diff vs `d0f337c` confirms zero modifications to C.4–C.7.5.
+   - Test 56: Full system master regression matrix preservation (439+ existing tests).
 
 ---
 
-## 7. Current Governance State
+## 6. Implementation Guardrails
 
-- **Stage C.7.5 Baseline**: `d0f337c` (Master Certified 🟢🔒)
-- **Stage C.7.6 Zero-Code Gate**: `ACTIVE 🔒` (No implementation code until architecture approval)
-- **Frozen Services Count**: 14 certified engines
+- **Zero-Code Gate**: `ACTIVE 🔒` until this remediated architecture plan is approved.
+- **Service Target**: `services/scenarioStressEngine.js`
+- **Acceptance Target**: `tests/test_c76.mjs` (56 scenarios)
+- **Certified Baseline**: `d0f337c`
+- **Frozen Contracts**: All 14 prior certified financial engines remain 100% locked.
