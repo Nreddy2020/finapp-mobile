@@ -16,6 +16,7 @@ import PortfolioOverviewCard from '../../components/investments/PortfolioOvervie
 import PortfolioHeader from '../../components/investments/PortfolioHeader';
 import AssetAllocationCard from '../../components/investments/AssetAllocationCard';
 import PerformanceGrowthTimelineCard from '../../components/investments/PerformanceGrowthTimelineCard';
+import MasterStatementCard from '../../components/investments/MasterStatementCard';
 
 export default function InvestmentsScreen() {
     const { inflationRate, formatAmount } = useGlobalFinance();
@@ -26,13 +27,15 @@ export default function InvestmentsScreen() {
     const [isCrisisMode, setIsCrisisMode] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    // Stage C.5.1, C.5.2 & C.5.3 Portfolio Analytics State
+    // Stage C.5.1, C.5.2, C.5.3 & C.5.4 Portfolio Analytics State
     const [selectedPortfolioId, setSelectedPortfolioId] = useState(null); // null = ALL_PORTFOLIOS
     const [availablePortfolios, setAvailablePortfolios] = useState([]);
     const [portfolioSummary, setPortfolioSummary] = useState(null);
     const [allocationSummary, setAllocationSummary] = useState(null);
     const [performanceMetrics, setPerformanceMetrics] = useState(null);
     const [performanceTimeline, setPerformanceTimeline] = useState([]);
+    const [selectedPeriod, setSelectedPeriod] = useState('ALL_TIME');
+    const [portfolioStatement, setPortfolioStatement] = useState(null);
     const [lastRefreshTime, setLastRefreshTime] = useState(null);
     const requestIdRef = useRef(0);
 
@@ -53,7 +56,7 @@ export default function InvestmentsScreen() {
     // Holdings
     const [holdings, setHoldings] = useState([]);
 
-    const fetchData = async (targetPortfolioId = selectedPortfolioId) => {
+    const fetchData = async (targetPortfolioId = selectedPortfolioId, targetPeriod = selectedPeriod) => {
         const currentReqId = ++requestIdRef.current;
         try {
             // 1. Discover unique portfolios from holdings & events
@@ -69,14 +72,14 @@ export default function InvestmentsScreen() {
                 name: id === 'default' ? 'Main Account' : (id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '))
             }));
 
-            // 2. Compute C.4.1 Portfolio Summary, C.4.2 Allocation Summary & C.4.3 Performance Snapshots
+            // 2. Compute C.4.1 Summary, C.4.2 Allocation, C.4.3 Performance & C.4.4 Master Statement
             const now = new Date();
             const t0 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
             const t1 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
             const t2 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
             const tNow = now;
 
-            const [summary, allocSummary, perfNow, perfT0, perfT1, perfT2] = await Promise.all([
+            const [summary, allocSummary, perfNow, perfT0, perfT1, perfT2, statement] = await Promise.all([
                 InvestingAnalyticsEngine.getPortfolioSummary({
                     portfolioId: targetPortfolioId
                 }),
@@ -98,6 +101,10 @@ export default function InvestmentsScreen() {
                 InvestingAnalyticsEngine.getPerformanceMetrics({
                     portfolioId: targetPortfolioId,
                     asOfDate: t2
+                }),
+                InvestingAnalyticsEngine.generatePortfolioStatement({
+                    portfolioId: targetPortfolioId,
+                    period: targetPeriod
                 })
             ]);
 
@@ -158,6 +165,7 @@ export default function InvestmentsScreen() {
             setAllocationSummary(allocSummary);
             setPerformanceMetrics(perfNow);
             setPerformanceTimeline(timeline);
+            setPortfolioStatement(statement);
             setLastRefreshTime(latestQuoteTime);
             setHoldings(currentHoldings);
 
@@ -174,6 +182,7 @@ export default function InvestmentsScreen() {
             }
         }
     };
+
 
 
     const handleSelectPortfolio = (pId) => {
@@ -410,7 +419,19 @@ export default function InvestmentsScreen() {
                         timeline={performanceTimeline}
                         loading={loading}
                     />
+
+                    {/* Stage C.5.4 Master Statement & Tax Report View / Export Engine */}
+                    <MasterStatementCard
+                        statement={portfolioStatement}
+                        selectedPeriod={selectedPeriod}
+                        onSelectPeriod={(p) => {
+                            setSelectedPeriod(p);
+                            fetchData(selectedPortfolioId, p);
+                        }}
+                        loading={loading}
+                    />
                 </View>
+
 
 
 
