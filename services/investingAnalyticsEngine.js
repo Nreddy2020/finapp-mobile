@@ -87,19 +87,21 @@ export const InvestingAnalyticsEngine = {
             } else if (evt.type === EventType.SELL) {
                 // Point-in-time WAC immediately before sale
                 const pointInTimeWAC = sec.averageCost;
+                const availableQtyBeforeSale = sec.netQuantity;
+                const oversellDetected = qty > availableQtyBeforeSale;
                 let sellQty = qty;
 
                 // Integrity Check: Detect historical oversell
-                if (qty > sec.netQuantity) {
+                if (oversellDetected) {
                     integrityWarnings.push({
                         type: 'HISTORICAL_OVERSELL',
                         eventId: evt.id,
                         symbol: sym,
                         requestedSellQty: qty,
-                        availableQty: sec.netQuantity,
-                        message: `Historical SELL event ${evt.id} for ${sym} requested ${qty} units but reconstructed available quantity was ${sec.netQuantity}`
+                        availableQty: availableQtyBeforeSale,
+                        message: `Historical SELL event ${evt.id} for ${sym} requested ${qty} units but reconstructed available quantity was ${availableQtyBeforeSale}`
                     });
-                    sellQty = Math.max(0, sec.netQuantity);
+                    sellQty = Math.max(0, availableQtyBeforeSale);
                 }
 
                 const costBasisOfSold = Number((sellQty * pointInTimeWAC).toFixed(2));
@@ -122,8 +124,9 @@ export const InvestingAnalyticsEngine = {
                     fees,
                     taxes,
                     netRealizedGain: sellRealizedGain,
-                    oversellFlag: qty > sec.netQuantity
+                    oversellFlag: oversellDetected
                 });
+
             } else if (evt.type === EventType.DIVIDEND) {
                 const netDiv = evt.metadata?.netDividend !== undefined 
                     ? Number(evt.metadata.netDividend) 
