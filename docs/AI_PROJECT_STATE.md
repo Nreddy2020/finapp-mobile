@@ -65,7 +65,7 @@ Stage:
 C.6.0 Architecture Planning
 
 Objective:
-Define Phase C.6 scope, mathematical contracts, and technical architecture (Blockers C6-01 through C6-13 resolved)
+Define Phase C.6 scope, mathematical contracts, and technical architecture (Blockers C6-01 through C6-15 resolved)
 
 Architecture:
 AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_ARCHITECTURE_PLAN.md`)
@@ -130,6 +130,9 @@ PASS (emulator-5554, screen_c54_proof.png) 🟢
   - C6-11 (Open Tax Lot Data Contract): 🟢 RESOLVED (Read-only OpenTaxLot interface & adapter over confirmed events without engine mutation)
   - C6-12 (Feasibility & Non-Tradeable Assets): 🟢 RESOLVED (PARTIALLY_FEASIBLE / INFEASIBLE status, feasibilityWarnings, realistic projected allocation)
   - C6-13 (Quote Fallback Execution Status): 🟢 RESOLVED (FALLBACK/STALE/UNAVAILABLE quotes marked isExecutable: false, action: REQUIRES_PRICE_REFRESH)
+- Third-Review Blockers:
+  - C6-14 (Fresh Cash Denominator & Target Value Scaling): 🟢 RESOLVED (Closed-form post-cash denominator scaling $V_{\text{post}} = V + C_{\text{deployed}}$, exact zero-sell threshold $C_{\text{pure\_cash\_min}}$)
+  - C6-15 (BOND Rounding & Tradability): 🟢 RESOLVED (Explicit FLOOR_WHOLE integer face-value unit trading model)
 
 
 ## 7. NEXT ACTION
