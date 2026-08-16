@@ -29,6 +29,9 @@ Current Baseline:
 Last Certified Commit:
 6a734f1
 
+Current HEAD:
+a476002
+
 Current Phase:
 C.5
 
@@ -37,6 +40,7 @@ C.5.2
 
 Overall Status:
 C.5.2_BLOCKERS_RESOLVED_PENDING_RE_AUDIT
+
 
 
 ## 2. MASTER ROADMAP
