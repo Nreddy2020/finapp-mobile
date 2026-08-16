@@ -2,7 +2,7 @@
 
 **Stage**: C.7.5  
 **Phase**: C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)  
-**Status**: ARCHITECTURE REMEDIATED — ZERO-CODE GATE ACTIVE 🔒  
+**Status**: ARCHITECTURE FINAL HARDENING COMPLETE — ZERO-CODE GATE ACTIVE 🔒  
 **Certified Baseline**: [`578040f`](https://github.com/Nreddy2020/finapp-mobile/commit/578040f) (Stage C.7.4 Master Certified)  
 **Branch**: `fintech-using-chatgpt`  
 **Author**: Antigravity AI & Quantitative Risk Systems Architect  
@@ -41,7 +41,7 @@ The engine answers twelve core quantitative questions:
 
 ---
 
-## 2. Liquidity Horizon Taxonomy & Precedence Contract
+## 2. Authoritative Liquidity Taxonomy & Precedence Contract (C7.5-R3)
 
 ### 2.1 Authoritative Liquidity Horizons
 Every holding $h$ in the portfolio resolves to **exactly one** authoritative primary liquidity horizon:
@@ -56,43 +56,61 @@ Every holding $h$ in the portfolio resolves to **exactly one** authoritative pri
 
 ---
 
-### 2.2 Deterministic Horizon Resolution & FD Early-Break Precedence (C7.5-Q1 Hardened)
+### 2.2 Strict Authority Hierarchy & Override Safety (C7.5-R3)
 
-For a given holding $h$ evaluated at `asOfDateISO`:
+To ensure that user declarations cannot bypass legally binding or contractual liquidity restrictions, the engine enforces a strict 5-tier authority hierarchy:
 
-#### A. Maturity vs Early-Exit Accessibility Resolution
-1. **Rule 1 (Maturity Reached)**:
-   If holding has `maturityDate` or `lockEndDate` and $\text{maturityDate} \le \text{asOfDateISO}$:
-   - The instrument is **no longer locked**.
-   - It transitions to its base liquid asset-class tier (e.g. Matured FD $\implies \text{'T0'}$ or $\text{'T2\_T3'}$).
-2. **Rule 2 (Active Lockup / Pre-Maturity Contract)**:
-   If $\text{lockEndDate} > \text{asOfDateISO}$ or $\text{maturityDate} > \text{asOfDateISO}$:
-   - **Case 2A (No Early Exit)**: If `allowEarlyExit !== true` $\implies \text{Horizon} = \text{'LOCKED\_ILLIQUID'}$.
-   - **Case 2B (Early Exit with Authoritative Accessibility Date)**: If `allowEarlyExit === true`:
-     - If explicit `earlyExitDate` or `liquidityDate` is provided:
-       - If $\text{daysToAccess} \le 0 \implies \text{'T0'}$
-       - If $1 \le \text{daysToAccess} \le 3 \implies \text{'T2\_T3'}$
-       - If $4 \le \text{daysToAccess} \le 7 \implies \text{'T4\_T7'}$
-       - If $\text{daysToAccess} > 7 \implies \text{'LOCKED\_ILLIQUID'}$
-     - If `allowEarlyExit === true` but early-exit accessibility date is unknown $\implies \text{Horizon} = \text{'LOCKED\_ILLIQUID'}$ (Conservative; zero date fabrication).
-3. **Rule 3 (Explicit User / Product Override)**:
-   If holding has explicit valid `liquidityTier` metadata ($\in \{\text{'T0'}, \text{'T2\_T3'}, \text{'T4\_T7'}, \text{'LOCKED\_ILLIQUID'}\}$) $\implies \text{Horizon} = \text{holding.liquidityTier}$.
-4. **Rule 4 (Certified C.7.1 Asset-Class Default Taxonomy)**:
-   Match holding's canonical asset class against certified `DEFAULT_ASSET_LIQUIDITY_MAP`:
-   - `CASH_LIQUID` $\implies \text{'T0'}$
-   - `EQUITY_DOMESTIC`, `EQUITY_INTERNATIONAL`, `GOLD_COMMODITIES`, `CRYPTO_SPECULATIVE` $\implies \text{'T2\_T3'}$
-   - `DEBT_FIXED_INCOME` $\implies \text{'T2\_T3'}$ (or `T0` if marked liquid/overnight)
-   - `REAL_ESTATE`, `ALTERNATIVE` $\implies \text{'LOCKED\_ILLIQUID'}$
-5. **Rule 5 (Unknown Fallback)**:
-   If asset class is unmapped or metadata is contradictory $\implies \text{Horizon} = \text{'UNKNOWN'}$.
+```
+1. REGULATORY_CONSTRAINT (Highest Authority — Statutory Lockups: ELSS 3-Year, PPF 15-Year, EPF)
+        ↓
+2. AUTHORITATIVE_PRODUCT_METADATA (Contractual Lockup: Active FD Maturity, Bond Lockup, Early Exit Terms)
+        ↓
+3. DERIVED_ASSET_CLASS (Certified C.7.1 DEFAULT_ASSET_LIQUIDITY_MAP)
+        ↓
+4. USER_DECLARED_METADATA (User-Supplied Tier Annotation on Unrestricted Assets)
+        ↓
+5. POLICY_DEFAULT (Conservative Fallback: UNKNOWN / LOCKED)
+```
 
-#### B. Early-Exit Penalty Rate Precedence
+#### Authority Enforcement Rules:
+1. **Higher Authority Wins**: Lower-authority information **MUST NEVER** override a higher-authority constraint.
+2. **User Override Safety**: If a user declares an asset as liquid (e.g. `userLiquidityTier: 'T0'`), but the asset is under statutory lockup (e.g. ELSS within 3 years) or contractual maturity (FD pre-maturity without early exit):
+   - The asset remains strictly `LOCKED_ILLIQUID`.
+   - `liquidityClassificationSource` is recorded as `REGULATORY_CONSTRAINT` or `AUTHORITATIVE_PRODUCT_METADATA`.
+   - `overrideApplied` is `false`.
+3. **Valid User Override Application**: A user declaration is applied **ONLY** when no higher regulatory or contractual restriction exists (e.g. clarifying an otherwise unmapped private asset). In this case:
+   - `liquidityClassificationSource = 'USER_DECLARED_METADATA'`
+   - `overrideApplied = true`
+
+---
+
+### 2.3 FD Maturity & Early-Break Accessibility Contract (C7.5-R4)
+
+Maturity and accessibility are treated as distinct concepts. The engine enforces the following deterministic rules for Fixed Deposits and maturity-bound instruments:
+
+#### A. Pre-Maturity Contract ($\text{maturityDate} > \text{asOfDateISO}$)
+1. **Case A1 (No Early Exit Allowed)**:
+   If `allowEarlyExit !== true` $\implies \text{Horizon} = \text{'LOCKED\_ILLIQUID'}$.
+2. **Case A2 (Early Exit Allowed with Authoritative Settlement Date)**:
+   If `allowEarlyExit === true`:
+   - If explicit `earlyExitDate` or `liquidityDate` is provided:
+     - $\text{daysToAccess} \le 0 \implies \text{'T0'}$
+     - $1 \le \text{daysToAccess} \le 3 \implies \text{'T2\_T3'}$
+     - $4 \le \text{daysToAccess} \le 7 \implies \text{'T4\_T7'}$
+     - $\text{daysToAccess} > 7 \implies \text{'LOCKED\_ILLIQUID'}$
+   - If `allowEarlyExit === true` but early-exit availability date is unknown $\implies \text{Horizon} = \text{'LOCKED\_ILLIQUID'}$ (Conservative; zero date fabrication).
+
+#### B. Matured Instrument Contract ($\text{maturityDate} \le \text{asOfDateISO}$)
+When maturity has arrived, the instrument is **no longer locked**:
+1. If authoritative accessibility metadata specifies `T0` (e.g. auto-sweep savings transfer) $\implies \text{'T0'}$.
+2. If authoritative accessibility metadata specifies `T2_T3` (e.g. corporate FD payout cycle) $\implies \text{'T2\_T3'}$.
+3. If accessibility metadata is unavailable $\implies$ Fallback to `LIQUIDITY_POLICY_V1.defaults.MATURED_FD_FALLBACK_TIER = 'T2_T3'` (Conservative rolling settlement; never fabricate T0).
+
+#### C. Early-Exit Penalty Rate Precedence
 - **Policy Default**: `LIQUIDITY_POLICY_V1.haircuts.FD_EARLY_EXIT_HAIRCUT = 0.02` ($2.0\%$).
-- **Precedence**: If holding provides authoritative `earlyExitPenaltyRate` ($\ge 0$), it overrides policy default.
-- **Penalty Haircut Realization**:
-  When early exit is exercised on accessible holding $h$:
-  $$V_{\text{realizable}, h} = V_{\text{base}, h} \cdot (1 - \text{penaltyRate}_h) \cdot (1 - H_{\text{tier}})$$
-  $$\text{Invariant: } 0.0 \le V_{\text{realizable}, h} \le V_{\text{base}, h}$$
+- **Precedence**: Authoritative holding `earlyExitPenaltyRate` takes precedence over policy default.
+- **Realizable Accessible Value**:
+  $$V_{\text{realizable}, h} = V_{\text{base}, h} \cdot (1 - \text{penaltyRate}_h) \cdot (1 - H_{\text{tier}}) \ge 0.0$$
 
 ---
 
@@ -115,7 +133,6 @@ For a portfolio of $N$ holdings with valuations $\{ V_i \}$ at `asOfDate`:
 ---
 
 ### 3.2 Liquidity Haircut Model (Base vs Stressed Liquidity)
-Liquidity haircuts represent forced-sale transaction costs, bid-ask slippage, and early redemption penalties:
 
 | Liquidity Horizon | No Haircut (Base) | Moderate Haircut | Severe Haircut |
 | :--- | :--- | :--- | :--- |
@@ -130,7 +147,7 @@ Liquidity haircuts represent forced-sale transaction costs, bid-ask slippage, an
 
 ---
 
-### 3.3 Recurring Cash-Flow & Essential Burn Contract (C7.5-Q2 Hardened)
+### 3.3 Recurring Cash-Flow & Essential Burn Estimation Contract (C7.5-R6)
 
 #### A. Inflows & Outflows Breakdown
 1. **Recurring Monthly Inflows**: $I_{\text{monthly}} \ge 0$.
@@ -140,7 +157,7 @@ Liquidity haircuts represent forced-sale transaction costs, bid-ask slippage, an
      $$B_{\text{survival}} = B_{\text{essential}} + B_{\text{debt}}$$
      $$B_{\text{total}} = B_{\text{survival}} + B_{\text{discretionary}}$$
      $$\text{burnSource} = \text{'ACTUAL\_BREAKDOWN'}, \quad \text{essentialBurnIsEstimated} = \text{false}$$
-   - **Case B (Only Total Monthly Burn Provided — C7.5-Q2 Fallback)**:
+   - **Case B (Only Total Monthly Burn Provided — Fallback)**:
      User supplies only `totalBurn` without category split:
      $$B_{\text{estimated\_essential}} = B_{\text{total}} \cdot \text{DEFAULT\_ESTIMATED\_ESSENTIAL\_BURN\_RATIO} \ (0.70)$$
      $$B_{\text{survival}} = B_{\text{estimated\_essential}} + B_{\text{debt}}$$
@@ -171,8 +188,6 @@ Liquidity haircuts represent forced-sale transaction costs, bid-ask slippage, an
 ---
 
 ### 3.4 Multi-Scenario Cash-Flow & Liquidity Stress Matrix
-
-The engine evaluates four deterministic stress scenarios:
 
 | Scenario Code | Income Shock Factor | Liquidity Haircut Policy | Stressed Income | Stressed Realizable Liquidity | Stressed Monthly Deficit |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -207,16 +222,33 @@ $$\text{Runway}_s = \begin{cases}
 
 ---
 
-### 3.6 Composite Liquidity Stress Score & Tier Formulation
+### 3.6 Composite Liquidity Stress Score & Tier Formulation (C7.5-R5)
 
-$$S_{\text{liq}} = S_{\text{immediate}} (20) + S_{\text{short\_term}} (20) + S_{\text{runway}} (25) + S_{\text{cash\_flow}} (15) + S_{\text{locked\_penalty}} (10) + S_{\text{stress\_resilience}} (10) \quad \in [0, 100]$$
+The **Liquidity Stress Score ($S_{\text{liq}} \in [0.0, 100.0]$)** is an immutable closed-form composite metric:
 
-| Score Range | Liquidity Stress Tier | Semantic Meaning |
-| :--- | :--- | :--- |
-| **$80 - 100$** | `HEALTHY` | Strong liquidity buffer, $>6$ mos runway, self-sustaining cash flow |
-| **$60 - 79$** | `WATCH` | Adequate liquidity, moderate locked exposure, runway $3-6$ mos |
-| **$40 - 59$** | `STRESSED` | Deficient immediate reserves, runway $<3$ mos under shock |
-| **$0 - 39$** | `CRITICAL` | Imminent solvency risk, severe lockup traps, runway $<1$ mo |
+$$S_{\text{liq}} = S_{\text{immediate}} (20) + S_{\text{short\_term}} (20) + S_{\text{runway}} (25) + S_{\text{cash\_flow}} (15) + S_{\text{locked\_penalty}} (10) + S_{\text{stress\_resilience}} (10)$$
+
+#### Exact Component Formulations:
+1. **Immediate Liquidity Adequacy ($S_{\text{immediate}} \in [0, 20]$)**:
+   $$S_{\text{immediate}} = \min\left(20, 20 \cdot \frac{R_{T0}}{1.0}\right) \quad (\text{Full points at } \ge 1 \text{ month immediate reserves})$$
+2. **Short-Term Liquidity Adequacy ($S_{\text{short\_term}} \in [0, 20]$)**:
+   $$S_{\text{short\_term}} = \min\left(20, 20 \cdot \frac{R_{T0+T23}}{3.0}\right) \quad (\text{Full points at } \ge 3 \text{ months short-term reserves})$$
+3. **Total Accessible Runway ($S_{\text{runway}} \in [0, 25]$)**:
+   $$S_{\text{runway}} = \min\left(25, 25 \cdot \frac{R_{\text{total}}}{6.0}\right) \quad (\text{Full points at } \ge 6 \text{ months total runway})$$
+4. **Cash-Flow Solvency ($S_{\text{cash\_flow}} \in [0, 15]$)**:
+   $$S_{\text{cash\_flow}} = \begin{cases} 15 & \text{if } I_{\text{monthly}} \ge 1.25 \cdot B_{\text{total}} \\ \max\left(0, 15 \cdot \frac{I_{\text{monthly}} - B_{\text{survival}}}{0.25 \cdot B_{\text{total}}}\right) & \text{otherwise} \end{cases}$$
+5. **Locked Asset Penalty ($S_{\text{locked\_penalty}} \in [0, 10]$)**:
+   $$S_{\text{locked\_penalty}} = \max\left(0, 10 \cdot (1.0 - \frac{\max(0, P_{\text{locked}} - 0.20)}{0.60})\right) \quad (\text{Zero penalty if locked } \le 20\%)$$
+6. **Combined Stress Resilience ($S_{\text{stress\_resilience}} \in [0, 10]$)**:
+   $$S_{\text{stress\_resilience}} = \min\left(10, 10 \cdot \frac{R_{\text{combined}}}{3.0}\right) \quad (\text{Full points if combined stressed runway } \ge 3 \text{ months})$$
+
+#### Exact Closed-Interval Tier Boundaries:
+| Score Interval | Liquidity Stress Tier | Semantic Meaning | Recommended Action |
+| :--- | :--- | :--- | :--- |
+| **$80.0 \le S_{\text{liq}} \le 100.0$** | `HEALTHY` | Strong liquidity buffer, $>6$ mos runway, self-sustaining | Maintain current liquidity profile |
+| **$60.0 \le S_{\text{liq}} < 80.0$** | `WATCH` | Adequate liquidity, moderate locked exposure, runway $3-6$ mos | Monitor recurring burn; limit new lockups |
+| **$40.0 \le S_{\text{liq}} < 60.0$** | `STRESSED` | Deficient immediate reserves, runway $<3$ mos under shock | Build T+0 emergency buffer; curtail discretionary burn |
+| **$0.0 \le S_{\text{liq}} < 40.0$** | `CRITICAL` | Imminent solvency risk, severe lockup traps, runway $<1$ mo | Urgent liquidity reallocation required |
 
 ---
 
@@ -243,6 +275,9 @@ export const LIQUIDITY_POLICY_V1 = Object.freeze({
         LOW_ESTIMATED_ESSENTIAL_BURN_RATIO: 0.50,
         HIGH_ESTIMATED_ESSENTIAL_BURN_RATIO: 0.85
     }),
+    defaults: Object.freeze({
+        MATURED_FD_FALLBACK_TIER: 'T2_T3'
+    }),
     runwayThresholdsMonths: Object.freeze({
         CRITICAL: 3.0,
         ADEQUATE: 6.0,
@@ -254,9 +289,9 @@ export const LIQUIDITY_POLICY_V1 = Object.freeze({
         HIGH_UNKNOWN_EXPOSURE: 0.15
     }),
     scoreTiers: Object.freeze({
-        HEALTHY_MIN: 80,
-        WATCH_MIN: 60,
-        STRESSED_MIN: 40
+        HEALTHY_MIN: 80.0,
+        WATCH_MIN: 60.0,
+        STRESSED_MIN: 40.0
     }),
     scoreComponentWeights: Object.freeze({
         IMMEDIATE_ADEQUACY: 20,
@@ -308,7 +343,7 @@ export const LiquidityStressDiagnosticsSchema = {
     stressedAccessibleValue: 'FINITE_NUMBER',
     stressedAccessiblePercentage: 'FINITE_NUMBER',
 
-    // Monthly Cash Flow & Burn Analysis (C7.5-Q2)
+    // Monthly Cash Flow & Burn Analysis (C7.5-R6)
     monthlyCashFlow: {
         burnSource: 'ACTUAL_BREAKDOWN | ESTIMATED_FROM_TOTAL | UNAVAILABLE',
         essentialBurnIsEstimated: 'BOOLEAN',
@@ -316,7 +351,7 @@ export const LiquidityStressDiagnosticsSchema = {
         actualEssentialBurn: 'FINITE_NUMBER_OR_NULL',
         estimatedEssentialBurn: 'FINITE_NUMBER_OR_NULL',
         debtBurn: 'FINITE_NUMBER',
-        survivalBurn: 'FINITE_NUMBER',       // actual/estimated essential + debt
+        survivalBurn: 'FINITE_NUMBER',
         discretionaryBurn: 'FINITE_NUMBER_OR_NULL',
         totalBurn: 'FINITE_NUMBER',
         netCashFlow: 'FINITE_NUMBER',
@@ -346,6 +381,9 @@ export const LiquidityStressDiagnosticsSchema = {
         combinedSevereStress: { stressedIncome: 'NUMBER', realizableLiquidity: 'NUMBER', monthlyDeficit: 'NUMBER', runwayMonths: 'NUMBER_OR_NULL' }
     },
 
+    // Classification Source & Breakdown Per Holding
+    holdingsLiquidityBreakdown: 'ARRAY_OF_OBJECTS', // { holdingId, symbol, value, liquidityTier, liquidityClassificationSource, overrideApplied, daysToAccess }
+
     // Locked Instrument Maturity Schedule
     lockupSchedule: {
         totalLockedValue: 'FINITE_NUMBER',
@@ -365,7 +403,7 @@ export const LiquidityStressDiagnosticsSchema = {
     warnings: 'ARRAY_OF_STRINGS',
 
     // Composite Liquidity Stress Score & Tier
-    stressScore: 'FINITE_NUMBER', // [0, 100]
+    stressScore: 'FINITE_NUMBER', // [0.0, 100.0]
     stressTier: 'LiquidityStressTier', // 'HEALTHY' | 'WATCH' | 'STRESSED' | 'CRITICAL'
     scoreBreakdown: {
         immediateAdequacy: 'NUMBER',
@@ -380,80 +418,86 @@ export const LiquidityStressDiagnosticsSchema = {
 
 ---
 
-## 6. Comprehensive 48-Scenario Acceptance Test Matrix (`tests/test_c75.mjs`)
+## 6. Comprehensive 52-Scenario Acceptance Test Matrix (`tests/test_c75.mjs`)
 
-### Group 1: Liquidity Horizon Classification & Precedence (Tests 1–8)
-1. **Empty Portfolio Boundary ($N = 0$)**: Returns `EMPTY_PORTFOLIO` status, zero values, safe nulls, confidence `UNAVAILABLE`.
-2. **Single Cash / T+0 Holding**: $100\%$ allocated to `T0`, accessible percentage $1.0$, locked $0.0$.
-3. **Fully Liquid Listed Equities Portfolio ($T+2/T+3$)**: $100\%$ allocated to `T2_T3`, accessible percentage $1.0$.
-4. **Fully Locked Portfolio (100% Real Estate / PPF)**: Accessible value $0.0$, locked percentage $1.0$, warning `CRITICAL_LOCKED_ASSET_EXPOSURE`.
-5. **Mixed 4-Tier Liquidity Portfolio**: Exact allocation across `T0`, `T2_T3`, `T4_T7`, and `LOCKED_ILLIQUID`.
-6. **Precedence Contract — Lockup Date over Asset Class**: ELSS holding with future `lockEndDate` classified as `LOCKED_ILLIQUID` (not equity T+2).
-7. **Precedence Contract — Expired Lockup Transition**: Holding with `lockEndDate <= asOfDate` transitions to base liquid asset class.
-8. **Precedence Contract — Explicit User Override**: Explicit valid `liquidityTier` metadata takes precedence over default taxonomy.
+### Group 1: Authoritative Precedence & User Override Safety (C7.5-R3 & C7.5-R7) (Tests 1–6)
+1. **User Declares Statutory ELSS as Liquid**: Statutory lockup wins $\implies \text{LOCKED\_ILLIQUID}$, `liquidityClassificationSource: 'REGULATORY_CONSTRAINT'`, `overrideApplied: false`.
+2. **User Declares Pre-Maturity FD as Liquid**: Contractual maturity wins $\implies \text{LOCKED\_ILLIQUID}$, `liquidityClassificationSource: 'AUTHORITATIVE_PRODUCT_METADATA'`, `overrideApplied: false`.
+3. **User Declares Early Exit Available (Contract Disallows)**: Authoritative metadata disallowing early exit wins $\implies \text{LOCKED\_ILLIQUID}$.
+4. **Valid User Override on Unrestricted Private Holding**: User declaration applied cleanly, `overrideApplied: true`, `liquidityClassificationSource: 'USER_DECLARED_METADATA'`.
+5. **DTO Exposes Classification Source Per Holding**: Every holding contains explicit `liquidityClassificationSource`.
+6. **Precedence Hierarchy Repeatability**: Deterministic evaluation produces identical classification source across repeated runs.
 
-### Group 2: Fixed Deposit & Early-Break Accessibility Contract (C7.5-Q1) (Tests 9–15)
-9. **FD Without Early-Exit Metadata**: Mapped strictly to `LOCKED_ILLIQUID` prior to maturity.
-10. **FD with `allowEarlyExit=true` but No Accessibility Date**: Resolves conservatively to `LOCKED_ILLIQUID` without date fabrication.
-11. **FD Early-Access Date Within $T+2/T+3$**: Classifies as `T2_T3`.
-12. **FD Early-Access Date Within $T+4/T+7$**: Classifies as `T4_T7`.
-13. **FD Maturity Date Already Reached ($\le \text{asOfDate}$)**: Transitions to `T0` (no longer locked).
-14. **FD Policy Default Early-Break Penalty ($2.0\%$)**: Realizable accessible value is discounted by $2.0\%$ penalty haircut.
-15. **FD Authoritative Penalty Overriding Policy Default**: Explicit $1.0\%$ penalty in metadata overrides policy default.
+### Group 2: FD Maturity & Early-Break Accessibility Contract (C7.5-R4 & C7.5-R8) (Tests 7–16)
+7. **FD Before Maturity ($\text{maturityDate} > \text{asOfDate}$)**: Evaluates strictly to `LOCKED_ILLIQUID`.
+8. **FD Exactly on Maturity Date ($\text{maturityDate} = \text{asOfDate}$)**: Evaluates as matured (no longer locked).
+9. **FD After Maturity Date ($\text{maturityDate} < \text{asOfDate}$)**: Evaluates as matured (no longer locked).
+10. **Matured FD with Authoritative $T+0$ Accessibility**: Evaluates to `T0`.
+11. **Matured FD with Authoritative $T+2/T+3$ Accessibility**: Evaluates to `T2_T3`.
+12. **Matured FD with Unavailable Accessibility Metadata**: Resolves to policy fallback `T2_T3` (never fabricates T0).
+13. **Early-Exit FD with Explicit $T+2/T+3$ Accessibility**: Evaluates to `T2_T3`.
+14. **Early-Exit FD with Explicit $T+4/T+7$ Accessibility**: Evaluates to `T4_T7`.
+15. **Early-Exit FD with Missing Accessibility Date**: Resolves conservatively to `LOCKED_ILLIQUID`.
+16. **Policy Default ($2.0\%$) vs Authoritative Penalty Precedence**: Authoritative $1.0\%$ penalty overrides policy default.
 
-### Group 3: Unrepresented & Unknown Liquidity Handling (Tests 16–19)
-16. **Explicit Unknown Liquidity Classification**: Missing metadata resolves to `UNKNOWN`, accessible value excludes unknown capital.
-17. **`HIGH_UNKNOWN_LIQUIDITY_EXPOSURE` Diagnostic**: Triggered when $P_{\text{unknown}} \ge 0.15$.
-18. **Zero Manufactured Liquidity Invariant**: Unknown assets never converted to T0 or T2.
-19. **Negative / Non-Finite Valuation Input Rejection**: Invalid valuations produce `INVALID_INPUT` status.
+### Group 3: Liquidity Horizon Decompositions (Tests 17–21)
+17. **Empty Portfolio Boundary ($N = 0$)**: Returns `EMPTY_PORTFOLIO` status, zero values, safe nulls, confidence `UNAVAILABLE`.
+18. **Single Cash / T+0 Holding**: $100\%$ allocated to `T0`, accessible percentage $1.0$, locked $0.0$.
+19. **Fully Liquid Listed Equities Portfolio ($T+2/T+3$)**: $100\%$ allocated to `T2_T3`, accessible percentage $1.0$.
+20. **Fully Locked Portfolio (100% Real Estate / PPF)**: Accessible value $0.0$, locked percentage $1.0$, warning `CRITICAL_LOCKED_ASSET_EXPOSURE`.
+21. **Mixed 4-Tier Liquidity Portfolio**: Exact allocation across `T0`, `T2_T3`, `T4_T7`, and `LOCKED_ILLIQUID`.
 
-### Group 4: Liquidity Haircut Stress Modeling (Tests 20–24)
-20. **No Haircut Base Valuation**: Stressed accessible value equals base accessible value.
-21. **Moderate Haircut Application**: $5\%$ haircut on T2/T3, $15\%$ on T4/T7, $0\%$ on T0.
-22. **Severe Haircut Application**: $15\%$ haircut on T2/T3, $30\%$ on T4/T7, $0\%$ on T0.
-23. **Haircut Non-Negativity & Boundedness Invariant**: Stressed liquidity value $\ge 0.0$ and $\le$ base value.
-24. **Locked Asset Exclusion under Haircut**: Locked assets yield $0.0$ realized accessible liquidity under all haircut policies.
+### Group 4: Unrepresented & Unknown Liquidity Handling (Tests 22–25)
+22. **Explicit Unknown Liquidity Classification**: Missing metadata resolves to `UNKNOWN`, accessible value excludes unknown capital.
+23. **`HIGH_UNKNOWN_LIQUIDITY_EXPOSURE` Diagnostic**: Triggered when $P_{\text{unknown}} \ge 0.15$.
+24. **Zero Manufactured Liquidity Invariant**: Unknown assets never converted to T0 or T2.
+25. **Negative / Non-Finite Valuation Input Rejection**: Invalid valuations produce `INVALID_INPUT` status.
 
-### Group 5: Recurring Cash-Flow & Essential Burn Estimation (C7.5-Q2) (Tests 25–31)
-25. **Actual Expense Breakdown Mode**: Authoritative user-supplied essential burn yields `burnSource: 'ACTUAL_BREAKDOWN'`.
-26. **Estimated Essential Burn from Total Burn ($70\%$)**: Unsplit total burn derives $0.70 \times B_{\text{total}}$ with `ESTIMATED_ESSENTIAL_BURN_RATIO_APPLIED`.
-27. **Confidence Degradation from Estimated Burn**: Confidence capped at `MODERATE` when burn is estimated.
-28. **Runway Sensitivity Spectrum ($50\%, 70\%, 85\%$)**: `runwayLow`, `runwayBase`, `runwayHigh` calculated accurately.
-29. **Zero Monthly Burn Boundary**: $B_{\text{survival}} = 0 \implies \text{runway} = \text{null}$, status `'NO_RECURRING_BURN'`.
-30. **Negative Monthly Burn Input Rejection**: Negative expenses produce `INVALID_INPUT` and `'NEGATIVE_BURN_INPUT'` warning.
-31. **Income Coverage & Survival Coverage Ratios**: Exact closed-form ratio calculations.
+### Group 5: Liquidity Haircut Stress Modeling (Tests 26–30)
+26. **No Haircut Base Valuation**: Stressed accessible value equals base accessible value.
+27. **Moderate Haircut Application**: $5\%$ haircut on T2/T3, $15\%$ on T4/T7, $0\%$ on T0.
+28. **Severe Haircut Application**: $15\%$ haircut on T2/T3, $30\%$ on T4/T7, $0\%$ on T0.
+29. **Haircut Non-Negativity & Boundedness Invariant**: Stressed liquidity value $\ge 0.0$ and $\le$ base value.
+30. **Locked Asset Exclusion under Haircut**: Locked assets yield $0.0$ realized accessible liquidity under all haircut policies.
 
-### Group 6: Multi-Scenario Stress Testing Matrix (Tests 32–36)
-32. **`BASE` Scenario Evaluation**: $100\%$ income + $0\%$ haircut baseline.
-33. **`INCOME_SHOCK_ONLY` Scenario Evaluation**: $50\%$ income reduction accelerates liquidity burn.
-34. **`PORTFOLIO_HAIRCUT_ONLY` Scenario Evaluation**: Reduced capital pool under severe liquidation discount.
-35. **`COMBINED_SEVERE_STRESS` Scenario Evaluation**: Zero income + severe haircuts yields worst-case survival duration.
-36. **Self-Sustaining Scenario State**: Positive net cash flow produces `'SELF_SUSTAINING'` status for scenario runway.
+### Group 6: Recurring Cash-Flow & Essential Burn Estimation (C7.5-R6) (Tests 31–37)
+31. **Actual Expense Breakdown Mode**: Authoritative user-supplied essential burn yields `burnSource: 'ACTUAL_BREAKDOWN'`.
+32. **Estimated Essential Burn from Total Burn ($70\%$)**: Unsplit total burn derives $0.70 \times B_{\text{total}}$ with `ESTIMATED_ESSENTIAL_BURN_RATIO_APPLIED`.
+33. **Confidence Degradation from Estimated Burn**: Confidence capped at `MODERATE` when burn is estimated.
+34. **Runway Sensitivity Spectrum ($50\%, 70\%, 85\%$)**: `runwayLow`, `runwayBase`, `runwayHigh` calculated accurately.
+35. **Zero Monthly Burn Boundary**: $B_{\text{survival}} = 0 \implies \text{runway} = \text{null}$, status `'NO_RECURRING_BURN'`.
+36. **Negative Monthly Burn Input Rejection**: Negative expenses produce `INVALID_INPUT` and `'NEGATIVE_BURN_INPUT'` warning.
+37. **Income Coverage & Survival Coverage Ratios**: Exact closed-form ratio calculations.
 
-### Group 7: Lockup Schedule & Bottleneck Diagnostics (Tests 37–40)
-37. **ELSS 3-Year Lockup Schedule Breakdown**: Locked amounts categorized into $<6\text{M}$, $6-12\text{M}$, $1-3\text{Y}$, $>3\text{Y}$.
-38. **Top Locked Holding Isolation & Tie-Breaking**: Earliest unlock date $\to$ Largest value $\to$ Alphabetical.
-39. **`CRITICAL_LOCKED_ASSET_EXPOSURE` Diagnostic**: Triggered when $P_{\text{locked}} \ge 0.50$.
-40. **`INSUFFICIENT_IMMEDIATE_LIQUIDITY` Diagnostic**: Triggered when $V_{T0} < 1.0 \times B_{\text{survival}}$.
+### Group 7: Multi-Scenario Stress Testing Matrix (Tests 38–42)
+38. **`BASE` Scenario Evaluation**: $100\%$ income + $0\%$ haircut baseline.
+39. **`INCOME_SHOCK_ONLY` Scenario Evaluation**: $50\%$ income reduction accelerates liquidity burn.
+40. **`PORTFOLIO_HAIRCUT_ONLY` Scenario Evaluation**: Reduced capital pool under severe liquidation discount.
+41. **`COMBINED_SEVERE_STRESS` Scenario Evaluation**: Zero income + severe haircuts yields worst-case survival duration.
+42. **Self-Sustaining Scenario State**: Positive net cash flow produces `'SELF_SUSTAINING'` status for scenario runway.
 
-### Group 8: Composite Liquidity Stress Score & Tiers (Tests 41–44)
-41. **Maximum Liquidity Score ($100/100$)**: Fully liquid, large buffer, positive cash flow $\implies \text{'HEALTHY'}$.
-42. **Watch Tier Boundary ($60 - 79$)**: Moderate runway / locked exposure evaluates cleanly.
-43. **Stressed Tier Boundary ($40 - 59$)**: High locked exposure and short runway evaluates to `'STRESSED'`.
-44. **Critical Tier Boundary ($< 40$)**: Severe illiquidity trap evaluates to `'CRITICAL'`.
+### Group 8: Liquidity Stress Score & Tier Boundary Inclusivity (C7.5-R5 & C7.5-R9) (Tests 43–48)
+43. **Score = 100.0 $\implies$ HEALTHY**: Top tier evaluation.
+44. **Score = 80.0 $\implies$ HEALTHY**: Exact lower boundary of Healthy tier.
+45. **Score = 79.99 $\implies$ WATCH**: Exact upper boundary of Watch tier.
+46. **Score = 60.0 $\implies$ WATCH & Score = 59.99 $\implies$ STRESSED**: Watch/Stressed boundary transition.
+47. **Score = 40.0 $\implies$ STRESSED & Score = 39.99 $\implies$ CRITICAL**: Stressed/Critical boundary transition.
+48. **Score Boundedness $[0.0, 100.0]$**: Score cannot fall below 0 or exceed 100.
 
-### Group 9: Determinism, Quality, AST Scan & Read-Only Safety (Tests 45–48)
-45. **Mandatory Deterministic `asOfDate` Enforced**: Missing/invalid `asOfDate` throws error.
-46. **AST Wall-Clock Scan**: 0 `Date.now()` and 0 argument-less `new Date()` in `liquidityStressEngine.js`.
-47. **Deep 5-Store Read-Only Safety Guard**: Verified 100% zero state mutations across all 5 stores.
-48. **Full Master System Regression Preservation**: 383/383 previous system tests pass with zero regressions.
+### Group 9: Determinism, Quality, AST Scan & Read-Only Safety (Tests 49–52)
+49. **Mandatory Deterministic `asOfDate` Enforced**: Missing/invalid `asOfDate` throws error.
+50. **AST Wall-Clock Scan**: 0 `Date.now()` and 0 argument-less `new Date()` in `liquidityStressEngine.js`.
+51. **Deep 5-Store Read-Only Safety Guard**: Verified 100% zero state mutations across all 5 stores.
+52. **Full Master System Regression Preservation**: 383/383 previous system tests pass with zero regressions.
 
 ---
 
-## 7. Status of Architectural Questions
+## 7. Status of Architectural Decisions
 
-- **`C7.5-Q1` (FD Early-Break Treatment)**: **RESOLVED**. Distinct contracts established for maturity date arrival ($\le \text{asOfDate}$), early-exit eligibility with authoritative accessibility date, conservative fallback when date is unspecified, and explicit penalty haircut precedence ($2.0\%$ policy default vs authoritative holding override).
-- **`C7.5-Q2` (Unsplit Recurring Burn)**: **RESOLVED**. $70\%$ ratio is strictly versioned in `LIQUIDITY_POLICY_V1.burnEstimation`, explicitly tagged as `ESTIMATED_FROM_TOTAL`, caps confidence at `MODERATE`, triggers `ESTIMATED_ESSENTIAL_BURN_RATIO_APPLIED`, and reports low/base/high sensitivity spectrum ($50\%, 70\%, 85\%$) without probabilistic guessing.
+- **`C7.5-R3` (Liquidity Authority Hierarchy)**: **LOCKED**. 5-tier hierarchy enforces `REGULATORY_CONSTRAINT` and `AUTHORITATIVE_PRODUCT_METADATA` over user declarations.
+- **`C7.5-R4` (FD Maturity & Accessibility)**: **LOCKED**. Pre-maturity and matured contracts cleanly separated with policy fallback `T2_T3` when accessibility metadata is unavailable.
+- **`C7.5-R5` (Liquidity Stress Score Governance)**: **LOCKED**. Formula, component weightings, and exact closed-interval tier boundaries ($80+, 60-80, 40-60, <40$) versioned in `LIQUIDITY_POLICY_V1`.
+- **`C7.5-R6` (Estimated Burn Score & Confidence Impact)**: **LOCKED**. Estimated burn caps confidence at `MODERATE`, triggers diagnostic warning, and provides low/base/high sensitivity metrics.
 
 ---
 
@@ -461,7 +505,7 @@ export const LiquidityStressDiagnosticsSchema = {
 
 - **Certified Baseline**: [`578040f`](https://github.com/Nreddy2020/finapp-mobile/commit/578040f) (Stage C.7.4 Master Certified).
 - **Files Modified in this step**:
-  - `docs/C7_5_ARCHITECTURE_PLAN.md` (REMEDIATED)
+  - `docs/C7_5_ARCHITECTURE_PLAN.md` (HARDENED)
   - `docs/AI_PROJECT_STATE.md` (MODIFIED)
 - **Implementation Files Created**: **0** 🔒 (Zero-Code Gate Active).
 - **Frozen Financial Engines Modified**: **0** 🔒 (`services/` diff is 100% clean).
