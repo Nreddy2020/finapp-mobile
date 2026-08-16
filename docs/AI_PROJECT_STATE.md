@@ -30,7 +30,7 @@ Last Certified Commit:
 d80af93
 
 Current HEAD:
-d80af93
+PENDING_COMMIT
 
 Current Phase:
 C.7
@@ -39,7 +39,7 @@ Current Stage:
 C.7.2_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.1_CERTIFIED_PENDING_C7_2_ARCHITECTURE_GATE
+C.7.2_ARCHITECTURE_HARDENED_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -63,7 +63,7 @@ C.7.1_CERTIFIED_PENDING_C7_2_ARCHITECTURE_GATE
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟢 CERTIFIED (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence, Risk Diagnostics & Stress Testing** | 🟡 IN PROGRESS |
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
-| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 ARCHITECTURE PLANNING |
+| ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟡 ARCHITECTURE HARDENED (IN REVIEW) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | ⚪ PLANNED |
 | ↳ C.7.4 | Correlation & Cross-Asset Risk | ⚪ PLANNED |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED |
@@ -78,10 +78,10 @@ Stage:
 C.7.2 (Architecture Planning: Concentration & Diversification Diagnostics)
 
 Objective:
-Author Stage C.7.2 Master Architecture Plan (`docs/C7_2_ARCHITECTURE_PLAN.md`) detailing mathematical formulation for Decomposed HHI (Asset-class vs Individual holding), Top-k Concentration Ratios ($Top_1, Top_3, Top_5$), Effective Constituents ($N_{\text{eff}}$), Shannon Entropy Diversification Index, and Single-Holding Warning Limits.
+Author and harden the Stage C.7.2 Master Architecture Plan (`docs/C7_2_ARCHITECTURE_PLAN.md`) resolving items C7.2-01 to C7.2-07 (Dedicated ConcentrationRiskTier enum, authoritative equity exposure source, valuation invariants, deterministic tie-breaking, data-quality propagation, numeric precision policy, and versioned C7_2_V1 policy).
 
 Architecture Gate:
-ACTIVE (Architecture Planning Mode)
+UNDER ARCHITECT REVIEW 🟡
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -140,17 +140,17 @@ PASS (5-store deep snapshot verified) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.7.1 is 100% Certified.
-- Zero-Code Gate is ACTIVE for Stage C.7.2.
+- All Stage C.7.2 architecture review items (C7.2-01 to C7.2-07) are hardened in `docs/C7_2_ARCHITECTURE_PLAN.md`.
+- Zero-Code Gate is ACTIVE for Stage C.7.2 implementation. No implementation files created.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Author `docs/C7_2_ARCHITECTURE_PLAN.md` defining mathematical foundations, contracts, and acceptance criteria for Stage C.7.2 (Concentration & Diversification Diagnostics Engine).
+Completed hardening of `docs/C7_2_ARCHITECTURE_PLAN.md`. Pushed to GitHub. Awaiting Architect Stage C.7.2 implementation authorization.
 
 Architect:
-Review `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Decision.
+Review hardened `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Decision.
 
 
 ## 8. CERTIFICATION RECORD
@@ -160,7 +160,7 @@ Review `docs/C7_2_ARCHITECTURE_PLAN.md` and issue Stage C.7.2 Gate Decision.
 - **Phase C.6 Complete**: 🟢 MASTER CERTIFIED (`5fdfb36`)
 - **Stage C.7 Architecture Plan**: 🟢 APPROVED (`0539cde`)
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
-- **Stage C.7.2**: 🟡 ARCHITECTURE PLANNING (IN REVIEW)
+- **Stage C.7.2**: 🟡 ARCHITECTURE HARDENED (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.2+)
 
 
