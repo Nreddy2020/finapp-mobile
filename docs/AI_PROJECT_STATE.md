@@ -24,10 +24,10 @@ Protected Branch:
 main
 
 Current Baseline:
-4fff7d6
+24e2cea
 
 Last Certified Commit:
-4fff7d6
+24e2cea
 
 Current HEAD:
 PENDING_COMMIT
@@ -36,10 +36,10 @@ Current Phase:
 C.6
 
 Current Stage:
-C.6.2
+C.6.3_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.6.2_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.6.3_ARCHITECTURE_SUBMITTED_PENDING_GATE_AUTHORIZATION
 
 
 ## 2. MASTER ROADMAP
@@ -58,52 +58,55 @@ C.6.2_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 | ↳ C.5.4 | Master Statement & Tax Report View / Export | 🟢 CERTIFIED (`1dc480f`) |
 | **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟡 IN PROGRESS |
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
-| ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟡 IN REVIEW |
-| ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | ⏳ PENDING |
+| ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
+| ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟡 ARCHITECTURE IN REVIEW |
 | ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | ⏳ PENDING |
 
 
 ## 3. CURRENT STAGE
 
 Stage:
-C.6.2
+C.6.3
 
 Objective:
-Drift & Rebalancing Delta Calculator with Post-Cash Scaling, 8-Class Rounding, and Feasibility Evaluation
+Tax-Efficient Rebalancing Optimizer with Open Tax Lot Adapter, Loss Harvesting, and LTCG/STCG Prioritization
 
 Architecture:
-LOCKED & APPROVED
+SUBMITTED_FOR_GATE_REVIEW (`docs/C6_3_ARCHITECTURE_PLAN.md`)
 
 Implementation:
-COMPLETE
+LOCKED 🔒
 
 Stage Baseline:
-4fff7d6
+24e2cea
 
 Previous Certified Baseline:
-4fff7d6
+24e2cea
 
 
-## 4. CURRENT IMPLEMENTATION
-
-Files modified/created:
-- `services/rebalancingEngine.js` (NEW)
-- `tests/test_c62.mjs` (NEW)
-- `docs/C6_2_ARCHITECTURE_PLAN.md` (MODIFIED)
-- `docs/C6_2_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
+## 4. CERTIFIED ENGINES & PRESENTATION BOUNDARIES
 
 Certified & Frozen contracts:
 - `services/investingAnalyticsEngine.js` 🔒 (100% Certified C.4)
 - `services/storage.js` 🔒 (100% Certified)
 - `services/moneyFlowEngine.js` 🔒 (100% Certified)
 - `services/investingSchemas.js` 🔒 (100% Certified)
-- `services/targetAllocationService.js` 🔒 (100% Certified C.6.1)
 - `services/statementExportService.js` 🔒 (100% Certified C.5.4)
+- `services/targetAllocationService.js` 🔒 (100% Certified C.6.1)
+- `services/rebalancingEngine.js` 🔒 (100% Certified C.6.2)
+
+Certified Presentation Components:
+- `components/investments/PortfolioOverviewCard.js` (C.5.1)
+- `components/investments/AssetAllocationCard.js` (C.5.2)
+- `components/investments/ConcentrationRiskGauge.js` (C.5.2)
+- `components/investments/PerformanceGrowthTimelineCard.js` (C.5.3)
+- `components/investments/MasterStatementCard.js` (C.5.4)
+- `components/investments/TaxReportModal.js` (C.5.4)
 
 
-## 5. ACCEPTANCE STATUS
+## 5. ACCEPTANCE & REGRESSION STATUS
 
-C.6.2 Tests (`tests/test_c62.mjs`):
+C.6.2 Acceptance (`tests/test_c62.mjs`):
 20/20 PASS (Strict exit 0) 🟢
 
 C.6.1 Regression (`tests/test_c61.mjs`):
@@ -130,22 +133,19 @@ Total Committed System Tests:
 Android Runtime Proof:
 PASS (emulator-5554 operational) 🟢
 
-Git Boundary Audit:
-PASS (`services/rebalancingEngine.js`, `tests/test_c62.mjs`, and docs only) 🟢
-
 
 ## 6. BLOCKERS LOG
 
-All prior blockers and hardening items (C6.2-01 through C6.2-04) are 100% resolved.
+All prior blockers and hardening items through Stage C.6.2 are 100% resolved and certified.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation of Stage C.6.2, verified 197/197 tests, and pushed to GitHub. Awaiting Architect consolidated review for Stage C.6.2 certification.
+Stand by under Zero-Code Gate. Await Architect review of `docs/C6_3_ARCHITECTURE_PLAN.md`.
 
 Architect:
-Review Stage C.6.2 implementation commit and issue certification decision.
+Review Stage C.6.3 architecture plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -154,7 +154,8 @@ Review Stage C.6.2 implementation commit and issue certification decision.
 - **Phase C.5 Complete**: 🟢 CERTIFIED (`1dc480f`)
 - **Phase C.6 Architecture Gate**: 🟢 APPROVED (`ba0372f`)
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
-- **Stage C.6.2**: 🟡 IMPLEMENTATION COMPLETE — IN REVIEW
+- **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
+- **Stage C.6.3**: 🟡 ARCHITECTURE PROPOSED — IMPLEMENTATION LOCKED
 - **Zero-Code Gate**: ACTIVE 🔒 (for C.6.3+)
 
 
