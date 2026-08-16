@@ -69,7 +69,7 @@ Stage:
 C.6.4
 
 Objective:
-Rebalancing Visualizer Card and Order Preview Modal UI Presentation (100% Zero UI Math, 5-Store Deep Snapshot Read-Only Verification, and Android Runtime Validation)
+Rebalancing Visualizer Card and Order Preview Modal UI Presentation (100% Frozen C.6.3 Engine, Presentation Adapter for UI Gauge, 5-Store Deep Snapshot Read-Only Verification, and Committed Android Runtime Proof)
 
 Architecture:
 LOCKED & APPROVED
@@ -87,11 +87,12 @@ Previous Certified Baseline:
 ## 4. CURRENT IMPLEMENTATION
 
 Files modified/created:
-- `services/taxOptimizedRebalancingService.js` (MODIFIED — exposes `driftGaugePercentage` on DTO)
-- `components/investments/RebalancingVisualizerCard.js` (NEW — 0 UI math, binds DTO gauge percentage)
+- `components/investments/rebalancingPresentationAdapter.js` (NEW — pure presentation mapping adapter)
+- `components/investments/RebalancingVisualizerCard.js` (NEW — 0 UI math, binds adapter)
 - `components/investments/OrderPreviewModal.js` (NEW — 0 UI math, binds DTO requiredNotional)
 - `app/(tabs)/investments.js` (MODIFIED — deterministic timestamp & guarded preview trigger)
 - `tests/test_c64.mjs` (NEW — 23-point suite with 5-store deep snapshot read-only proof)
+- `screen_c64_proof.png` (NEW — committed Android runtime proof)
 - `docs/C6_4_ARCHITECTURE_PLAN.md` (MODIFIED)
 - `docs/C6_4_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
 
@@ -103,6 +104,7 @@ Certified & Frozen contracts:
 - `services/targetAllocationService.js` 🔒 (100% Certified C.6.1)
 - `services/rebalancingEngine.js` 🔒 (100% Certified C.6.2)
 - `services/openTaxLotAdapter.js` 🔒 (100% Certified C.6.3)
+- `services/taxOptimizedRebalancingService.js` 🔒 (100% Certified C.6.3 at `82663e5`)
 - `services/statementExportService.js` 🔒 (100% Certified C.5.4)
 
 
@@ -139,29 +141,30 @@ Total Committed System Tests:
 254/254 PASS (100%, Strict exit 0) 🟢
 
 Android Runtime Proof:
-PASS (emulator-5554 operational, screen_c64_proof.png captured in repo and artifact directory) 🟢
+PASS (emulator-5554 operational, screen_c64_proof.png committed in repo and artifact directory) 🟢
 
 Git Boundary Audit:
-PASS 🟢
+PASS (`services/taxOptimizedRebalancingService.js` 100% untouched and matching baseline `82663e5`) 🟢
 
 
 ## 6. BLOCKERS LOG
 
 - All blockers through Stage C.6.4 are 100% resolved:
+  - C6.4-B1 (Frozen C.6.3 Engine Boundary): 🟢 RESOLVED (`taxOptimizedRebalancingService.js` frozen at `82663e5`)
+  - C6.4-B2 (Verifiable Android Proof): 🟢 RESOLVED (`screen_c64_proof.png` committed to repo)
   - C6.4-01 (Semantic Theme-Token Compliance): 🟢 RESOLVED
   - C6.4-02 (Service-Driven Simulation & Concurrency Guard): 🟢 RESOLVED
-  - C6.4-R1 (Zero UI Financial Math & Drift Gauge Scaling): 🟢 RESOLVED
+  - C6.4-R1 (Zero UI Financial Math): 🟢 RESOLVED (`rebalancingPresentationAdapter.js`)
   - C6.4-R2 (5-Store Deep Snapshot Read-Only Verification): 🟢 RESOLVED
-  - C6.4-R3 (Android Proof Artifact): 🟢 RESOLVED
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed full hardening and remediation of Stage C.6.4, verified 254/254 tests, captured Android proof, and pushed to GitHub. Awaiting Architect review for Phase C.6 Master Certification.
+Completed full hardening of Stage C.6.4 with frozen C.6.3 boundary preserved, verified 254/254 tests, committed Android screenshot proof, and pushed to GitHub. Awaiting Architect final review for Phase C.6 Master Certification.
 
 Architect:
-Review Stage C.6.4 remediation commit and issue Phase C.6 Master Certification.
+Review Stage C.6.4 commit and issue Phase C.6 Master Certification.
 
 
 ## 8. CERTIFICATION RECORD

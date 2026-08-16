@@ -18,6 +18,7 @@ import LuxuryCard from '../ui/LuxuryCard';
 import { COLORS, TYPOGRAPHY, SPACING, SIZES } from '../../constants/theme';
 import TaxOptimizedRebalancingService from '../../services/taxOptimizedRebalancingService';
 import TargetAllocationService from '../../services/targetAllocationService';
+import { adaptRebalancingSummary } from './rebalancingPresentationAdapter';
 
 export default function RebalancingVisualizerCard({
     portfolioId = null,
@@ -38,21 +39,22 @@ export default function RebalancingVisualizerCard({
 
     const modelPortfolios = TargetAllocationService.getModelPortfolios();
 
-    const fetchRebalancingData = async (cashAmount, policyToUse) => {
+    const fetchRebalancingData = async (cashAmount) => {
         const requestId = ++requestSequenceRef.current;
         setSimulating(true);
+
         try {
-            const effectivePolicy = policyToUse || policy || TargetAllocationService.getModelPortfolio(selectedModelKey);
+            const activePolicy = policy || TargetAllocationService.getModelPortfolio(selectedModelKey);
             const summary = await TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing({
                 portfolioId,
-                policy: effectivePolicy,
+                policy: activePolicy,
                 asOfDate,
                 availableLiquidity: Number(cashAmount) || 0
             });
 
             // Latest-Request-Wins Guard
             if (requestId === requestSequenceRef.current) {
-                setRebalancingSummary(summary);
+                setRebalancingSummary(adaptRebalancingSummary(summary));
                 setLoading(false);
                 setSimulating(false);
             }
