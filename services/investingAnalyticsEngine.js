@@ -52,13 +52,13 @@ export const InvestingAnalyticsEngine = {
         let totalStandaloneFees = 0;
         let totalStandaloneTaxes = 0;
         const sellSummary = [];
+        const integrityWarnings = [];
 
         for (const evt of confirmedEvents) {
             const sym = (evt.symbol || evt.metadata?.symbol || holdingMap.get(evt.holdingId) || 'UNKNOWN').toUpperCase();
             if (!perSecurityLedger[sym]) {
                 perSecurityLedger[sym] = { netQuantity: 0, totalInvestedCost: 0, averageCost: 0 };
             }
-
 
             const sec = perSecurityLedger[sym];
 
@@ -87,7 +87,21 @@ export const InvestingAnalyticsEngine = {
             } else if (evt.type === EventType.SELL) {
                 // Point-in-time WAC immediately before sale
                 const pointInTimeWAC = sec.averageCost;
-                const sellQty = Math.min(qty, sec.netQuantity);
+                let sellQty = qty;
+
+                // Integrity Check: Detect historical oversell
+                if (qty > sec.netQuantity) {
+                    integrityWarnings.push({
+                        type: 'HISTORICAL_OVERSELL',
+                        eventId: evt.id,
+                        symbol: sym,
+                        requestedSellQty: qty,
+                        availableQty: sec.netQuantity,
+                        message: `Historical SELL event ${evt.id} for ${sym} requested ${qty} units but reconstructed available quantity was ${sec.netQuantity}`
+                    });
+                    sellQty = Math.max(0, sec.netQuantity);
+                }
+
                 const costBasisOfSold = Number((sellQty * pointInTimeWAC).toFixed(2));
                 const grossProceeds = Number((sellQty * price).toFixed(2));
                 const sellRealizedGain = Number((grossProceeds - costBasisOfSold - fees - taxes).toFixed(2));
@@ -107,7 +121,8 @@ export const InvestingAnalyticsEngine = {
                     costBasisOfSold,
                     fees,
                     taxes,
-                    netRealizedGain: sellRealizedGain
+                    netRealizedGain: sellRealizedGain,
+                    oversellFlag: qty > sec.netQuantity
                 });
             } else if (evt.type === EventType.DIVIDEND) {
                 const netDiv = evt.metadata?.netDividend !== undefined 
@@ -128,8 +143,11 @@ export const InvestingAnalyticsEngine = {
             totalNetDividends,
             totalStandaloneFees,
             totalStandaloneTaxes,
-            sellSummary
+            sellSummary,
+            ledgerIntegrity: integrityWarnings.length === 0 ? 'VALID' : 'INCONSISTENT',
+            integrityWarnings
         };
+
     },
 
     /**
@@ -167,6 +185,8 @@ export const InvestingAnalyticsEngine = {
                 netEconomicReturn: Number((realization.totalRealizedGain + realization.totalNetDividends - realization.totalStandaloneFees - realization.totalStandaloneTaxes).toFixed(2)),
                 netEconomicReturnPercent: 0,
                 valuationBasis: 'EMPTY',
+                ledgerIntegrity: realization.ledgerIntegrity,
+                integrityWarnings: realization.integrityWarnings,
                 quoteCoverage: {
                     totalHoldings: 0,
                     marketValued: 0,
@@ -175,6 +195,7 @@ export const InvestingAnalyticsEngine = {
                 holdings: []
             };
         }
+
 
         let totalCurrentCostBasis = 0;
         let totalMarketValue = 0;
@@ -276,11 +297,14 @@ export const InvestingAnalyticsEngine = {
             netEconomicReturn,
             netEconomicReturnPercent,
             valuationBasis: portfolioValuationBasis,
+            ledgerIntegrity: realization.ledgerIntegrity,
+            integrityWarnings: realization.integrityWarnings,
             quoteCoverage: {
                 totalHoldings: activeHoldings.length,
                 marketValued: marketValuedCount,
                 costBasisFallback: costBasisFallbackCount
             },
+
             holdings: holdingBreakdown
         };
     }
