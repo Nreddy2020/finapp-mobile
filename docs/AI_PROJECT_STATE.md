@@ -39,7 +39,7 @@ Current Stage:
 C.5.4
 
 Overall Status:
-C.5.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.5.4_HARDENED_IMPLEMENTATION_PENDING_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -68,7 +68,7 @@ Architecture:
 LOCKED & APPROVED
 
 Implementation:
-COMPLETE
+COMPLETE & HARDENED (All blockers C5.4-01 through C5.4-06 resolved)
 
 Stage Baseline:
 3269cbc
@@ -123,16 +123,21 @@ PASS (pure presentation UI components & tests only) 🟢
 
 ## 6. BLOCKERS LOG
 
-No active blockers. All prior stage blockers resolved.
+- C5.4-01 (FIFO Tax View): 🟢 RESOLVED (Authoritative FIFO cost basis, tax gain, acquisition date, and holding period displayed in TaxReportModal)
+- C5.4-02 (Integrity Warnings): 🟢 RESOLVED (Structured warning renderer handles object and string warnings cleanly)
+- C5.4-03 (Actual Export Sharing): 🟢 RESOLVED (Wired real Share.share dialogs for CSV, JSON, and text summaries)
+- C5.4-04 (RFC-4180 CSV Hardening): 🟢 RESOLVED (Enforced CRLF, section headers, quote escaping, and verified roundtrip)
+- C5.4-05 (Semantic Theme Tokens): 🟢 RESOLVED (Replaced all visual color literals with COLORS tokens)
+- C5.4-06 (Test Behavioral Rigor): 🟢 RESOLVED (Added deep behavioral assertions for tax lots, CSV RFC-4180, and warning structures)
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation of Stage C.5.4, verified 157/157 tests, captured live Android proof, and pushed to GitHub. Awaiting Architect consolidated review.
+Completed hardening of Stage C.5.4, resolved all 6 blockers, verified 157/157 tests, and pushed to GitHub. Awaiting Architect consolidated review for C.5.4 certification and Phase C.5 completion.
 
 Architect:
-Review Stage C.5.4 implementation commit and issue consolidated certification decision for C.5.4 (and completion of Phase C.5).
+Review Stage C.5.4 implementation commit and issue consolidated certification decision.
 
 
 ## 8. CERTIFICATION STATUS

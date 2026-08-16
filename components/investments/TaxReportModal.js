@@ -2,7 +2,8 @@
  * components/investments/TaxReportModal.js
  * 
  * Stage C.5.4 Tax Report & FIFO Lot Matching Modal.
- * Consumes Stage C.4.4 generatePortfolioStatement output strictly read-only.
+ * Authoritatively presents FIFO Tax Cost Basis, Tax Realized Gains, and Holding Days.
+ * Consumes Stage C.4.4 generatePortfolioStatement strictly read-only.
  * Uses semantic theme tokens exclusively from COLORS.
  */
 
@@ -35,6 +36,27 @@ export default function TaxReportModal({
         return `₹${Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
+    const renderIntegrityWarning = (w, idx) => {
+        if (!w) return null;
+        if (typeof w === 'string') {
+            return (
+                <Text key={idx} style={styles.warningText}>
+                    • {w}
+                </Text>
+            );
+        }
+        const warningType = w.type || 'DATA_INCONSISTENCY';
+        const warningMsg = w.message || w.reason || JSON.stringify(w);
+        const symbolTag = w.symbol ? ` [${w.symbol}]` : '';
+        return (
+            <Text key={idx} style={styles.warningText}>
+                • {warningType}{symbolTag}: {warningMsg}
+            </Text>
+        );
+    };
+
+    const totalTaxGain = cg.totalTaxRealizedGain !== undefined ? cg.totalTaxRealizedGain : (cg.totalEconomicRealizedGain || 0);
+
     return (
         <Modal
             visible={visible}
@@ -49,7 +71,7 @@ export default function TaxReportModal({
                         <View style={styles.headerTitleRow}>
                             <FileText size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
                             <View>
-                                <Text style={styles.title}>Tax Report & FIFO Lots</Text>
+                                <Text style={styles.title}>FIFO Tax Report</Text>
                                 <Text style={styles.subtitle}>
                                     {portfolioId ? `Portfolio: ${portfolioId.toUpperCase()}` : 'All Portfolios'} • {period}
                                 </Text>
@@ -63,12 +85,12 @@ export default function TaxReportModal({
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollBody}>
                         {/* Realized Capital Gains Header Card */}
                         <View style={styles.summaryCard}>
-                            <Text style={styles.summaryTitle}>Realized Capital Gains Summary</Text>
+                            <Text style={styles.summaryTitle}>FIFO Realized Tax Gains</Text>
                             <View style={styles.summaryRow}>
                                 <View style={styles.summaryCol}>
-                                    <Text style={styles.summaryLabel}>Total Realized Gain</Text>
-                                    <Text style={[styles.summaryValue, { color: (cg.totalEconomicRealizedGain || 0) >= 0 ? COLORS.success : COLORS.error }]}>
-                                        {(cg.totalEconomicRealizedGain || 0) >= 0 ? '+' : '-'}{formatCurrency(cg.totalEconomicRealizedGain)}
+                                    <Text style={styles.summaryLabel}>Total Tax Realized Gain</Text>
+                                    <Text style={[styles.summaryValue, { color: totalTaxGain >= 0 ? COLORS.success : COLORS.error }]}>
+                                        {totalTaxGain >= 0 ? '+' : '-'}{formatCurrency(totalTaxGain)}
                                     </Text>
                                 </View>
                                 <View style={styles.summaryCol}>
@@ -94,9 +116,7 @@ export default function TaxReportModal({
                                 <AlertTriangle size={16} color={COLORS.warning} style={{ marginRight: 6 }} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.warningTitle}>Ledger Inconsistency Detected</Text>
-                                    {integrityWarnings.map((w, idx) => (
-                                        <Text key={idx} style={styles.warningText}>• {w}</Text>
-                                    ))}
+                                    {integrityWarnings.map((w, idx) => renderIntegrityWarning(w, idx))}
                                 </View>
                             </View>
                         )}
@@ -117,9 +137,10 @@ export default function TaxReportModal({
                         ) : (
                             sells.map((sell, idx) => {
                                 const isSTCG = sell.gainType === 'STCG';
-                                const gainVal = sell.economicRealizedGain !== undefined ? sell.economicRealizedGain : (sell.taxRealizedGain || 0);
-                                const isGain = gainVal >= 0;
-                                const costBasisVal = sell.wacCostBasisOfSold !== undefined ? sell.wacCostBasisOfSold : (sell.fifoCostBasisOfSold || 0);
+                                // Authoritative FIFO values
+                                const fifoTaxGain = sell.taxRealizedGain !== undefined ? sell.taxRealizedGain : (sell.economicRealizedGain || 0);
+                                const isGain = fifoTaxGain >= 0;
+                                const fifoCostBasis = sell.fifoCostBasisOfSold !== undefined ? sell.fifoCostBasisOfSold : (sell.wacCostBasisOfSold || 0);
 
                                 return (
                                     <View key={`sell_${idx}`} style={styles.lotCard}>
@@ -141,6 +162,10 @@ export default function TaxReportModal({
                                                 <Text style={styles.lotValue}>{formatCurrency(sell.sellPrice)}</Text>
                                             </View>
                                             <View style={styles.lotGridCol}>
+                                                <Text style={styles.lotLabel}>Acquisition Date</Text>
+                                                <Text style={styles.lotValue}>{sell.acquisitionDate ? sell.acquisitionDate.slice(0, 10) : 'N/A'}</Text>
+                                            </View>
+                                            <View style={styles.lotGridCol}>
                                                 <Text style={styles.lotLabel}>Holding</Text>
                                                 <Text style={styles.lotValue}>{sell.holdingDays || 0} days</Text>
                                             </View>
@@ -148,17 +173,17 @@ export default function TaxReportModal({
 
                                         <View style={[styles.lotGrid, { marginTop: 6, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 6 }]}>
                                             <View style={styles.lotGridCol}>
-                                                <Text style={styles.lotLabel}>Cost Basis</Text>
-                                                <Text style={styles.lotValue}>{formatCurrency(costBasisVal)}</Text>
+                                                <Text style={styles.lotLabel}>FIFO Cost Basis</Text>
+                                                <Text style={styles.lotValue}>{formatCurrency(fifoCostBasis)}</Text>
                                             </View>
                                             <View style={styles.lotGridCol}>
-                                                <Text style={styles.lotLabel}>Proceeds</Text>
+                                                <Text style={styles.lotLabel}>Gross Proceeds</Text>
                                                 <Text style={styles.lotValue}>{formatCurrency(sell.grossProceeds)}</Text>
                                             </View>
                                             <View style={styles.lotGridCol}>
-                                                <Text style={styles.lotLabel}>Realized Gain</Text>
+                                                <Text style={styles.lotLabel}>Tax Realized Gain</Text>
                                                 <Text style={[styles.lotValue, { color: isGain ? COLORS.success : COLORS.error }]}>
-                                                    {isGain ? '+' : '-'}{formatCurrency(gainVal)}
+                                                    {isGain ? '+' : '-'}{formatCurrency(fifoTaxGain)}
                                                 </Text>
                                             </View>
                                         </View>
@@ -176,7 +201,7 @@ export default function TaxReportModal({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: COLORS.background,
         justifyContent: 'flex-end'
     },
     modalContent: {
@@ -259,8 +284,8 @@ const styles = StyleSheet.create({
     },
     warningBanner: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-        borderColor: 'rgba(245, 158, 11, 0.25)',
+        backgroundColor: COLORS.borderLight,
+        borderColor: COLORS.warning,
         borderWidth: 1,
         borderRadius: 10,
         padding: SPACING.sm,
@@ -330,12 +355,12 @@ const styles = StyleSheet.create({
         borderWidth: 1
     },
     stcgBadge: {
-        backgroundColor: 'rgba(239, 68, 68, 0.12)',
-        borderColor: 'rgba(239, 68, 68, 0.25)'
+        backgroundColor: COLORS.borderLight,
+        borderColor: COLORS.error
     },
     ltcgBadge: {
-        backgroundColor: 'rgba(16, 185, 129, 0.12)',
-        borderColor: 'rgba(16, 185, 129, 0.25)'
+        backgroundColor: COLORS.borderLight,
+        borderColor: COLORS.success
     },
     badgeText: {
         fontSize: 10,

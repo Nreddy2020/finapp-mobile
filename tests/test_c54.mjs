@@ -114,7 +114,6 @@ async function runC54AcceptanceSuite() {
             console.error('❌ Test 6 FAIL: Allocation snapshot inconsistency:', stmtAlloc.asOfSnapshot.allocation, c42Alloc);
         }
 
-
         // Test 7: Performance Snapshot Consistency with C.4.3
         console.log('\n--- Test 7: Performance Snapshot Consistency with C.4.3 ---');
         const [c43Perf, stmtPerf] = await Promise.all([
@@ -170,15 +169,17 @@ async function runC54AcceptanceSuite() {
             console.error('❌ Test 10 FAIL: Empty statement mismatch:', stmtEmpty);
         }
 
-        // Test 11: Incomplete Ledger Integrity Warning Surface
-        console.log('\n--- Test 11: Incomplete Ledger Integrity Warning Surface ---');
+        // Test 11: Incomplete Ledger Structured Integrity Warning Surface
+        console.log('\n--- Test 11: Incomplete Ledger Structured Integrity Warning Surface ---');
         await saveHoldings([]);
         await saveInvestmentEvents([
             { id: 'evt_corrupt', portfolioId: 'p_corrupt', symbol: 'NO_BUY', type: EventType.SELL, status: InvestmentEventStatus.CONFIRMED, quantity: 10, price: 1000, date: sellDate.toISOString() }
         ]);
         const stmtCorrupt = await InvestingAnalyticsEngine.generatePortfolioStatement({ portfolioId: 'p_corrupt' });
-        if (stmtCorrupt.statementIntegrity === 'INCOMPLETE' && stmtCorrupt.integrityWarnings.length > 0) {
-            console.log('✅ Test 11 PASS: Incomplete ledger surfaces audit warning and sets statementIntegrity: INCOMPLETE.');
+        if (stmtCorrupt.statementIntegrity === 'INCOMPLETE' &&
+            stmtCorrupt.integrityWarnings.length > 0 &&
+            typeof stmtCorrupt.integrityWarnings[0] === 'object') {
+            console.log('✅ Test 11 PASS: Structured integrity warning object surfaced (type: ' + stmtCorrupt.integrityWarnings[0].type + ').');
             passCount++;
         } else {
             console.error('❌ Test 11 FAIL: Integrity warning missing:', stmtCorrupt);
@@ -206,24 +207,32 @@ async function runC54AcceptanceSuite() {
             console.error('❌ Test 13 FAIL: JSON export parse failure:', jsonExport);
         }
 
-        // Test 14: CSV Export Formatter RFC-4180 Compliance
-        console.log('\n--- Test 14: CSV Export Formatter RFC-4180 Compliance ---');
+        // Test 14: RFC-4180 CSV Export Formatter Hardened Verification
+        console.log('\n--- Test 14: RFC-4180 CSV Export Formatter Hardened Verification ---');
         const csvExport = StatementExportService.exportToCSV(stmtTax);
-        if (csvExport.includes('--- REALIZED SELLS & FIFO TAX LOTS ---') &&
-            csvExport.includes('Event ID,Symbol,Asset Type') &&
-            csvExport.includes('MIX_SYM')) {
-            console.log('✅ Test 14 PASS: CSV export generates deterministic RFC-4180 structure with headers and lots.');
+        const hasCRLF = csvExport.includes('\r\n');
+        const lines = csvExport.split('\r\n');
+        const hasMetaHeader = lines.some(l => l.includes('Statement ID,Portfolio ID,Period'));
+        const hasLotsSection = lines.some(l => l.includes('Event ID,Symbol,Asset Type'));
+        const hasLotRow = lines.some(l => l.includes('MIX_SYM,STOCK'));
+        
+        // Verify escape behavior
+        const escapedValue = StatementExportService._escapeCSV('Value, with "quotes" and \n newline');
+        const isEscapedValid = escapedValue.startsWith('"') && escapedValue.includes('""') && escapedValue.endsWith('"');
+
+        if (hasCRLF && hasMetaHeader && hasLotsSection && hasLotRow && isEscapedValid) {
+            console.log('✅ Test 14 PASS: RFC-4180 CSV verified with CRLF delimiters, header schemas, and quote escaping.');
             passCount++;
         } else {
-            console.error('❌ Test 14 FAIL: CSV export format failure:', csvExport);
+            console.error('❌ Test 14 FAIL: CSV RFC-4180 validation failed:', { hasCRLF, hasMetaHeader, hasLotsSection, hasLotRow, isEscapedValid });
         }
 
         // Test 15: Shareable Plain Text Formatter
         console.log('\n--- Test 15: Shareable Plain Text Formatter ---');
         const textExport = StatementExportService.exportToShareText(stmtTax);
         if (textExport.includes('FINLIFE MASTER PORTFOLIO STATEMENT') &&
-            textExport.includes('Total Realized Gain') &&
-            textExport.includes('Short-Term Gain (STCG)')) {
+            textExport.includes('Short-Term Gain (STCG)') &&
+            textExport.includes('Long-Term Gain (LTCG)')) {
             console.log('✅ Test 15 PASS: Shareable plain text export generates human-readable summary.');
             passCount++;
         } else {
@@ -269,10 +278,18 @@ async function runC54AcceptanceSuite() {
             console.error('❌ Test 17 FAIL: State mutation detected.');
         }
 
-        // Test 18: Semantic Theme Token Compliance
-        console.log('\n--- Test 18: Semantic Theme Token Compliance ---');
-        console.log('✅ Test 18 PASS: MasterStatementCard and TaxReportModal utilize semantic theme tokens.');
-        passCount++;
+        // Test 18: Authoritative FIFO Tax vs Economic Separation
+        console.log('\n--- Test 18: Authoritative FIFO Tax vs Economic Separation ---');
+        const lot = stmtTax.periodActivity.capitalGains.sells[0];
+        if (lot.fifoCostBasisOfSold !== undefined &&
+            lot.taxRealizedGain !== undefined &&
+            lot.holdingDays !== undefined &&
+            lot.gainType === 'LTCG') {
+            console.log('✅ Test 18 PASS: Authoritative FIFO tax view separated with distinct FIFO cost, gain, and holding duration.');
+            passCount++;
+        } else {
+            console.error('❌ Test 18 FAIL: FIFO tax separation mismatch:', lot);
+        }
 
         // Test 19: Strict Exit Code 1 Hardening Enforcement
         console.log('\n--- Test 19: Strict Exit Code 1 Hardening Enforcement ---');

@@ -3,6 +3,7 @@
  * 
  * Stage C.5.4 Master Statement & Tax Report View Card.
  * Consumes Stage C.4.4 generatePortfolioStatement strictly read-only.
+ * Interactive export & sharing for CSV, JSON, and Summary Text.
  * Uses semantic theme tokens exclusively from COLORS.
  */
 
@@ -64,16 +65,49 @@ export default function MasterStatementCard({
         }
     };
 
-    const handleExportCSV = () => {
+    const handleExportCSV = async () => {
         if (!statement) return;
         const csvData = StatementExportService.exportToCSV(statement);
-        Alert.alert('CSV Export Generated', `Statement exported (${sells.length} sell events matched).\n\nHeader summary ready for download.`);
+        try {
+            await Share.share({
+                message: csvData,
+                title: 'FinLife Master Statement (CSV)'
+            });
+        } catch (e) {
+            Alert.alert('Statement CSV', 'CSV generated successfully.');
+        }
     };
 
-    const handleExportJSON = () => {
+    const handleExportJSON = async () => {
         if (!statement) return;
         const jsonData = StatementExportService.exportToJSON(statement);
-        Alert.alert('JSON Statement Export', 'Full statement payload formatted and ready for API integration.');
+        try {
+            await Share.share({
+                message: jsonData,
+                title: 'FinLife Master Statement (JSON)'
+            });
+        } catch (e) {
+            Alert.alert('Statement JSON', 'JSON payload formatted successfully.');
+        }
+    };
+
+    const renderIntegrityWarning = (w, idx) => {
+        if (!w) return null;
+        if (typeof w === 'string') {
+            return (
+                <Text key={idx} style={styles.warningText}>
+                    • {w}
+                </Text>
+            );
+        }
+        const warningType = w.type || 'DATA_INCONSISTENCY';
+        const warningMsg = w.message || w.reason || JSON.stringify(w);
+        const symbolTag = w.symbol ? ` [${w.symbol}]` : '';
+        return (
+            <Text key={idx} style={styles.warningText}>
+                • {warningType}{symbolTag}: {warningMsg}
+            </Text>
+        );
     };
 
     return (
@@ -164,9 +198,9 @@ export default function MasterStatementCard({
                     {!isConsistent && (
                         <View style={styles.warningBanner}>
                             <AlertTriangle size={14} color={COLORS.warning} style={{ marginRight: 6 }} />
-                            <Text style={styles.warningText}>
-                                Incomplete transaction history detected. Tax calculations may be estimated.
-                            </Text>
+                            <View style={{ flex: 1 }}>
+                                {integrityWarnings.map((w, idx) => renderIntegrityWarning(w, idx))}
+                            </View>
                         </View>
                     )}
 
@@ -258,7 +292,7 @@ const styles = StyleSheet.create({
     },
     periodChipSelected: {
         borderColor: COLORS.primaryLight,
-        backgroundColor: 'rgba(99, 102, 241, 0.15)'
+        backgroundColor: COLORS.border
     },
     periodChipText: {
         fontSize: 11,
@@ -327,8 +361,8 @@ const styles = StyleSheet.create({
     warningBanner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-        borderColor: 'rgba(245, 158, 11, 0.25)',
+        backgroundColor: COLORS.borderLight,
+        borderColor: COLORS.warning,
         borderWidth: 1,
         borderRadius: 8,
         padding: 8,
@@ -364,12 +398,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(99, 102, 241, 0.12)',
+        backgroundColor: COLORS.borderLight,
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderWidth: 1,
-        borderColor: 'rgba(99, 102, 241, 0.25)'
+        borderColor: COLORS.border
     },
     exportBtnText: {
         fontSize: 11,

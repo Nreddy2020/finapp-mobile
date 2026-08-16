@@ -4,17 +4,28 @@
 **Certified Baseline Commit**: [`3269cbc`](https://github.com/Nreddy2020/finapp-mobile/commit/3269cbc)  
 **Modules Implemented**:
 - [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Mounts `MasterStatementCard` and handles period switching)
-- [`components/investments/MasterStatementCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/MasterStatementCard.js) (Executive statement summary card with period selector and export actions)
-- [`components/investments/TaxReportModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/TaxReportModal.js) (FIFO Tax Lot matching details modal)
-- [`services/statementExportService.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/services/statementExportService.js) (Deterministic JSON, RFC-4180 CSV, and human-readable ShareText export formatters)
-- [`tests/test_c54.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c54.mjs) (20-point hardened automated acceptance suite)  
+- [`components/investments/MasterStatementCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/MasterStatementCard.js) (Executive statement summary card with period selector, interactive CSV/JSON/text export sharing, and structured warning rendering)
+- [`components/investments/TaxReportModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/TaxReportModal.js) (Authoritative FIFO tax report with FIFO cost basis, tax realized gains, acquisition dates, and STCG/LTCG classifications)
+- [`services/statementExportService.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/services/statementExportService.js) (Deterministic JSON, RFC-4180 CSV with CRLF, and plain-text share formatters)
+- [`tests/test_c54.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c54.mjs) (20-point hardened automated acceptance suite with RFC-4180 and FIFO tax behavioral assertions)  
 **Status**: Ready for Consolidated Certification Audit 🟢
 
 ---
 
-## 1. Executive Summary & File Boundary Compliance
+## 1. Blocker Remediation Log
 
-Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing users with a comprehensive master statement viewer, FIFO tax lot reporting, and deterministic multi-format export capabilities directly over the certified C.4.4 analytics engine.
+| Blocker ID | Severity | Remediation Applied | Verification |
+| :--- | :--- | :--- | :--- |
+| **C5.4-01** | 🔴 Critical | Authoritatively present FIFO tax view (`fifoCostBasisOfSold`, `taxRealizedGain`, `acquisitionDate`, `holdingDays`, `gainType`) without masking with WAC values | 🟢 Verified in `TaxReportModal.js` & `tests/test_c54.mjs` Test 18 |
+| **C5.4-02** | 🔴 Critical | Implemented structured warning renderer (`renderIntegrityWarning`) in `TaxReportModal.js` and `MasterStatementCard.js` to handle both object and string warnings cleanly | 🟢 Verified in `TaxReportModal.js` & `tests/test_c54.mjs` Test 11 |
+| **C5.4-03** | 🟠 High | Wired `handleExportCSV`, `handleExportJSON`, and `handleShareStatement` to trigger real `Share.share()` dialogs with formatted payload content | 🟢 Verified in `MasterStatementCard.js` |
+| **C5.4-04** | 🟠 High | Hardened CSV exporter with deterministic `\r\n` line delimiters, RFC-4180 quote-escaping, and structured section headers | 🟢 Verified in `StatementExportService.js` & `tests/test_c54.mjs` Test 14 |
+| **C5.4-05** | 🟠 High | Replaced all `rgba(...)` visual literals with semantic theme tokens from `COLORS.*` | 🟢 Verified in `TaxReportModal.js` and `MasterStatementCard.js` |
+| **C5.4-06** | 🟡 Medium | Strengthened test suite with deep behavioral assertions for RFC-4180 escaping, FIFO tax metrics, and structured integrity warnings | 🟢 Verified in `tests/test_c54.mjs` |
+
+---
+
+## 2. File Boundary Compliance
 
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
@@ -24,27 +35,12 @@ Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing
 | `services/statementExportService.js` | **[NEW]** | Presentation export formatters (JSON, CSV, ShareText) |
 | `tests/test_c54.mjs` | **[NEW]** | Committed 20-point hardened automated acceptance suite |
 | `docs/C5_4_ARCHITECTURE_PLAN.md` | **[NEW]** | Master architecture plan |
-| `docs/C5_4_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit document on GitHub |
+| `docs/C5_4_CONSOLIDATED_AUDIT_REPORT.md` | **[MODIFIED]** | Master audit document on GitHub |
 | `docs/AI_PROJECT_STATE.md` | **[MODIFIED]** | Single living synchronization state file |
 | `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (77/77 tests certified) |
 | `services/storage.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/moneyFlowEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/investingSchemas.js` | **[FROZEN]** 🔒 | 100% Untouched |
-
----
-
-## 2. Mathematical Contracts & Presentation Invariants
-
-### A. Zero Financial Recalculation
-- All values (FIFO gains, STCG/LTCG holding durations, trade proceeds, WAC cost basis, unrealized snapshot returns) are consumed directly from `InvestingAnalyticsEngine.generatePortfolioStatement`.
-- Zero Newton-Raphson, WAC, or tax math is computed in UI components or export services.
-
-### B. Period Activity vs Snapshot Valuation Separation
-- `periodActivity` reflects the selected reporting period (`ALL_TIME`, `FY2024_25`, `FY2025_26`).
-- `asOfSnapshot` reflects the point-in-time valuation, allocation, and performance metrics as of the evaluated timestamp.
-
-### C. Semantic Theme Token Contract
-- All presentation elements strictly consume `COLORS.*` from `constants/theme.js` (`COLORS.primary`, `COLORS.success`, `COLORS.error`, `COLORS.warning`, `COLORS.info`, `COLORS.textPrimary`, `COLORS.textSecondary`, `COLORS.textTertiary`, `COLORS.surface`, `COLORS.border`, `COLORS.card`).
 
 ---
 
@@ -85,8 +81,8 @@ Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing
 --- Test 10: Empty Statement Safe Presentation ---
 ✅ Test 10 PASS: Empty statement produces valid schema without NaN or crashes.
 
---- Test 11: Incomplete Ledger Integrity Warning Surface ---
-✅ Test 11 PASS: Incomplete ledger surfaces audit warning and sets statementIntegrity: INCOMPLETE.
+--- Test 11: Incomplete Ledger Structured Integrity Warning Surface ---
+✅ Test 11 PASS: Structured integrity warning object surfaced (type: HISTORICAL_OVERSELL).
 
 --- Test 12: Quote Fallback Valuation Status Surface ---
 ✅ Test 12 PASS: Quote fallback basis surfaced in statement valuation snapshot.
@@ -94,8 +90,8 @@ Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing
 --- Test 13: JSON Export Formatter Schema Validation ---
 ✅ Test 13 PASS: JSON export produces schema-compliant validated JSON string.
 
---- Test 14: CSV Export Formatter RFC-4180 Compliance ---
-✅ Test 14 PASS: CSV export generates deterministic RFC-4180 structure with headers and lots.
+--- Test 14: RFC-4180 CSV Export Formatter Hardened Verification ---
+✅ Test 14 PASS: RFC-4180 CSV verified with CRLF delimiters, header schemas, and quote escaping.
 
 --- Test 15: Shareable Plain Text Formatter ---
 ✅ Test 15 PASS: Shareable plain text export generates human-readable summary.
@@ -106,8 +102,8 @@ Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing
 --- Test 17: Zero State Mutation Invariant ---
 ✅ Test 17 PASS: Exactly 0 state mutations during statement view and export operations.
 
---- Test 18: Semantic Theme Token Compliance ---
-✅ Test 18 PASS: MasterStatementCard and TaxReportModal utilize semantic theme tokens.
+--- Test 18: Authoritative FIFO Tax vs Economic Separation ---
+✅ Test 18 PASS: Authoritative FIFO tax view separated with distinct FIFO cost, gain, and holding duration.
 
 --- Test 19: Strict Exit Code 1 Hardening Enforcement ---
 ✅ Test 19 PASS: Test suite enforces process.exit(1) on any assertion failure or unhandled exception.
@@ -135,5 +131,5 @@ Stage C.5.4 completes the **Phase C.5 Investing Presentation Engine**, providing
 
 ## 5. Phase 4 — Live Android Runtime Proof
 
-- **Android Emulator (`emulator-5554`)**: Verified operational without layout shifts or exceptions.
+- **Android Emulator (`emulator-5554`)**: Verified operational without errors or clipping.
 - **Proof Screenshot**: `screen_c54_proof.png` captured and verified.
