@@ -171,7 +171,7 @@ export default function OrderPreviewModal({
                                                     <View style={styles.orderMetricItem}>
                                                         <Text style={styles.orderMetricLabel}>Executable Notional</Text>
                                                         <Text style={styles.orderMetricValue}>
-                                                            {formatCurrency(ord.roundedTradeQuantity * ord.referencePrice)}
+                                                            {formatCurrency(ord.requiredNotional)}
                                                         </Text>
                                                     </View>
                                                 </View>

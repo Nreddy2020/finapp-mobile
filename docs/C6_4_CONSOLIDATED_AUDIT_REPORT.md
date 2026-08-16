@@ -1,58 +1,48 @@
-# Stage C.6.4 — Consolidated Architecture, Code Audit & Certification Document
+# Stage C.6.4 — Consolidated Architecture, Code Audit & Remediation Document
 
 **Branch**: `fintech-using-chatgpt`  
 **Certified Baseline Commit**: [`82663e5`](https://github.com/Nreddy2020/finapp-mobile/commit/82663e5)  
-**Modules Implemented**:
+**Modules Implemented / Remediated**:
 - [`components/investments/RebalancingVisualizerCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/RebalancingVisualizerCard.js) (Stage C.6.4 Rebalancing Visualizer & Decision Support Card)
-- [`components/investments/OrderPreviewModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/OrderPreviewModal.js) (Stage C.6.4 Order Preview & Tax Audit Modal)
-- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Screen integration)
+- [`components/investments/OrderPreviewModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/OrderPreviewModal.js) (Stage C.6.4 Order Preview & Tax Audit Modal — Remediated Zero UI Math)
+- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Screen integration — Remediated Deterministic Date & Error Handling)
 - [`tests/test_c64.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c64.mjs) (23-point hardened automated acceptance suite)  
-**Status**: Ready for Consolidated Certification Audit 🟢
+**Status**: Remediated & Ready for Consolidated Master Certification Audit 🟢
 
 ---
 
-## 1. Executive Summary & File Boundary Compliance
+## 1. Architectural Remediation Summary
 
-Stage C.6.4 delivers the **Rebalancing Visualizer & Order Preview UI**, concluding **Phase C.6 (Intelligent Rebalancing & Decision Engine)**. It brings C.6.1 target policies, C.6.2 percentage-point drift calculations, and C.6.3 tax-efficient optimization into an interactive, read-only decision support experience.
+Following the Architect's review, three specific remediations were performed and verified:
+
+| Remediation Item | Issue Identified | Remediation Implemented | Verification |
+| :--- | :--- | :--- | :--- |
+| **1. Zero UI Math (`OrderPreviewModal.js`)** | `formatCurrency(ord.roundedTradeQuantity * ord.referencePrice)` performed multiplication in UI layer | Replaced with direct binding `formatCurrency(ord.requiredNotional)` from the certified engine DTO | Zero arithmetic operators (`*`, `/`) in presentation layer |
+| **2. Deterministic Context (`investments.js`)** | Independent `new Date()` calls across screen and modal trigger | Managed single shared deterministic evaluation timestamp `evalDate` sourced from `lastRefreshTime` | Consistent evaluation timestamp across all C.6 components |
+| **3. Robust Error Handling (`investments.js`)** | Silent opening of modal on calculation failure | Explicit `Alert.alert('Preview Unavailable', ...)` on error; modal only opened when valid summary returned | Guarded modal state against null/invalid DTOs |
+
+---
+
+## 2. File Boundary Compliance
 
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
 | `components/investments/RebalancingVisualizerCard.js` | **[NEW]** | Dashboard card (Drift gauge, 3-way allocation bar, fresh cash simulator) |
-| `components/investments/OrderPreviewModal.js` | **[NEW]** | Full modal (Orders tab, Tax impact tab, Selected Lots inspector) |
-| `app/(tabs)/investments.js` | **[MODIFIED]** | Integrates C.6.4 components into screen layout |
+| `components/investments/OrderPreviewModal.js` | **[NEW]** | Full modal (Orders tab, Tax impact tab, Selected Lots inspector, 0 UI math) |
+| `app/(tabs)/investments.js` | **[MODIFIED]** | Screen integration (deterministic timestamp & guarded preview trigger) |
 | `tests/test_c64.mjs` | **[NEW]** | Committed 23-point hardened automated acceptance suite |
 | `docs/C6_4_ARCHITECTURE_PLAN.md` | **[MODIFIED]** | Stage C.6.4 master architecture plan |
 | `docs/C6_4_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit document on GitHub |
 | `docs/AI_PROJECT_STATE.md` | **[MODIFIED]** | Single living synchronization state file |
-| `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
+| `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (77/77 tests certified) |
 | `services/storage.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/moneyFlowEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
 | `services/investingSchemas.js` | **[FROZEN]** 🔒 | 100% Untouched |
-| `services/targetAllocationService.js` | **[FROZEN]** 🔒 | 100% Untouched |
-| `services/rebalancingEngine.js` | **[FROZEN]** 🔒 | 100% Untouched |
-| `services/openTaxLotAdapter.js` | **[FROZEN]** 🔒 | 100% Untouched |
-| `services/taxOptimizedRebalancingService.js` | **[FROZEN]** 🔒 | 100% Untouched |
-| `services/statementExportService.js` | **[FROZEN]** 🔒 | 100% Untouched |
-
----
-
-## 2. Mathematical Contracts & Blocker Resolutions
-
-### A. Semantic Theme-Token Compliance (`C6.4-01`)
-- Verified **0 hex literals, rgb/rgba strings, or local color palettes** in C.6.4 component files.
-- Strictly consumes semantic tokens from `constants/theme.js` (`COLORS.*`).
-- Verified via static source code audit (Test 21).
-
-### B. Service-Driven Simulation & Zero UI Math (`C6.4-02`)
-- The UI performs **only presentation transformations** (`formatCurrency()`, `formatPercent()`).
-- All fresh-cash simulations delegate directly to `TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing(...)`.
-- Zero drift, rounding, tax, or cash scaling formulas exist in UI component code.
-
-### C. Latest-Request-Wins Concurrency Guard
-- Utilizes `requestSequenceRef` to ensure that older asynchronous calculation responses never overwrite newer simulation states.
-
-### D. Zero Simulated State Persistence
-- Fresh cash simulations are strictly ephemeral (0 writes to storage or ledger).
+| `services/targetAllocationService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.1) |
+| `services/rebalancingEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.2) |
+| `services/openTaxLotAdapter.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3) |
+| `services/taxOptimizedRebalancingService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3) |
+| `services/statementExportService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.5.4) |
 
 ---
 

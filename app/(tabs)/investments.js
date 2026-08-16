@@ -428,19 +428,22 @@ export default function InvestmentsScreen() {
                     {/* Stage C.6.4 Rebalancing Visualizer & Decision Support Card */}
                     <RebalancingVisualizerCard
                         portfolioId={selectedPortfolioId}
-                        asOfDate={new Date()}
+                        asOfDate={lastRefreshTime ? new Date(lastRefreshTime) : new Date()}
                         availableLiquidity={0}
                         onOpenOrderPreview={async () => {
+                            const evalDate = lastRefreshTime ? new Date(lastRefreshTime) : new Date();
                             try {
                                 const summary = await TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing({
                                     portfolioId: selectedPortfolioId,
-                                    asOfDate: new Date(),
+                                    asOfDate: evalDate,
                                     availableLiquidity: 0
                                 });
-                                setRebalancingSummary(summary);
-                                setOrderModalVisible(true);
-                            } catch (e) {
-                                setOrderModalVisible(true);
+                                if (summary) {
+                                    setRebalancingSummary(summary);
+                                    setOrderModalVisible(true);
+                                }
+                            } catch (err) {
+                                Alert.alert('Preview Unavailable', 'Unable to calculate rebalancing order preview. Please refresh quotes and try again.');
                             }
                         }}
                     />

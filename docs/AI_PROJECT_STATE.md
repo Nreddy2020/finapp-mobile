@@ -39,7 +39,7 @@ Current Stage:
 C.6.4
 
 Overall Status:
-C.6.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
+C.6.4_REMEDIATED_PENDING_MASTER_CERTIFICATION
 
 
 ## 2. MASTER ROADMAP
@@ -60,7 +60,7 @@ C.6.4_IMPLEMENTATION_COMPLETE_PENDING_CERTIFICATION
 | ↳ C.6.1 | Target Allocation Policy Engine | 🟢 CERTIFIED (`4fff7d6`) |
 | ↳ C.6.2 | Drift & Rebalancing Delta Calculator | 🟢 CERTIFIED (`24e2cea`) |
 | ↳ C.6.3 | Tax-Efficient Rebalancing Optimizer | 🟢 CERTIFIED (`82663e5`) |
-| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟡 COMPLETE — IN REVIEW |
+| ↳ C.6.4 | Rebalancing Visualizer & Order Preview UI | 🟡 REMEDIATED — IN REVIEW |
 
 
 ## 3. CURRENT STAGE
@@ -69,13 +69,13 @@ Stage:
 C.6.4
 
 Objective:
-Rebalancing Visualizer Card and Order Preview Modal UI Presentation
+Rebalancing Visualizer Card and Order Preview Modal UI Presentation (Remediated Zero UI Math, Deterministic Evaluation Date, and Guarded Error Handling)
 
 Architecture:
 LOCKED & APPROVED
 
 Implementation:
-COMPLETE
+REMEDIATED & VERIFIED
 
 Stage Baseline:
 82663e5
@@ -88,8 +88,8 @@ Previous Certified Baseline:
 
 Files modified/created:
 - `components/investments/RebalancingVisualizerCard.js` (NEW)
-- `components/investments/OrderPreviewModal.js` (NEW)
-- `app/(tabs)/investments.js` (MODIFIED)
+- `components/investments/OrderPreviewModal.js` (NEW — Remediated 0 UI Math)
+- `app/(tabs)/investments.js` (MODIFIED — Remediated Deterministic Date & Guarded Error Handling)
 - `tests/test_c64.mjs` (NEW)
 - `docs/C6_4_ARCHITECTURE_PLAN.md` (MODIFIED)
 - `docs/C6_4_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
@@ -147,16 +147,21 @@ PASS (`components/investments/RebalancingVisualizerCard.js`, `components/investm
 
 ## 6. BLOCKERS LOG
 
-All blockers through Stage C.6.4 (including C6.4-01 semantic tokens and C6.4-02 service simulation) are 100% resolved.
+- All blockers through Stage C.6.4 are 100% resolved and remediated:
+  - C6.4-01 (Semantic Theme-Token Compliance): 🟢 RESOLVED
+  - C6.4-02 (Service-Driven Simulation & Concurrency Guard): 🟢 RESOLVED
+  - Remediation 1 (Zero UI Financial Math): 🟢 RESOLVED in `OrderPreviewModal.js`
+  - Remediation 2 (Deterministic Shared Evaluation Date): 🟢 RESOLVED in `investments.js`
+  - Remediation 3 (Guarded Error Handling): 🟢 RESOLVED in `investments.js`
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed implementation of Stage C.6.4, verified 254/254 tests, captured Android proof, and pushed to GitHub. Awaiting Architect consolidated review for Stage C.6.4 / Phase C.6 Master Certification.
+Completed full remediation of Stage C.6.4, verified 254/254 tests, captured fresh Android proof, and pushed to GitHub. Awaiting Architect consolidated re-audit for Stage C.6.4 / Phase C.6 Master Certification.
 
 Architect:
-Review Stage C.6.4 implementation commit and issue certification decision.
+Review Stage C.6.4 remediation commit and issue Phase C.6 Master Certification.
 
 
 ## 8. CERTIFICATION RECORD
@@ -167,7 +172,7 @@ Review Stage C.6.4 implementation commit and issue certification decision.
 - **Stage C.6.1**: 🟢 CERTIFIED (`4fff7d6`)
 - **Stage C.6.2**: 🟢 CERTIFIED (`24e2cea`)
 - **Stage C.6.3**: 🟢 CERTIFIED (`82663e5`)
-- **Stage C.6.4**: 🟡 IMPLEMENTATION COMPLETE — IN REVIEW
+- **Stage C.6.4**: 🟡 REMEDIATED — IN REVIEW
 - **Zero-Code Gate**: ACTIVE 🔒 (for Phase C.7+)
 
 
