@@ -1,6 +1,6 @@
 # Master Architectural Plan: Phase C.8 Goal Planning & Decision Intelligence Engine
 
-**Document Version**: `1.1.0`  
+**Document Version**: `1.2.0`  
 **Master Standard Identifier**: `C8_V1`  
 **Phase**: C.8 (Goal Planning, Lifecycle Wealth Projection & Next Best Action Decision Intelligence)  
 **Certified Baseline**: [`7e71b8d`](https://github.com/Nreddy2020/finapp-mobile/commit/7e71b8d) (Phase C.7 Master Certified & Closed)  
@@ -50,7 +50,7 @@ Phase C.8 establishes a pure, evidence-based decision intelligence pipeline that
 
 ### 1.2 Core Architectural Invariant: *"Calculate once. Authoritatively. Aggregate once. Score once. Explain once. Decide once."*
 1. **Zero Upstream Recalculation**: C.8 components and services MUST NOT calculate HHI, volatility, drawdown, VaR/CVaR, correlation, PCA, liquidity tiers, runway months, scenario stress loss percentages, reverse stress multipliers, health scores, health grades, or realized tax lots.
-2. **Certified Engine Delegation**: In Stage C.8.6 (Action Impact Simulator), hypothetical portfolio states are cloned in memory and passed directly to certified upstream engines (`concentrationEngine`, `volatilityDrawdownEngine`, `correlationEngine`, `liquidityEngine`, `scenarioStressEngine`, `portfolioHealthScoreEngine`) to evaluate post-action metrics authoritatively.
+2. **Complete Certified Engine Delegation (`C8-F2`)**: In Stage C.8.6 (Action Impact Simulator), hypothetical portfolio states are cloned in memory and passed through the **complete authoritative calculation chain** (`C.4` $\to$ `C.6` $\to$ `C.7.1`–`C.7.6` $\to$ `C.7.7`) to evaluate post-action metrics. C.8.6 must NEVER construct partial DTOs or fabricate missing inputs for C.7.7.
 3. **Recommendation $\neq$ Execution Separation**: C.8 produces actionable advice with full evidence traceability and manages action lifecycle states (`IDENTIFIED` $\to$ `COMPLETED`), but does not place broker orders or execute transactions.
 4. **Pure Hypothetical Simulation**: Simulations in C.8.6 evaluate virtual in-memory clones and never mutate database stores.
 5. **Deterministic Purity**: All calculations require an explicit caller `asOfDate`. Zero `Date.now()`, zero argument-less `new Date()`, zero unseeded randomness.
@@ -120,8 +120,9 @@ For each goal with horizon $t = \frac{\text{targetDate} - \text{asOfDate}}{365.2
 #### 1. Versioned Wealth Projection Policy (`C8-R3`)
 Policy Identifier: `C8_WEALTH_PROJECTION_V1`
 
-**Deterministic Nominal Expected Annual Return by Canonical Asset Class ($r_c$)**:
-| Canonical Asset Class | Expected Nominal Return ($r_c$) |
+**Immutable Policy Planning Return Constants**:
+*(Explicitly labeled as planning assumptions, not forecasts, guarantees, or expected realized returns)*
+| Canonical Asset Class | Planning Nominal Return Assumption ($r_c$) |
 | :--- | :--- |
 | `STOCK` | $12.0\%$ p.a. |
 | `MUTUAL_FUND` | $11.0\%$ p.a. |
@@ -132,19 +133,26 @@ Policy Identifier: `C8_WEALTH_PROJECTION_V1`
 | `CRYPTO` | $10.0\%$ p.a. |
 | `OTHER` / `CASH` | $5.0\%$ p.a. |
 
+**DTO Metadata Contract**:
+- `assumptionSource: 'POLICY_DEFAULT'`
+- `policyVersion: 'C8_WEALTH_PROJECTION_V1'`
+- `isGuaranteed: false`
+- `contributionTiming: 'BEGINNING_OF_PERIOD'` (`C8-F1`)
+
 **Effective Goal Portfolio Expected Return ($r_{\text{eff}}$)**:
 \[
 r_{\text{eff}} = \sum_{j} w_j \cdot r_{c(j)}, \quad \text{clamped to } [0.0, 0.25]
 \]
 Monthly equivalent return: $r_m = (1 + r_{\text{eff}})^{1/12} - 1$.
 
-#### 2. Exact SIP Gap & Terminal Wealth Closed-Form Mathematics (`C8-R4`)
+#### 2. Exact SIP Gap & Terminal Wealth Closed-Form Mathematics (`C8-R4` & `C8-F1`)
+**Contribution Timing Standard**: `BEGINNING_OF_PERIOD` (Annuity Due formulation).  
 For a goal with current allocated corpus $P = V_{\text{goal}}$, monthly SIP contribution $\text{SIP}$, and horizon $t$ years ($N = \lfloor 12t \rfloor$ months):
 1. **Future Value of Current Corpus ($FV_{\text{current}}$)**:
    \[
    FV_{\text{current}} = P \times (1 + r_{\text{eff}})^t
    \]
-2. **Future Value of Recurring SIP ($FV_{\text{SIP}}$)**:
+2. **Future Value of Recurring SIP ($FV_{\text{SIP}}$)** (Annuity Due with $(1 + r_m)$ multiplier):
    \[
    FV_{\text{SIP}} = \begin{cases}
    \text{SIP} \times \left[ \frac{(1 + r_m)^N - 1}{r_m} \right] \times (1 + r_m) & \text{if } r_m > 0 \\
@@ -172,16 +180,16 @@ For a goal with current allocated corpus $P = V_{\text{goal}}$, monthly SIP cont
    \Delta \text{SIP} = \max(0, \text{SIP}_{\text{required}} - \text{SIP})
    \]
 
-#### 3. Authoritative Goal Funding State Machine (`C8-R11`)
+#### 3. Authoritative Goal Funding State Machine (`C8-R11` & `C8-F3`)
 | Status | Mathematical Trigger Condition | Operational Meaning |
 | :--- | :--- | :--- |
+| `NOT_STARTED` | `allocatedHoldingIds.length === 0 && allocatedCashAmount === 0 && monthlyContribution === 0` | Goal registered but no funding activity or SIP has commenced (`C8-F3`). |
 | `PAST_DUE` | $t \le 0$ and $V_{\text{goal}} < C_{\text{today}}$ | Goal target date has elapsed with unmet target corpus. |
-| `OVERFUNDED` | $\text{FR} \ge 1.20$ | Projected wealth exceeds future target corpus by $\ge 20\%$. |
-| `FULLY_FUNDED` | $1.00 \le \text{FR} < 1.20$ | Projected wealth satisfies $100\%\text{--}119\%$ of future target corpus. |
-| `ON_TRACK` | $0.85 \le \text{FR} < 1.00$ | Minor shortfall ($\le 15\%$), readily resolvable with minor SIP adjustments. |
-| `AT_RISK` | $0.60 \le \text{FR} < 0.85$ | Moderate shortfall ($15\%\text{--}40\%$), requires rebalancing or increased savings. |
-| `UNDERFUNDED` | $0.0 < \text{FR} < 0.60$ | Severe shortfall ($>40\%$), critical gap requiring restructuring. |
-| `NOT_STARTED` | $V_{\text{goal}} = 0$ and $\text{SIP} = 0$ | No current corpus or monthly savings allocated to goal. |
+| `OVERFUNDED` | $\text{FR} \ge 1.20$ (with active funding) | Projected wealth exceeds future target corpus by $\ge 20\%$. |
+| `FULLY_FUNDED` | $1.00 \le \text{FR} < 1.20$ (with active funding) | Projected wealth satisfies $100\%\text{--}119\%$ of future target corpus. |
+| `ON_TRACK` | $0.85 \le \text{FR} < 1.00$ (with active funding) | Minor shortfall ($\le 15\%$), readily resolvable with minor SIP adjustments. |
+| `AT_RISK` | $0.60 \le \text{FR} < 0.85$ (with active funding) | Moderate shortfall ($15\%\text{--}40\%$), requires rebalancing or increased savings. |
+| `UNDERFUNDED` | $0.0 < \text{FR} < 0.60$ (with active funding) | Severe shortfall ($>40\%$), critical gap requiring restructuring. |
 
 ---
 
@@ -242,6 +250,7 @@ export interface OpportunityRecord {
 ### Stage C.8.5: Next Best Action Prioritization Engine (`services/actionPrioritizationEngine.js`)
 
 #### 1. Closed-Form Multi-Objective Scoring Contract (`C8-R7`)
+All factors are strictly normalized on the bounded scale $[0.0, 100.0]$.  
 For each candidate action $a$, its composite score $S_{\text{action}} \in [0.0, 100.0]$ is computed via exact linear weighting:
 \[
 S_{\text{action}} = 0.30 U_a + 0.25 R_a + 0.15 T_a + 0.20 G_a - 0.10 F_a
@@ -279,18 +288,18 @@ where weights sum to exact $1.00$ ($0.30 + 0.25 + 0.15 + 0.20 - 0.10 \to 1.00$ g
 
 ### Stage C.8.6: Action Impact Simulator (`services/actionImpactSimulator.js`)
 
-#### 1. Certified-Engine Delegation Contract (`C8-R8`)
-The simulator performs hypothetical "Before vs After" analysis by delegating strictly to certified engines:
+#### 1. Complete Upstream Certified-Engine Delegation Contract (`C8-R8` & `C8-F2`)
+The simulator executes hypothetical "Before vs After" analysis by cloning in-memory state and passing it through the **complete authoritative calculation chain**:
 1. **Clone State**: In-memory deep clone of portfolio holdings, cash flows, and goals.
 2. **Apply Virtual Action**:
    - If `INCREASE_SIP`: Updates virtual monthly cash flow and goal contribution.
    - If `SELL_HOLDING` / `BUY_HOLDING`: Updates virtual holding quantity, cash, and tax lots.
    - If `PREPAY_DEBT`: Updates virtual debt balance and recurring EMI burn.
-3. **Invoke Certified Engines on Virtual State**:
-   - `portfolioHealthScoreEngine.js` evaluates $S_{\text{health}}^{\text{after}}$.
-   - `liquidityEngine.js` evaluates $\text{Runway}^{\text{after}}$.
-   - `concentrationEngine.js` evaluates $\text{HHI}^{\text{after}}$ and $\text{Top1}^{\text{after}}$.
-   - `wealthProjectionEngine.js` evaluates $\text{FR}^{\text{after}}$.
+3. **Execute Authoritative Upstream Chain**:
+   \[
+   \text{Virtual State} \longrightarrow \text{C.4 Analytics} \longrightarrow \text{C.6 Rebalancing} \longrightarrow \text{C.7.1–C.7.6 Risk Engines} \longrightarrow \text{C.7.7 Health Engine}
+   \]
+   - C.8.6 NEVER fabricates partial DTOs or shortcuts for C.7.7.
 4. **Emits Comparison DTO (`C8-R9`)**:
    ```typescript
    export interface ActionImpactComparisonDTO {
@@ -313,6 +322,12 @@ The simulator performs hypothetical "Before vs After" analysis by delegating str
      direction: 'IMPROVED' | 'DEGRADED' | 'UNCHANGED';
    }
    ```
+   **Desirability Direction Standard**:
+   - Health Score: $\Delta > 0 \implies \text{IMPROVED}$
+   - Emergency Runway: $\Delta > 0 \implies \text{IMPROVED}$
+   - Top Holding Concentration: $\Delta < 0 \implies \text{IMPROVED}$
+   - Goal Funding Ratio: $\Delta > 0 \implies \text{IMPROVED}$
+   - Portfolio Risk / Volatility: $\Delta < 0 \implies \text{IMPROVED}$
 5. **Zero Store Mutation**: Zero calls to `saveData` or storage keys.
 
 ---
@@ -356,19 +371,19 @@ All presentation models strictly classify each output string into 4 distinct evi
 The Phase C.8 test suite (`tests/test_c8.mjs`) will execute 72 deterministic acceptance tests across 10 groups:
 
 1. **Group 1: Goal Schema, Validation & Priority Precedence (Tests 1–8)**:
-   - Schema validation, 4-tier waterfall allocation, tie-breaking order, overdue goal handling.
+   - Schema validation, 4-tier waterfall allocation, tie-breaking order, overdue goal handling, `NOT_STARTED` boundary (`C8-F3`).
 2. **Group 2: Closed-Form Inflation & Corpus Amortization (Tests 9–15)**:
    - Compounding formula, category overrides (education/medical 8%), zero inflation boundary, past date boundary.
 3. **Group 3: Wealth Projection Policy & SIP Gap Mathematics (Tests 16–23)**:
-   - Versioned return table, $FV_{\text{current}}$, $FV_{\text{SIP}}$, required SIP formula, $r=0$ zero-rate boundary, solvency state machine.
+   - Versioned return table (`C8_WEALTH_PROJECTION_V1`), `BEGINNING_OF_PERIOD` annuity due timing (`C8-F1`), $FV_{\text{current}}$, $FV_{\text{SIP}}$, required SIP formula, $r=0$ zero-rate boundary, solvency state machine.
 4. **Group 4: Target-Date Glidepaths & Sequence Risk (Tests 24–30)**:
    - 5 lifecycle tiers, glidepath de-risking trajectory, sequence-of-returns vulnerability flag, C.6 authority non-mutation.
 5. **Group 5: Cross-Domain Opportunity & Vulnerability Aggregation (Tests 31–38)**:
    - Ingestion from C.6, C.6.3, C.7.2, C.7.3, C.7.5, C.7.6, C.7.7, C.8.2, C.8.3, and liabilities with complete provenance tracking.
 6. **Group 6: Closed-Form Next Best Action Prioritization (Tests 39–46)**:
-   - Multi-objective scoring weights (sum = 1.00), urgency mapping, 4-tier tie-breaking, duplicate action suppression.
+   - Multi-objective scoring weights (sum = 1.00), normalized $[0, 100]$ factor scaling, urgency mapping, 4-tier tie-breaking, duplicate action suppression.
 7. **Group 7: Certified-Engine Simulation & Before/After Deltas (Tests 47–54)**:
-   - Virtual state cloning, certified engine delegation, delta directionality, zero store mutations.
+   - Virtual state cloning, full upstream chain execution (`C8-F2`), delta directionality (desirability mapping), zero store mutations.
 8. **Group 8: Advice Safety, Categorization & Action Lifecycle (Tests 55–60)**:
    - FACT vs INSIGHT vs RECOMMENDATION vs HYPOTHETICAL_OUTCOME classification, lifecycle state machine (`IDENTIFIED` $\to$ `COMPLETED`).
 9. **Group 9: Boundary Conditions & Empty States (Tests 61–66)**:
@@ -391,4 +406,4 @@ The Phase C.8 test suite (`tests/test_c8.mjs`) will execute 72 deterministic acc
 | **C.8.7** | Presentation Adapter | `components/investments/decisionPresentationAdapter.js` | 🔒 Gate Locked |
 | **C.8.8** | Command Center UI & App Mount | `components/investments/*` & `app/(tabs)/` | 🔒 Gate Locked |
 
-**Zero-Code Gate remains ACTIVE 🔒** until this v1.1.0 Architecture Plan is formally reviewed and authorized by the Architect.
+**Zero-Code Gate remains ACTIVE 🔒** until this finalized v1.2.0 Architecture Plan receives Implementation Authorization.
