@@ -174,6 +174,7 @@ export const TaxOptimizedRebalancingService = {
                 exemptionConsumedPrior: priorExemption,
                 exemptionConsumedCurrent: 0,
                 remainingExemptionAfterSale: remainingAnnualExemption,
+                driftGaugePercentage: Math.min(100, Math.max(0, Number(((c62Summary.residualDriftPercentagePoints / 20) * 100).toFixed(1)))),
                 selectedTaxLots: [],
                 optimizationStatus: c62Summary.rebalancingStatus === 'PRICE_REFRESH_REQUIRED' ? 'PRICE_REFRESH_REQUIRED' : 'ZERO_SELLS_REQUIRED',
                 optimizationWarnings: c62Summary.feasibilityWarnings || []
@@ -428,6 +429,7 @@ export const TaxOptimizedRebalancingService = {
             exemptionConsumedPrior: priorExemption,
             exemptionConsumedCurrent: Number(exemptionConsumedCurrent.toFixed(2)),
             remainingExemptionAfterSale: Number(remainingExemptionAfterSale.toFixed(2)),
+            driftGaugePercentage: Math.min(100, Math.max(0, Number(((c62Summary.residualDriftPercentagePoints / 20) * 100).toFixed(1)))),
             selectedTaxLots,
             optimizationStatus,
             optimizationWarnings

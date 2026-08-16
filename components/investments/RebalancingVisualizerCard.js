@@ -110,6 +110,7 @@ export default function RebalancingVisualizerCard({
         estimatedTaxSavings = 0,
         taxDragPercentage = 0,
         harvestedLosses = 0,
+        driftGaugePercentage = 0,
         optimizationStatus = 'OPTIMAL',
         optimizationWarnings = []
     } = rebalancingSummary || {};
@@ -183,7 +184,7 @@ export default function RebalancingVisualizerCard({
                 </View>
                 <View style={styles.driftTrack}>
                     <View style={[styles.driftFill, { 
-                        width: `${Math.min(100, (residualDriftPercentagePoints / 20) * 100)}%`,
+                        width: `${driftGaugePercentage}%`,
                         backgroundColor: isBalanced ? COLORS.success : COLORS.warning
                     }]} />
                 </View>

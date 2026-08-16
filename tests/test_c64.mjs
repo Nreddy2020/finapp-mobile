@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import TaxOptimizedRebalancingService, { DEFAULT_TAX_POLICY_IN_FY24_25 } from '../services/taxOptimizedRebalancingService.js';
 import TargetAllocationService from '../services/targetAllocationService.js';
-import { saveHoldings, saveInvestmentEvents, saveMarketQuotes } from '../services/storage.js';
+import { saveHoldings, saveInvestmentEvents, saveMarketQuotes, loadHoldings, loadInvestmentEvents, loadMarketQuotes, loadData, STORAGE_KEYS } from '../services/storage.js';
 import { EventType, InvestmentEventStatus } from '../services/investingSchemas.js';
 import MarketDataService, { MockFeedProvider } from '../services/marketDataService.js';
 import MoneyFlowEngine from '../services/moneyFlowEngine.js';
@@ -228,15 +228,39 @@ async function runC64AcceptanceSuite() {
             console.error('❌ Test 18 FAIL: Global scope failed:', globalSummary);
         }
 
-        // Test 19: Read-Only Safety Guard
-        console.log('\n--- Test 19: Read-Only Safety Guard ---');
-        const txsBefore = await MoneyFlowEngine.getTransactions();
-        const txsAfter = await MoneyFlowEngine.getTransactions();
-        if (txsBefore.length === txsAfter.length) {
-            console.log('✅ Test 19 PASS: Exactly 0 state mutations triggered by rendering presentation components.');
+        // Test 19: Comprehensive Read-Only Safety Guard (Deep Multi-Store Snapshot)
+        console.log('\n--- Test 19: Comprehensive Read-Only Safety Guard (Deep Multi-Store Snapshot) ---');
+        const holdingsBefore = JSON.stringify(await loadHoldings());
+        const eventsBefore = JSON.stringify(await loadInvestmentEvents());
+        const quotesBefore = JSON.stringify((await loadMarketQuotes()).map(q => ({ symbol: q.symbol, price: q.price })));
+        const txsBefore = JSON.stringify(await MoneyFlowEngine.getTransactions());
+        const walletsBefore = JSON.stringify(await loadData(STORAGE_KEYS.WALLETS, []));
+
+        // Perform full C.6.4 presentation calculation lifecycle
+        await TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing({
+            portfolioId: 'p_c64',
+            policy: balPolicy,
+            asOfDate,
+            availableLiquidity: 15000
+        });
+
+        const holdingsAfter = JSON.stringify(await loadHoldings());
+        const eventsAfter = JSON.stringify(await loadInvestmentEvents());
+        const quotesAfter = JSON.stringify((await loadMarketQuotes()).map(q => ({ symbol: q.symbol, price: q.price })));
+        const txsAfter = JSON.stringify(await MoneyFlowEngine.getTransactions());
+        const walletsAfter = JSON.stringify(await loadData(STORAGE_KEYS.WALLETS, []));
+
+        const isHoldingsUnchanged = holdingsBefore === holdingsAfter;
+        const isEventsUnchanged = eventsBefore === eventsAfter;
+        const isQuotesUnchanged = quotesBefore === quotesAfter;
+        const isTxsUnchanged = txsBefore === txsAfter;
+        const isWalletsUnchanged = walletsBefore === walletsAfter;
+
+        if (isHoldingsUnchanged && isEventsUnchanged && isQuotesUnchanged && isTxsUnchanged && isWalletsUnchanged) {
+            console.log('✅ Test 19 PASS: Deep snapshots across 5 stores (holdings, events, quotes, txs, wallets) prove 100% zero mutations.');
             passCount++;
         } else {
-            console.error('❌ Test 19 FAIL: State mutation detected during UI rendering!');
+            console.error('❌ Test 19 FAIL: State mutation detected!', { isHoldingsUnchanged, isEventsUnchanged, isQuotesUnchanged, isTxsUnchanged, isWalletsUnchanged });
         }
 
         // Test 20: Full System Regression Matrix

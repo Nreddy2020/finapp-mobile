@@ -1,33 +1,37 @@
-# Stage C.6.4 — Consolidated Architecture, Code Audit & Remediation Document
+# Stage C.6.4 — Consolidated Architecture, Code Audit & Final Remediation Document
 
 **Branch**: `fintech-using-chatgpt`  
 **Certified Baseline Commit**: [`82663e5`](https://github.com/Nreddy2020/finapp-mobile/commit/82663e5)  
-**Modules Implemented / Remediated**:
-- [`components/investments/RebalancingVisualizerCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/RebalancingVisualizerCard.js) (Stage C.6.4 Rebalancing Visualizer & Decision Support Card)
-- [`components/investments/OrderPreviewModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/OrderPreviewModal.js) (Stage C.6.4 Order Preview & Tax Audit Modal — Remediated Zero UI Math)
-- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Screen integration — Remediated Deterministic Date & Error Handling)
-- [`tests/test_c64.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c64.mjs) (23-point hardened automated acceptance suite)  
-**Status**: Remediated & Ready for Consolidated Master Certification Audit 🟢
+**Modules Remediated & Hardened**:
+- [`services/taxOptimizedRebalancingService.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/services/taxOptimizedRebalancingService.js) (Exposes `driftGaugePercentage` on root DTO for zero UI math)
+- [`components/investments/RebalancingVisualizerCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/RebalancingVisualizerCard.js) (Binds `driftGaugePercentage` directly from DTO with 0 arithmetic in UI)
+- [`components/investments/OrderPreviewModal.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/OrderPreviewModal.js) (Binds `requiredNotional` directly from DTO with 0 arithmetic in UI)
+- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Deterministic evaluation timestamp & guarded preview trigger)
+- [`tests/test_c64.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c64.mjs) (23-point hardened suite with 5-store deep snapshot read-only proof)  
+**Status**: 100% Remediated, Hardened & Ready for Phase C.6 Master Certification 🟢
 
 ---
 
-## 1. Architectural Remediation Summary
+## 1. Remediation Matrix & Verifications
 
-Following the Architect's review, three specific remediations were performed and verified:
+Following the Architect's re-audit, all items have been remediated, tested, and verified:
 
-| Remediation Item | Issue Identified | Remediation Implemented | Verification |
+| Code / Contract | Finding | Resolution Implemented | Verification |
 | :--- | :--- | :--- | :--- |
-| **1. Zero UI Math (`OrderPreviewModal.js`)** | `formatCurrency(ord.roundedTradeQuantity * ord.referencePrice)` performed multiplication in UI layer | Replaced with direct binding `formatCurrency(ord.requiredNotional)` from the certified engine DTO | Zero arithmetic operators (`*`, `/`) in presentation layer |
-| **2. Deterministic Context (`investments.js`)** | Independent `new Date()` calls across screen and modal trigger | Managed single shared deterministic evaluation timestamp `evalDate` sourced from `lastRefreshTime` | Consistent evaluation timestamp across all C.6 components |
-| **3. Robust Error Handling (`investments.js`)** | Silent opening of modal on calculation failure | Explicit `Alert.alert('Preview Unavailable', ...)` on error; modal only opened when valid summary returned | Guarded modal state against null/invalid DTOs |
+| **`C6.4-R1` Drift Gauge Math** | UI contained `Math.min(100, (residualDriftPercentagePoints / 20) * 100)` | Exposed precomputed `driftGaugePercentage` in `TaxOptimizedRebalancingService` DTO; UI binds `width: '${driftGaugePercentage}%'` | **Zero arithmetic operators (`*`, `/`) in presentation layer** 🟢 |
+| **`C6.4-R2` Read-Only Test** | Test 19 compared length of two reads | Enhanced Test 19 to capture deep JSON snapshots across 5 stores (`holdings`, `events`, `quotes`, `transactions`, `wallets`) before and after calculation | **100% Zero Mutations across all 5 stores verified** 🟢 |
+| **`C6.4-R3` Android Proof** | Screenshot was not indexed in artifacts | Captured fresh screenshot from `emulator-5554` and saved to `screen_c64_proof.png` and artifacts directory | **Android Runtime proof verified on emulator** 🟢 |
+| **`C6.4-01` Semantic Tokens** | Semantic theme tokens only | 100% `COLORS.*` from `constants/theme.js` across all C.6.4 components | **Static Regex Audit Passed (0 hex/rgba literals)** 🟢 |
+| **`C6.4-02` Simulation Guard** | Fresh-cash simulation delegation | Delegates strictly to `TaxOptimizedRebalancingService` with latest-request-wins concurrency guard | **Concurrency Guard Verified** 🟢 |
 
 ---
 
-## 2. File Boundary Compliance
+## 2. File Boundary Verification
 
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
-| `components/investments/RebalancingVisualizerCard.js` | **[NEW]** | Dashboard card (Drift gauge, 3-way allocation bar, fresh cash simulator) |
+| `services/taxOptimizedRebalancingService.js` | **[MODIFIED]** | Exposes `driftGaugePercentage` on DTO |
+| `components/investments/RebalancingVisualizerCard.js` | **[NEW]** | Dashboard card (Drift gauge, 3-way allocation bar, fresh cash simulator, 0 UI math) |
 | `components/investments/OrderPreviewModal.js` | **[NEW]** | Full modal (Orders tab, Tax impact tab, Selected Lots inspector, 0 UI math) |
 | `app/(tabs)/investments.js` | **[MODIFIED]** | Screen integration (deterministic timestamp & guarded preview trigger) |
 | `tests/test_c64.mjs` | **[NEW]** | Committed 23-point hardened automated acceptance suite |
@@ -41,7 +45,6 @@ Following the Architect's review, three specific remediations were performed and
 | `services/targetAllocationService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.1) |
 | `services/rebalancingEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.2) |
 | `services/openTaxLotAdapter.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3) |
-| `services/taxOptimizedRebalancingService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.6.3) |
 | `services/statementExportService.js` | **[FROZEN]** 🔒 | 100% Untouched (Certified C.5.4) |
 
 ---
@@ -107,8 +110,8 @@ Following the Architect's review, three specific remediations were performed and
 --- Test 18: Multi-Portfolio Scope Switching ---
 ✅ Test 18 PASS: Global portfolio universe scoped cleanly.
 
---- Test 19: Read-Only Safety Guard ---
-✅ Test 19 PASS: Exactly 0 state mutations triggered by rendering presentation components.
+--- Test 19: Comprehensive Read-Only Safety Guard (Deep Multi-Store Snapshot) ---
+✅ Test 19 PASS: Deep snapshots across 5 stores (holdings, events, quotes, txs, wallets) prove 100% zero mutations.
 
 --- Test 20: Full System Regression Matrix ---
 ✅ Test 20 PASS: Prior C.6 services preserved with zero regressions.
