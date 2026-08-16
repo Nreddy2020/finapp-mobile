@@ -78,13 +78,13 @@ Stage:
 C.7.1
 
 Objective:
-Portfolio Risk Foundation & Risk Taxonomy Service (`services/riskTaxonomy.js`), Schema Contracts, Return Series Adapter, and 20-Point Acceptance Test Suite (`tests/test_c71.mjs`).
+Portfolio Risk Foundation & Risk Taxonomy Service (`services/riskTaxonomy.js`), Schema Contracts, Return Series Adapter, and 21-Point Acceptance Test Suite (`tests/test_c71.mjs`).
 
 Architecture:
 APPROVED & HARDENED
 
 Implementation:
-REMEDIATED & AUDITED (Blocker C7.1-01 resolved with deterministic asOfDate & time-travel proof)
+REMEDIATED & AUDITED (Blockers C7.1-01 and C7.1-02 resolved with mandatory asOfDate, AST source scan, and time-travel proof)
 
 Stage Baseline:
 5fdfb36
@@ -96,8 +96,8 @@ Previous Certified Baseline:
 ## 4. CURRENT IMPLEMENTATION
 
 Files modified/created:
-- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, deterministic liquidity classifier)
-- `tests/test_c71.mjs` (NEW — 20-point automated acceptance suite with time-travel proof)
+- `services/riskTaxonomy.js` (NEW — Risk taxonomy, schemas, return adapter, mandatory deterministic evaluation)
+- `tests/test_c71.mjs` (NEW — 21-point automated acceptance suite with AST source verification)
 - `docs/C7_1_ARCHITECTURE_PLAN.md` (NEW)
 - `docs/C7_1_CONSOLIDATED_AUDIT_REPORT.md` (NEW)
 - `docs/AI_PROJECT_STATE.md` (MODIFIED)
@@ -120,7 +120,7 @@ Certified & Frozen contracts:
 ## 5. ACCEPTANCE STATUS
 
 C.7.1 Acceptance (`tests/test_c71.mjs`):
-20/20 PASS (Strict exit 0) 🟢
+21/21 PASS (Strict exit 0) 🟢
 
 C.6.4 Regression (`tests/test_c64.mjs`):
 23/23 PASS (Strict exit 0) 🟢
@@ -141,7 +141,7 @@ Phase C.4 Regression (C.4.1–C.4.4):
 77/77 PASS (Strict exit 0) 🟢
 
 Total Committed System Tests:
-274/274 PASS (100%, Strict exit 0) 🟢
+275/275 PASS (100%, Strict exit 0) 🟢
 
 Zero-Mutation Invariant:
 PASS (5-store deep snapshot verified) 🟢
@@ -150,15 +150,15 @@ PASS (5-store deep snapshot verified) 🟢
 ## 6. BLOCKERS LOG
 
 - All Stage C.7.1 blockers are 100% resolved:
-  - C7.1-01 (Deterministic asOfDate in Liquidity Classifier): 🟢 RESOLVED (Removed Date.now(), added time-travel proof)
-  - Canonical Stress Scenarios Assertion: 🟢 RESOLVED (Exact 4 canonical IDs asserted)
+  - C7.1-01 / C7.1-02 (Mandatory Deterministic asOfDate Context): 🟢 RESOLVED (Eliminated all Date.now() and argument-less new Date() calls; verified via AST source scan in Test 18)
+  - Canonical Stress Scenarios Assertion: 🟢 RESOLVED (Exact 4 canonical IDs asserted in Test 6)
 - Zero-Code Gate is ACTIVE for Stage C.7.2+.
 
 
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Completed remediation of Stage C.7.1 with 274/274 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
+Completed remediation of Stage C.7.1 with mandatory deterministic asOfDate and 275/275 tests passing. Pushed to GitHub. Awaiting Architect review for Stage C.7.1 Certification.
 
 Architect:
 Review Stage C.7.1 remediation commit and issue Stage C.7.1 Certification.

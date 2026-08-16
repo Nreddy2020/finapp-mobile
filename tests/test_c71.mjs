@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import RiskTaxonomyService, {
     RiskPillar,
     RiskSeverity,
@@ -6,19 +8,21 @@ import RiskTaxonomyService, {
     DataQualityStatus,
     ConfidenceLevel,
     UNSPECIFIED_SHOCK_POLICY,
-    CANONICAL_STRESS_SCENARIOS
+    CANONICAL_STRESS_SCENARIOS,
+    ALL_STRESS_SCENARIOS
 } from '../services/riskTaxonomy.js';
 import { CANONICAL_ASSET_CLASSES } from '../services/targetAllocationService.js';
 import { saveHoldings, saveInvestmentEvents, saveMarketQuotes, loadHoldings, loadInvestmentEvents, loadMarketQuotes, loadData, STORAGE_KEYS } from '../services/storage.js';
 import { MoneyFlowEngine } from '../services/moneyFlowEngine.js';
 
 console.log('================================================================');
-console.log('=== Stage C.7.1 Risk Foundation & Taxonomy 20-Test Suite ===');
+console.log('=== Stage C.7.1 Risk Foundation & Taxonomy 21-Test Suite ===');
 console.log('================================================================\n');
 
 async function runC71AcceptanceSuite() {
     let passCount = 0;
-    const totalTests = 20;
+    const totalTests = 21;
+    const standardAsOfDate = '2024-01-10T00:00:00.000Z';
 
     try {
         // Test 1: Canonical Risk Pillar Constants
@@ -137,7 +141,7 @@ async function runC71AcceptanceSuite() {
         const series = RiskTaxonomyService.normalizeHistoricalReturns({
             symbol: 'TCS',
             dataPoints: testPoints,
-            asOfDate: '2024-01-10T00:00:00.000Z',
+            asOfDate: standardAsOfDate,
             requiredObservations: 3
         });
         if (series.observationCount === 3 && series.returns.length === 2 && series.lookbackStart === '2024-01-01T00:00:00.000Z') {
@@ -183,6 +187,7 @@ async function runC71AcceptanceSuite() {
         const gappedSeries = RiskTaxonomyService.normalizeHistoricalReturns({
             symbol: 'GAP_TEST',
             dataPoints: gappedPoints,
+            asOfDate: '2024-01-25T00:00:00.000Z',
             requiredObservations: 20
         });
         if (gappedSeries.missingIntervals.length === 1 && gappedSeries.missingIntervals[0].gapDays === 19) {
@@ -203,7 +208,11 @@ async function runC71AcceptanceSuite() {
 
         // Test 14: Data Quality Status Transitions
         console.log('\n--- Test 14: Data Quality Status Transitions ---');
-        const emptySeries = RiskTaxonomyService.normalizeHistoricalReturns({ symbol: 'EMPTY', dataPoints: [] });
+        const emptySeries = RiskTaxonomyService.normalizeHistoricalReturns({
+            symbol: 'EMPTY',
+            dataPoints: [],
+            asOfDate: standardAsOfDate
+        });
         if (series.qualityStatus === DataQualityStatus.PRISTINE &&
             gappedSeries.qualityStatus === DataQualityStatus.INSUFFICIENT &&
             emptySeries.qualityStatus === DataQualityStatus.INSUFFICIENT) {
@@ -228,8 +237,8 @@ async function runC71AcceptanceSuite() {
         console.log('\n--- Test 16: Holding Liquidity Classification ---');
         const stockHolding = { id: 'h_stk', symbol: 'INFY', assetType: 'STOCK' };
         const goldHolding = { id: 'h_gld', symbol: 'GOLD24K', assetType: 'GOLD' };
-        const profStock = RiskTaxonomyService.classifyHoldingLiquidity(stockHolding);
-        const profGold = RiskTaxonomyService.classifyHoldingLiquidity(goldHolding);
+        const profStock = RiskTaxonomyService.classifyHoldingLiquidity({ holding: stockHolding, asOfDate: standardAsOfDate });
+        const profGold = RiskTaxonomyService.classifyHoldingLiquidity({ holding: goldHolding, asOfDate: standardAsOfDate });
 
         if (profStock.liquidityTier === LiquidityTier.SHORT_TERM_T2_T3 &&
             profGold.liquidityTier === LiquidityTier.MEDIUM_TERM_T4_T7) {
@@ -271,8 +280,50 @@ async function runC71AcceptanceSuite() {
             console.error('❌ Test 17 FAIL: Deterministic lockup evaluation failed:', { profBeforeExpiry, profAfterExpiry });
         }
 
-        // Test 18: Deep 5-Store Read-Only Safety Guard
-        console.log('\n--- Test 18: Deep 5-Store Read-Only Safety Guard ---');
+        // Test 18: Mandatory Deterministic asOfDate Enforcement (Blocker C7.1-02)
+        console.log('\n--- Test 18: Mandatory Deterministic asOfDate Enforcement ---');
+        let returnsMissingAsOfThrew = false;
+        let liquidityMissingAsOfThrew = false;
+        let returnsInvalidAsOfThrew = false;
+
+        try {
+            RiskTaxonomyService.normalizeHistoricalReturns({ symbol: 'TEST', dataPoints: testPoints });
+        } catch (err) {
+            if (err.message.includes('asOfDate is required')) returnsMissingAsOfThrew = true;
+        }
+
+        try {
+            RiskTaxonomyService.classifyHoldingLiquidity({ holding: stockHolding });
+        } catch (err) {
+            if (err.message.includes('asOfDate is required')) liquidityMissingAsOfThrew = true;
+        }
+
+        try {
+            RiskTaxonomyService.normalizeHistoricalReturns({ symbol: 'TEST', dataPoints: testPoints, asOfDate: 'invalid_date' });
+        } catch (err) {
+            if (err.message.includes('Invalid asOfDate')) returnsInvalidAsOfThrew = true;
+        }
+
+        // AST/Source scan: assert Date.now() and argument-less new Date() are 100% absent
+        const serviceSrc = fs.readFileSync(path.resolve('services/riskTaxonomy.js'), 'utf8');
+        const hasDateNow = serviceSrc.includes('Date.now()');
+        const hasArglessNewDate = /\bnew\s+Date\(\s*\)/.test(serviceSrc);
+
+        if (returnsMissingAsOfThrew && liquidityMissingAsOfThrew && returnsInvalidAsOfThrew && !hasDateNow && !hasArglessNewDate) {
+            console.log('✅ Test 18 PASS: Mandatory asOfDate strictly enforced; zero Date.now() or new Date() in riskTaxonomy.js.');
+            passCount++;
+        } else {
+            console.error('❌ Test 18 FAIL: Deterministic context check failed:', {
+                returnsMissingAsOfThrew,
+                liquidityMissingAsOfThrew,
+                returnsInvalidAsOfThrew,
+                hasDateNow,
+                hasArglessNewDate
+            });
+        }
+
+        // Test 19: Deep 5-Store Read-Only Safety Guard
+        console.log('\n--- Test 19: Deep 5-Store Read-Only Safety Guard ---');
         const holdingsBefore = JSON.stringify(await loadHoldings());
         const eventsBefore = JSON.stringify(await loadInvestmentEvents());
         const quotesBefore = JSON.stringify(await loadMarketQuotes());
@@ -280,8 +331,8 @@ async function runC71AcceptanceSuite() {
         const walletsBefore = JSON.stringify(await loadData(STORAGE_KEYS.WALLETS, []));
 
         // Execute full risk taxonomy normalization & classification
-        RiskTaxonomyService.normalizeHistoricalReturns({ symbol: 'INFY', dataPoints: testPoints });
-        RiskTaxonomyService.classifyHoldingLiquidity(elssHolding);
+        RiskTaxonomyService.normalizeHistoricalReturns({ symbol: 'INFY', dataPoints: testPoints, asOfDate: standardAsOfDate });
+        RiskTaxonomyService.classifyHoldingLiquidity({ holding: elssHolding, asOfDate: standardAsOfDate });
         RiskTaxonomyService.getScenarioShockVector('HISTORICAL_GFC_2008');
 
         const holdingsAfter = JSON.stringify(await loadHoldings());
@@ -297,28 +348,28 @@ async function runC71AcceptanceSuite() {
                             walletsBefore === walletsAfter;
 
         if (isUnchanged) {
-            console.log('✅ Test 18 PASS: 100% Zero state mutations across all 5 stores verified.');
+            console.log('✅ Test 19 PASS: 100% Zero state mutations across all 5 stores verified.');
             passCount++;
         } else {
-            console.error('❌ Test 18 FAIL: State mutation detected in risk taxonomy execution!');
+            console.error('❌ Test 19 FAIL: State mutation detected in risk taxonomy execution!');
         }
 
-        // Test 19: Full C.4–C.6 Certified Baseline Retention
-        console.log('\n--- Test 19: Full C.4–C.6 Certified Baseline Retention ---');
-        if (typeof CANONICAL_ASSET_CLASSES !== 'undefined' && Object.keys(CANONICAL_STRESS_SCENARIOS).length >= 4) {
-            console.log('✅ Test 19 PASS: C.4–C.6 certified contracts preserved with zero breaking changes.');
+        // Test 20: Full C.4–C.6 Certified Baseline Retention
+        console.log('\n--- Test 20: Full C.4–C.6 Certified Baseline Retention ---');
+        if (typeof CANONICAL_ASSET_CLASSES !== 'undefined' && Object.keys(CANONICAL_STRESS_SCENARIOS).length === 4) {
+            console.log('✅ Test 20 PASS: C.4–C.6 certified contracts preserved with zero breaking changes.');
             passCount++;
         } else {
-            console.error('❌ Test 19 FAIL: Baseline regression detected.');
+            console.error('❌ Test 20 FAIL: Baseline regression detected.');
         }
 
-        // Test 20: Stage C.7.1 Acceptance Standard Check
-        console.log('\n--- Test 20: Stage C.7.1 Acceptance Standard Check ---');
-        if (passCount === 19) {
-            console.log('✅ Test 20 PASS: All Stage C.7.1 behavioral acceptance criteria satisfied.');
+        // Test 21: Stage C.7.1 Acceptance Standard Check
+        console.log('\n--- Test 21: Stage C.7.1 Acceptance Standard Check ---');
+        if (passCount === 20) {
+            console.log('✅ Test 21 PASS: All Stage C.7.1 behavioral acceptance criteria satisfied.');
             passCount++;
         } else {
-            console.error('❌ Test 20 FAIL: Incomplete test suite execution.');
+            console.error('❌ Test 21 FAIL: Incomplete test suite execution.');
         }
 
         console.log(`\n================================================================`);

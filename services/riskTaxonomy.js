@@ -186,20 +186,27 @@ export const RiskTaxonomyService = {
      * @param {Object} params
      * @param {string} params.symbol - Asset symbol
      * @param {Array<Object>} params.dataPoints - Historical price points
-     * @param {Date|string} params.asOfDate - Evaluation cutoff date
-     * @param {number} params.requiredObservations - Target count for lookback (e.g. 252 for 1Y daily)
-     * @param {string} params.frequency - 'DAILY' | 'WEEKLY' | 'MONTHLY'
+     * @param {Date|string} params.asOfDate - Mandatory evaluation cutoff date
+     * @param {number} [params.requiredObservations=252] - Target count for lookback (e.g. 252 for 1Y daily)
+     * @param {string} [params.frequency='DAILY'] - 'DAILY' | 'WEEKLY' | 'MONTHLY'
      * @returns {Object} Canonical HistoricalReturnSeries DTO
      */
     normalizeHistoricalReturns({
         symbol,
         dataPoints = [],
-        asOfDate = new Date(),
+        asOfDate,
         requiredObservations = 252,
         frequency = 'DAILY'
     }) {
-        const normSymbol = (symbol || '').trim().toUpperCase();
+        if (!asOfDate) {
+            throw new Error('asOfDate is required for deterministic risk evaluation');
+        }
         const cutoffTs = new Date(asOfDate).getTime();
+        if (Number.isNaN(cutoffTs) || cutoffTs <= 0) {
+            throw new Error('Invalid asOfDate provided for risk evaluation');
+        }
+
+        const normSymbol = (symbol || '').trim().toUpperCase();
         const reqObs = Math.max(1, Number(requiredObservations) || 252);
 
         // 1. Filter points <= asOfDate and sort chronologically
@@ -285,9 +292,9 @@ export const RiskTaxonomyService = {
 
     /**
      * Resolves liquidity classification for a holding evaluated strictly at asOfDate.
-     * Guaranteed deterministic: zero dependency on wall clock Date.now().
+     * Guaranteed deterministic: mandatory asOfDate, zero wall-clock dependencies.
      * 
-     * @param {Object} params - Holding object or options bundle
+     * @param {Object} params - Holding object or options bundle { holding, asOfDate }
      * @param {Date|string} [asOfDateArg] - Deterministic evaluation cutoff
      * @returns {Object} HoldingLiquidityProfile
      */
@@ -300,7 +307,14 @@ export const RiskTaxonomyService = {
             asOfDate = params.asOfDate || asOfDateArg;
         }
 
-        const evalTs = asOfDate ? new Date(asOfDate).getTime() : Date.now();
+        if (!asOfDate) {
+            throw new Error('asOfDate is required for deterministic liquidity evaluation');
+        }
+
+        const evalTs = new Date(asOfDate).getTime();
+        if (Number.isNaN(evalTs) || evalTs <= 0) {
+            throw new Error('Invalid asOfDate provided for liquidity evaluation');
+        }
 
         if (!holding || typeof holding !== 'object') {
             return {
