@@ -17,7 +17,25 @@ import { loadHoldings, loadInvestmentEvents } from './storage.js';
 import MarketDataService from './marketDataService.js';
 import { EventType, InvestmentEventStatus } from './investingSchemas.js';
 
+export const CANONICAL_ASSET_TYPES = new Set([
+    'STOCK',
+    'MUTUAL_FUND',
+    'ETF',
+    'GOLD',
+    'CRYPTO',
+    'BOND',
+    'REAL_ESTATE',
+    'OTHER'
+]);
+
+function normalizeAssetType(type) {
+    if (!type || typeof type !== 'string') return 'OTHER';
+    const upper = type.trim().toUpperCase();
+    return CANONICAL_ASSET_TYPES.has(upper) ? upper : 'OTHER';
+}
+
 export const InvestingAnalyticsEngine = {
+
     /**
      * Reconstructs chronological realization history and calculates point-in-time realized P&L.
      * 
@@ -252,8 +270,9 @@ export const InvestingAnalyticsEngine = {
                 portfolioId: h.portfolioId,
                 symbol: sym,
                 name: h.name || sym,
-                assetType: h.assetType || 'STOCK',
+                assetType: normalizeAssetType(h.assetType),
                 quantity: qty,
+
                 averageCost: avgCost,
                 costBasis,
                 currentPrice,
@@ -312,7 +331,148 @@ export const InvestingAnalyticsEngine = {
 
             holdings: holdingBreakdown
         };
+    },
+
+    /**
+     * Stage C.4.2: Asset Allocation & Concentration Metrics Engine.
+     * 
+     * Calculates portfolio asset class distributions, holding weight rankings,
+     * Top-N concentration ratios, HHI diversification score, and risk tiering.
+     * 
+     * @param {Object} options { portfolioId = null }
+     * @returns {Object} Asset allocation and concentration snapshot
+     */
+    async getAssetAllocationSummary(options = {}) {
+        const { portfolioId = null } = options;
+
+        // 1. Consume C.4.1 Portfolio Valuation directly to guarantee quote/fallback consistency
+        const portfolioSummary = await this.getPortfolioSummary({ portfolioId });
+        const totalCost = portfolioSummary.totalCurrentCostBasis;
+        const totalMkt = portfolioSummary.totalMarketValue;
+        const holdings = portfolioSummary.holdings || [];
+
+        // 2. Safe Empty Portfolio Handler
+        if (holdings.length === 0) {
+            return {
+                portfolioId: portfolioId || 'ALL_PORTFOLIOS',
+                totalCurrentCostBasis: 0,
+                totalMarketValue: 0,
+                assetAllocation: [],
+                concentration: {
+                    totalHoldings: 0,
+                    holdings: [],
+                    top1Percent: 0,
+                    top3Percent: 0,
+                    top5Percent: 0,
+                    hhi: 0,
+                    riskTier: 'EMPTY'
+                },
+                valuationBasis: 'EMPTY',
+                quoteCoverage: {
+                    totalHoldings: 0,
+                    marketValued: 0,
+                    costBasisFallback: 0
+                }
+            };
+        }
+
+        // 3. Asset Class Aggregation
+        const classMap = {};
+        for (const type of CANONICAL_ASSET_TYPES) {
+            classMap[type] = {
+                assetType: type,
+                holdingCount: 0,
+                costBasis: 0,
+                marketValue: 0
+            };
+        }
+
+        for (const h of holdings) {
+            const normType = normalizeAssetType(h.assetType);
+            const entry = classMap[normType];
+            entry.holdingCount += 1;
+            entry.costBasis = Number((entry.costBasis + h.costBasis).toFixed(2));
+            entry.marketValue = Number((entry.marketValue + h.marketValue).toFixed(2));
+        }
+
+        const assetAllocation = Object.values(classMap)
+            .filter(c => c.holdingCount > 0)
+            .map(c => {
+                const costWeightPercent = totalCost > 0 ? Number(((c.costBasis / totalCost) * 100).toFixed(2)) : 0;
+                const marketWeightPercent = totalMkt > 0 ? Number(((c.marketValue / totalMkt) * 100).toFixed(2)) : 0;
+                const unrealizedGain = Number((c.marketValue - c.costBasis).toFixed(2));
+                const unrealizedReturnPercent = c.costBasis > 0 ? Number(((unrealizedGain / c.costBasis) * 100).toFixed(2)) : 0;
+                return {
+                    assetType: c.assetType,
+                    holdingCount: c.holdingCount,
+                    costBasis: c.costBasis,
+                    marketValue: c.marketValue,
+                    costWeightPercent,
+                    marketWeightPercent,
+                    unrealizedGain,
+                    unrealizedReturnPercent
+                };
+            });
+
+        // 4. Holding-Level Weights & Concentration Analysis
+        const holdingWeights = holdings.map(h => {
+            const marketWeightPercent = totalMkt > 0 ? Number(((h.marketValue / totalMkt) * 100).toFixed(2)) : 0;
+            const costWeightPercent = totalCost > 0 ? Number(((h.costBasis / totalCost) * 100).toFixed(2)) : 0;
+            return {
+                holdingId: h.holdingId || null,
+                portfolioId: h.portfolioId,
+                symbol: h.symbol,
+                name: h.name,
+                assetType: normalizeAssetType(h.assetType),
+                costBasis: h.costBasis,
+                marketValue: h.marketValue,
+                costWeightPercent,
+                marketWeightPercent
+            };
+        });
+
+        // Sort descending by marketValue
+        holdingWeights.sort((a, b) => b.marketValue - a.marketValue);
+
+        // Top-N concentration ratios
+        const top1Percent = holdingWeights[0] ? holdingWeights[0].marketWeightPercent : 0;
+        const top3Percent = Number(holdingWeights.slice(0, 3).reduce((sum, h) => sum + h.marketWeightPercent, 0).toFixed(2));
+        const top5Percent = Number(holdingWeights.slice(0, 5).reduce((sum, h) => sum + h.marketWeightPercent, 0).toFixed(2));
+
+        // HHI Diversification Index: Sum(marketWeightPercent^2)
+        const hhi = Number(holdingWeights.reduce((sum, h) => sum + Math.pow(h.marketWeightPercent, 2), 0).toFixed(2));
+
+        // Concentration Risk Tiering (Strict > Boundaries)
+        let riskTier = 'BALANCED';
+        if (holdingWeights.length === 0) {
+            riskTier = 'EMPTY';
+        } else if (top1Percent > 40.0 || top3Percent > 70.0) {
+            riskTier = 'HIGH';
+        } else if (top1Percent > 25.0 || top3Percent > 50.0) {
+            riskTier = 'MODERATE';
+        } else {
+            riskTier = 'BALANCED';
+        }
+
+        return {
+            portfolioId: portfolioId || 'ALL_PORTFOLIOS',
+            totalCurrentCostBasis: totalCost,
+            totalMarketValue: totalMkt,
+            assetAllocation,
+            concentration: {
+                totalHoldings: holdingWeights.length,
+                holdings: holdingWeights,
+                top1Percent,
+                top3Percent,
+                top5Percent,
+                hhi,
+                riskTier
+            },
+            valuationBasis: portfolioSummary.valuationBasis,
+            quoteCoverage: portfolioSummary.quoteCoverage
+        };
     }
 };
 
 export default InvestingAnalyticsEngine;
+
