@@ -2,7 +2,7 @@
 
 **Stage**: C.7.4  
 **Phase**: C.7 (Portfolio Intelligence, Risk Diagnostics & Stress Testing)  
-**Status**: ARCHITECTURE REMEDIATED — ZERO-CODE GATE ACTIVE 🔒  
+**Status**: ARCHITECTURE FINAL REMEDIATION COMPLETE — ZERO-CODE GATE ACTIVE 🔒  
 **Certified Baseline**: [`4f541b6`](https://github.com/Nreddy2020/finapp-mobile/commit/4f541b6) (Stage C.7.3 Master Certified)  
 **Branch**: `fintech-using-chatgpt`  
 **Author**: Antigravity AI & Quantitative Risk Systems Architect  
@@ -19,12 +19,16 @@ It provides mathematically rigorous, deterministic, and auditable cross-asset ri
 2. **Pearson Correlation Matrix ($\mathbf{R}$)**: Normalized linear dependency matrix ($\rho_{ij} \in [-1, 1]$) with strict zero-variance protection.
 3. **Portfolio-Weighted Average Correlation ($\bar{\rho}_p$)**: Off-diagonal diversification density index.
 4. **Diversification Ratio ($DR_{\text{corr}}$) & Volatility Reduction Multiplier ($DBM$)**: Ratio of weighted constituent volatilities to total portfolio volatility ($\frac{\sum w_i \sigma_i}{\sqrt{\mathbf{w}^T \mathbf{\Sigma} \mathbf{w}}}$) with explicit zero/degenerate-variance boundaries.
-5. **Principal Component Analysis (PCA) & Factor Concentration with Final Recomputed Spectrum**:
-   - Eigenvalue decomposition of the correlation matrix ($\mathbf{R} = \mathbf{V} \mathbf{\Lambda} \mathbf{V}^T$).
-   - Spectral projection PSD repair with authoritative **final eigen recomputation**.
+5. **Principal Component Analysis (PCA) & Factor Concentration with Final Spectrum Non-Negativity**:
+   - 9-step deterministic spectral projection PSD repair with authoritative **final eigen recomputation**.
+   - Strict eigenvalue non-negativity validation ($\lambda_k^{\text{final}} \ge 0$) and floating-point noise clamping.
    - Proportion of variance explained by Top-1, Top-2, Top-3 eigenvalues of the final repaired correlation matrix.
    - Effective Number of Independent Risk Factors ($N_{\text{factors}} = \frac{(\sum \lambda_i^{\text{final}})^2}{\sum (\lambda_i^{\text{final}})^2} = \frac{N^2}{\sum (\lambda_i^{\text{final}})^2}$).
-6. **Canonical 8-Class Cross-Asset Class Correlation**: Aggregated $8 \times 8$ correlation matrix across canonical C.7.1 asset classes with explicit null handling for unrepresented classes.
+6. **Canonical 8-Class Cross-Asset Class Correlation & Strict Constituent Synchronization**:
+   - Aggregated $8 \times 8$ correlation matrix across canonical C.7.1 asset classes.
+   - Strict intersection synchronization across class constituents (zero manufactured returns, zero dynamic weight renormalization).
+   - Explicit null handling for unrepresented classes ($W_c = 0$).
+7. **Explicit Empty Portfolio Boundary ($N = 0$)**: Complete deterministic DTO contract returning safe nulls and `'EMPTY_PORTFOLIO'` status.
 
 ### 1.2 Non-Goals & Invariants
 - ❌ **No UI Development**: Pure analytical calculation engine. UI visualizers will be developed in Stage C.7.8.
@@ -70,7 +74,23 @@ C.7.4 strictly accepts **long-only** portfolio weights:
 
 ---
 
-### 2.3 Covariance & Correlation Matrix Formulation
+### 2.3 Empty Portfolio Contract ($N = 0$) (C7.4-R8)
+
+If holding count $N = 0$:
+- `status: 'EMPTY_PORTFOLIO'`
+- `observationCount: 0`, `holdingCount: 0`
+- `correlationMatrix: null`, `covarianceMatrix: null`, `assetClassCorrelationMatrix: null`
+- `weightedAverageCorrelation: null`, `diversificationRatio: null`, `diversificationBenefitMultiplier: null`
+- `portfolioAnnualizedVolatility: null`, `weightedConstituentVolatility: null`
+- `eigenvalues: null`, `varianceExplainedRatios: null`
+- `top1FactorConcentration: null`, `top2CumulativeVariance: null`, `top3CumulativeVariance: null`
+- `componentsFor80PercentVariance: null`, `componentsFor90PercentVariance: null`, `effectiveFactorCount: null`
+- `warnings: ['EMPTY_PORTFOLIO']`
+- `dataQuality.confidenceLevel: 'UNAVAILABLE'`
+
+---
+
+### 2.4 Covariance & Correlation Matrix Formulation
 
 #### A. Sample Covariance Matrix ($\mathbf{\Sigma} \in \mathbb{R}^{N \times N}$)
 For holdings $i, j \in [1, N]$ over $T$ synchronized periods:
@@ -89,7 +109,7 @@ where $\sigma_i = \sqrt{\text{Cov}(r_i, r_i)}$.
 
 ---
 
-### 2.4 Portfolio-Weighted Diversification Metrics & Zero-Volatility Boundary (C7.4-R5)
+### 2.5 Portfolio-Weighted Diversification Metrics & Zero-Volatility Boundary (C7.4-R5)
 
 Define numerical volatility epsilon: $\epsilon_{\text{vol}} = 10^{-12}$.
 
@@ -117,7 +137,7 @@ Define numerical volatility epsilon: $\epsilon_{\text{vol}} = 10^{-12}$.
 
 ---
 
-### 2.5 Principal Component Analysis (PCA) & Final Spectrum Recomputation Contract (C7.4-R1)
+### 2.6 Principal Component Analysis (PCA), Final Spectrum & Non-Negativity Contract (C7.4-R1 & C7.4-R6)
 
 #### A. Authoritative Deterministic Pipeline
 To eliminate spectral drift caused by diagonal re-normalization during Positive Semi-Definite (PSD) projection, the engine executes the following deterministic 9-step pipeline:
@@ -129,7 +149,7 @@ Input Correlation Matrix R (N x N)
         ↓
 2. Eigen Decomposition: R_sym = V Λ V^T
         ↓
-3. Check for Negative Eigenvalues: (min(λ_k) < -1e-8)
+3. Check for Negative Eigenvalues: (min(λ_k) < -PSD_REPAIR_TOLERANCE)
         ↓
 4. If PSD repair required:
    Clamp negative eigenvalues: λ̂_k = max(0, λ_k)
@@ -140,7 +160,13 @@ Input Correlation Matrix R (N x N)
    Else:
    R_final = R_sym, Λ_final = Λ
         ↓
-5. Sort FINAL Eigenvalues Descendingly: λ_1^final ≥ λ_2^final ≥ ... ≥ λ_N^final ≥ 0
+5. Inspect & Validate FINAL Spectrum (C7.4-R6):
+   For each λ in Λ_final:
+   If λ < 0 and |λ| <= PSD_REPAIR_TOLERANCE (1e-8):
+       λ_clamped = 0.0  (floating-point numerical noise)
+   Else if λ < -PSD_REPAIR_TOLERANCE:
+       Mark status: 'DEGRADED', warning: 'NUMERICALLY_INVALID_NON_PSD_SPECTRUM', PCA metrics = null
+   Sort final non-negative eigenvalues descendingly: λ_1^final ≥ λ_2^final ≥ ... ≥ λ_N^final ≥ 0
         ↓
 6. Use FINAL Eigenvalues {λ_k^final} for ALL Output PCA Metrics
 ```
@@ -161,7 +187,7 @@ The eigenvalues used in all PCA DTO outputs **MUST** be those of the final repai
 
 ---
 
-### 2.6 Canonical 8-Class Asset Aggregation & Empty Class Contract (C7.4-R3)
+### 2.7 Canonical 8-Class Asset Aggregation & Strict Constituent Synchronization (C7.4-R3 & C7.4-R7)
 
 For the 8 canonical C.7.1 asset classes ($\text{EQUITY\_DOMESTIC}$, $\text{EQUITY\_INTERNATIONAL}$, $\text{DEBT\_FIXED\_INCOME}$, $\text{GOLD\_COMMODITIES}$, $\text{REAL\_ESTATE}$, $\text{CASH\_LIQUID}$, $\text{CRYPTO\_SPECULATIVE}$, $\text{ALTERNATIVE}$):
 
@@ -173,10 +199,21 @@ For the 8 canonical C.7.1 asset classes ($\text{EQUITY\_DOMESTIC}$, $\text{EQUIT
      - The class volatility is `null`.
      - All pairwise correlation entries involving class $c$ (including diagonal $(c, c)$) are strictly **`null`**.
    - **Zero Manufactured Returns Rule**: An absent class **MUST NEVER** be represented as zero return, zero volatility, or zero correlation.
-3. **Active Class Aggregation ($W_c > 0$)**:
-   - For represented classes, compute weighted class returns:
-     $$R_{\text{class}, c, t} = \sum_{i \in \text{class } c} \frac{w_i}{W_c} r_{i,t}$$
-   - Compute pairwise Pearson correlations between active classes.
+3. **Represented Class Constituent Synchronization (C7.4-R7)**:
+   - For each represented class $c$ ($W_c > 0$):
+     - Normalized fixed constituent weights: $w_{\text{class}, i} = w_i / W_c$.
+     - Build the class return series **ONLY** on timestamps where **every** constituent $i \in c$ has a valid, finite return (strict intersection $\mathcal{T}_{\text{class}, c} = \bigcap_{i \in c} \mathcal{T}_i$).
+     - **Strict Prohibitions**:
+       - Missing constituent returns are **NEVER** replaced with 0.0.
+       - No interpolation, forward-filling, or synthetic imputation.
+       - Weights are **NEVER** renormalized dynamically per timestamp.
+       - Constituent membership does not change across dates.
+     - If a constituent is missing on timestamp $t$, timestamp $t$ is excluded from class $c$'s return series.
+     - If the resulting synchronized return series for class $c$ has fewer than 20 observations ($|\mathcal{T}_{\text{class}, c}| < 20$), class $c$'s correlation relationships are marked `null`/unavailable.
+     - On synchronized timestamps:
+       $$R_{\text{class}, c, t} = \sum_{i \in \text{class } c} w_{\text{class}, i} \cdot r_{i,t}$$
+4. **Cross-Class Correlation Matrix**:
+   - Pairwise Pearson correlations between active classes are computed across their synchronized return series intersection.
 
 ---
 
@@ -218,7 +255,7 @@ export const CorrelationDiagnosticsSchema = {
     portfolioId: 'STRING_OR_NULL',
     asOfDate: 'ISO_DATE_STRING',
     policyVersion: 'C7_4_V1',
-    status: 'CorrelationStatus', // 'HEALTHY' | 'INSUFFICIENT_HISTORY' | 'INVALID_INPUT' | 'DEGRADED' | 'SINGLE_HOLDING'
+    status: 'CorrelationStatus', // 'HEALTHY' | 'INSUFFICIENT_HISTORY' | 'INVALID_INPUT' | 'DEGRADED' | 'SINGLE_HOLDING' | 'EMPTY_PORTFOLIO'
     frequency: 'DAILY | WEEKLY | MONTHLY',
     observationCount: 'INTEGER',
     holdingCount: 'INTEGER',
@@ -265,7 +302,7 @@ export const CorrelationDiagnosticsSchema = {
 
 ---
 
-## 4. Expanded 36-Scenario Acceptance Test Matrix (`tests/test_c74.mjs`)
+## 4. Expanded 40-Scenario Acceptance Test Matrix (`tests/test_c74.mjs`)
 
 ### Group 1: Mathematical Formulation & Core Matrices (Tests 1–8)
 1. **Single Holding Portfolio ($N = 1$)**: $\mathbf{R} = [[1.0]], \mathbf{\Sigma} = [[\sigma^2]], DR = 1.0, \bar{\rho}_p = 1.0, N_{\text{factors}} = 1.0$.
@@ -285,35 +322,39 @@ export const CorrelationDiagnosticsSchema = {
 13. **Portfolio Volatility Reconciliation**: Confirms $\sqrt{\mathbf{w}^T \mathbf{\Sigma} \mathbf{w}}$ matches portfolio-level return standard deviation.
 14. **Zero-Variance Portfolio Boundary (100% Cash)**: $\sigma_p = 0, \sigma_{\text{weighted}} = 0 \implies DR = 1.0, DBM = 0.0$.
 
-### Group 3: Canonical 8-Class Asset Aggregation & Empty Classes (Tests 15–18)
+### Group 3: Canonical 8-Class Asset Aggregation & Synchronization (Tests 15–20)
 15. **8-Class Representation Structure**: Exactly 8 canonical asset classes in output array.
-16. **Empty Asset Class Null Matrix Contract**: Absent classes ($W_c = 0$) produce `null` rows and columns.
+16. **Empty Asset Class Null Matrix Contract ($W_c = 0$)**: Absent classes produce `null` rows and columns.
 17. **Partially Populated Portfolio (3 Classes Present)**: Valid $3 \times 3$ sub-block, exactly `null` for the 5 absent classes.
-18. **Fully Populated Portfolio (8 Classes Present)**: Complete $8 \times 8$ correlation matrix without nulls.
+18. **Class Constituent Missing Observation Synchronization (C7.4-R7)**: Timestamp omitted when any constituent is missing (no zero substitution).
+19. **Fixed Class Weight Integrity**: Class weights $w_i / W_c$ remain strictly constant across all timestamps.
+20. **Insufficient Class Observations ($T_{\text{class}} < 20$)**: Class relationship returns `null` with warning.
 
-### Group 4: PCA, Final Spectrum & PSD Repair (Tests 19–24)
-19. **Final Spectrum Trace Invariant ($\sum \lambda_k^{\text{final}} = N$)**: Trace sum equals $N \pm 10^{-6}$ on final repaired matrix.
-20. **Variance Explained Monotonicity**: $\lambda_1^{\text{final}} \ge \dots \ge \lambda_N^{\text{final}} \ge 0$.
-21. **Effective Number of Independent Factors ($N_{\text{factors}}$)**: Exact calculation across identity and singular correlation structures.
-22. **$K_{80}$ and $K_{90}$ Factor Thresholds**: Accurate component counts for cumulative variance.
-23. **PSD Spectral Projection & Final Eigen Recomputation Pipeline**: Negative eigenvalue matrix repaired and final eigenvalues used.
-24. **Deterministic Jacobi Eigen-Solver Accuracy**: Verified against known analytical symmetric matrices.
+### Group 4: PCA, Final Spectrum, Tolerance & PSD Repair (Tests 21–26)
+21. **Final Spectrum Trace Invariant ($\sum \lambda_k^{\text{final}} = N$)**: Trace sum equals $N \pm 10^{-6}$ on final repaired matrix.
+22. **Variance Explained Monotonicity**: $\lambda_1^{\text{final}} \ge \dots \ge \lambda_N^{\text{final}} \ge 0$.
+23. **Tiny Negative Eigenvalue Noise Clamping (C7.4-R6)**: Clamps $-10^{-10} \to 0.0$ without failing.
+24. **Materially Negative Eigenvalue Detection**: Rejects $\lambda < -10^{-8}$ with `DEGRADED` status.
+25. **Effective Number of Independent Factors ($N_{\text{factors}}$)**: Exact calculation across identity and singular correlation structures.
+26. **$K_{80}$ and $K_{90}$ Factor Thresholds**: Accurate component counts for cumulative variance.
 
-### Group 5: Validation, Input Guards & Warnings (Tests 25–30)
-25. **Duplicate Timestamp Detection**: Returns `INVALID_INPUT` and `DUPLICATE_TIMESTAMP_INPUT` warning without guessing.
-26. **Strict Long-Only Weight Validation**: Rejects negative, NaN, and non-sum-to-1 weights.
-27. **`HIGH_POSITIVE_CORRELATION` & `CRITICAL_POSITIVE_CORRELATION` Diagnostics**: Triggered for $\rho \ge 0.70$ and $\ge 0.85$.
-28. **`STRONG_NEGATIVE_CORRELATION` Diagnostic**: Triggered for $\rho \le -0.70$ as a diversification relationship (not concentration risk).
-29. **`HIGH_PORTFOLIO_AVERAGE_CORRELATION` Diagnostic**: Triggered when $\bar{\rho}_p \ge 0.65$.
-30. **`DOMINANT_RISK_FACTOR_CONCENTRATION` Diagnostic**: Triggered when $PC_1 \ge 0.60$.
+### Group 5: Validation, Input Guards & Warnings (Tests 27–33)
+27. **Empty Portfolio Boundary ($N = 0$) (C7.4-R8)**: Returns `EMPTY_PORTFOLIO` status and safe nulls.
+28. **Duplicate Timestamp Detection (C7.4-R4)**: Returns `INVALID_INPUT` and `DUPLICATE_TIMESTAMP_INPUT` warning without guessing.
+29. **Strict Long-Only Weight Validation (C7.4-R2)**: Rejects negative, NaN, and non-sum-to-1 weights.
+30. **`HIGH_POSITIVE_CORRELATION` & `CRITICAL_POSITIVE_CORRELATION` Diagnostics**: Triggered for $\rho \ge 0.70$ and $\ge 0.85$.
+31. **`STRONG_NEGATIVE_CORRELATION` Diagnostic**: Triggered for $\rho \le -0.70$ as a diversification relationship (not concentration risk).
+32. **`HIGH_PORTFOLIO_AVERAGE_CORRELATION` Diagnostic**: Triggered when $\bar{\rho}_p \ge 0.65$.
+33. **`DOMINANT_RISK_FACTOR_CONCENTRATION` Diagnostic**: Triggered when $PC_1 \ge 0.60$.
 
-### Group 6: Determinism, Quality, AST Scan & Read-Only Safety (Tests 31–36)
-31. **Mandatory Deterministic `asOfDate`**: Missing or invalid `asOfDate` throws explicit error.
-32. **AST Wall-Clock Scan**: 0 `Date.now()` and 0 argument-less `new Date()` in `correlationEngine.js`.
-33. **Asynchronous Date Synchronization Intersection**: Correct time grid alignment without inventing data.
-34. **Insufficient Observation Boundary ($T < 20$)**: Returns `INSUFFICIENT_HISTORY` with safe nulls.
-35. **Deep 5-Store Read-Only Safety Guard**: Verified 100% zero state mutations across all 5 stores.
-36. **Full Master System Regression Preservation**: 343/343 previous system tests pass with zero regressions.
+### Group 6: Determinism, Quality, AST Scan & Read-Only Safety (Tests 34–40)
+34. **Mandatory Deterministic `asOfDate`**: Missing or invalid `asOfDate` throws explicit error.
+35. **AST Wall-Clock Scan**: 0 `Date.now()` and 0 argument-less `new Date()` in `correlationEngine.js`.
+36. **Asynchronous Date Synchronization Intersection**: Correct time grid alignment without inventing data.
+37. **Insufficient Observation Boundary ($T < 20$)**: Returns `INSUFFICIENT_HISTORY` with safe nulls.
+38. **Deep 5-Store Read-Only Safety Guard**: Verified 100% zero state mutations across all 5 stores.
+39. **Deterministic Output Repeatability**: Identical inputs yield byte-equivalent DTO outputs.
+40. **Full Master System Regression Preservation**: 343/343 previous system tests pass with zero regressions.
 
 ---
 

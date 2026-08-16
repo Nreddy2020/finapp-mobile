@@ -39,7 +39,7 @@ Current Stage:
 C.7.4_ARCHITECTURE_PLANNING
 
 Overall Status:
-C.7.4_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
+C.7.4_ARCHITECTURE_FINAL_REMEDIATION_COMPLETE_PENDING_GATE_DECISION
 
 
 ## 2. MASTER ROADMAP
@@ -65,7 +65,7 @@ C.7.4_ARCHITECTURE_REMEDIATED_PENDING_GATE_DECISION
 | ↳ C.7.1 | Portfolio Risk Foundation & Risk Taxonomy | 🟢 **CERTIFIED** (`d80af93`) |
 | ↳ C.7.2 | Concentration & Diversification Diagnostics | 🟢 **CERTIFIED** (`c29629d`) |
 | ↳ C.7.3 | Volatility, Drawdown & Downside Risk | 🟢 **MASTER CERTIFIED** (`4f541b6`) |
-| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟡 ARCHITECTURE REMEDIATED (IN REVIEW) |
+| ↳ C.7.4 | Correlation & Cross-Asset Risk | 🟡 FINAL REMEDIATION COMPLETE (IN REVIEW) |
 | ↳ C.7.5 | Liquidity & Cash-Flow Stress | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.6 | Scenario & Stress-Test Engine | ⚪ PLANNED (Gate Locked 🔒) |
 | ↳ C.7.7 | Portfolio Health Score & Risk Explanation | ⚪ PLANNED (Gate Locked 🔒) |
@@ -78,10 +78,10 @@ Stage:
 C.7.4 (Correlation, Covariance & Cross-Asset Risk Engine)
 
 Objective:
-Incorporate Architect remediations C7.4-R1 (PSD repair with final spectrum recomputation), C7.4-R2 (strict long-only weight validation), C7.4-R3 (empty asset class null matrix contract), C7.4-R4 (duplicate timestamp detection and rejection), C7.4-R5 (zero/degenerate variance DR/DBM contract), and separated positive/negative correlation diagnostics into `docs/C7_4_ARCHITECTURE_PLAN.md`.
+Incorporate final Architect remediations C7.4-R6 (final PCA eigenvalue non-negativity and noise clamping within 1e-8 tolerance), C7.4-R7 (strict asset-class return synchronization without imputation or dynamic weight renormalization), and C7.4-R8 (explicit N=0 empty portfolio DTO contract with safe nulls) into `docs/C7_4_ARCHITECTURE_PLAN.md` with an expanded 40-scenario acceptance test matrix.
 
 Architecture Gate:
-REMEDIATED — PENDING FINAL GATE REVIEW (Zero-Code Gate Active 🔒)
+FINAL REMEDIATION COMPLETE — PENDING IMPLEMENTATION AUTHORIZATION (Zero-Code Gate Active 🔒)
 
 Implementation:
 LOCKED (Zero-Code Gate Active 🔒)
@@ -155,10 +155,10 @@ PASS (5-store deep snapshot verified) 🟢
 ## 7. NEXT ACTION
 
 Implementation Agent:
-Remediated Stage C.7.4 Architecture Plan (`docs/C7_4_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's final architecture gate authorization before creating `services/correlationEngine.js` and `tests/test_c74.mjs`.
+Completed final Stage C.7.4 Architecture Remediation (`docs/C7_4_ARCHITECTURE_PLAN.md`). Pushed to GitHub. Awaiting Architect's final implementation authorization before creating `services/correlationEngine.js` and `tests/test_c74.mjs`.
 
 Architect:
-Review remediated Stage C.7.4 Architecture Plan and issue implementation gate authorization.
+Review finalized Stage C.7.4 Architecture Plan and issue implementation authorization.
 
 
 ## 8. CERTIFICATION RECORD
@@ -170,7 +170,7 @@ Review remediated Stage C.7.4 Architecture Plan and issue implementation gate au
 - **Stage C.7.1**: 🟢 CERTIFIED (`d80af93`)
 - **Stage C.7.2**: 🟢 CERTIFIED (`c29629d`)
 - **Stage C.7.3**: 🟢 MASTER CERTIFIED (`4f541b6`)
-- **Stage C.7.4**: 🟡 ARCHITECTURE REMEDIATED (IN REVIEW)
+- **Stage C.7.4**: 🟡 FINAL REMEDIATION COMPLETE (IN REVIEW)
 - **Zero-Code Gate**: ACTIVE 🔒 (for Stage C.7.4+)
 
 
