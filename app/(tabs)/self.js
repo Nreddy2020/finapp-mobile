@@ -214,6 +214,33 @@ export default function SelfScreen() {
     // Interactive Calculator & Add Loan State
     const [showCalculator, setShowCalculator] = useState(false);
     const [calcActiveTab, setCalcActiveTab] = useState('inputs'); // 'inputs' | 'amortization'
+    const [calculatorInput, setCalculatorInput] = useState('');
+    const [calculatorResult, setCalculatorResult] = useState('');
+
+    const handleCalcPress = (btn) => {
+        if (btn === 'C') {
+            setCalculatorInput('');
+            setCalculatorResult('');
+        } else if (btn === '⌫') {
+            setCalculatorInput(prev => (prev ? prev.slice(0, -1) : ''));
+        } else if (btn === '=') {
+            try {
+                const sanitized = calculatorInput
+                    .replace(/×/g, '*')
+                    .replace(/÷/g, '/')
+                    .replace(/[^0-9+\-*/.]/g, '');
+                if (!sanitized) return;
+                const res = Function(`'use strict'; return (${sanitized})`)();
+                if (Number.isFinite(res)) {
+                    setCalculatorResult(String(Number(res.toFixed(2))));
+                }
+            } catch (e) {
+                setCalculatorResult('Error');
+            }
+        } else {
+            setCalculatorInput(prev => (prev || '') + btn);
+        }
+    };
     
     // P2P Pre-Checking Loan Calculator Inputs
     const [calcPrincipal, setCalcPrincipal] = useState('100000');
