@@ -78,13 +78,13 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     ];
 
     const drawerRoutes = [
-        { name: 'index', label: 'Dashboard', icon: LayoutDashboard },
-        { name: 'money', label: 'Money', icon: Wallet, state: isMoneyExpanded, setState: setIsMoneyExpanded, subTabs: moneySubTabs },
-        { name: 'wealth', label: 'Wealth', icon: Landmark, state: isWealthExpanded, setState: setIsWealthExpanded, subTabs: wealthSubTabs },
-        { name: 'life', label: 'Life', icon: Heart, state: isLifeExpanded, setState: setIsLifeExpanded, subTabs: lifeSubTabs },
-        { name: 'business', label: 'Business', icon: Building2 },
-        { name: 'intelligence', label: 'Intelligence', icon: Activity, state: isIntelligenceExpanded, setState: setIsIntelligenceExpanded, subTabs: intelligenceSubTabs, isGroup: true },
-        { name: 'security', label: 'Security', icon: ShieldCheck, state: isSecurityExpanded, setState: setIsSecurityExpanded, subTabs: securitySubTabs, isGroup: true }
+        { name: 'index', label: 'Personal CFO (Home)', icon: LayoutDashboard },
+        { name: 'money', label: 'Money Flow & Cash', icon: Wallet, state: isMoneyExpanded, setState: setIsMoneyExpanded, subTabs: moneySubTabs },
+        { name: 'wealth', label: 'Wealth & Portfolio', icon: Landmark, state: isWealthExpanded, setState: setIsWealthExpanded, subTabs: wealthSubTabs },
+        { name: 'life', label: 'Goals & Life Planning', icon: Heart, state: isLifeExpanded, setState: setIsLifeExpanded, subTabs: lifeSubTabs },
+        { name: 'business', label: 'Business Hub', icon: Building2 },
+        { name: 'intelligence', label: 'Decision Intelligence', icon: Activity, state: isIntelligenceExpanded, setState: setIsIntelligenceExpanded, subTabs: intelligenceSubTabs, isGroup: true },
+        { name: 'security', label: 'Privacy & Security', icon: ShieldCheck, state: isSecurityExpanded, setState: setIsSecurityExpanded, subTabs: securitySubTabs, isGroup: true }
     ];
 
     return (

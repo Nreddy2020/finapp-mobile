@@ -5,7 +5,9 @@ import { ArrowLeft, Wallet, TrendingUp, Calendar, AlertTriangle, ShieldCheck, Pl
 import * as ImagePicker from 'expo-image-picker';
 import { useDrawer } from './_layout';
 import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
+import { aggregateFinancialOpportunities } from '../../services/financialOpportunityAggregator';
+import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
 const { width } = Dimensions.get('window');
 
 const AGENTS_20 = [
@@ -163,6 +165,36 @@ export default function SelfScreen() {
     }, [tab]);
 
     const { formatAmount } = useGlobalFinance();
+
+    // Stage AX.1 Personal CFO Decision Intelligence Stream
+    const [cfoHealthScore, setCfoHealthScore] = useState(null);
+    const [cfoHealthGrade, setCfoHealthGrade] = useState('B');
+    const [cfoTopAction, setCfoTopAction] = useState(null);
+
+    useEffect(() => {
+        let isMounted = true;
+        const loadCFOIntelligence = async () => {
+            try {
+                const asOfDate = new Date().toISOString();
+                const healthRes = evaluatePortfolioHealthScore({}, asOfDate);
+                const oppsRes = aggregateFinancialOpportunities({ portfolioHealthDTO: healthRes }, asOfDate);
+                const nbaRes = prioritizeNextBestActions(oppsRes, asOfDate);
+                if (isMounted) {
+                    if (healthRes?.totalHealthScore !== undefined) {
+                        setCfoHealthScore(healthRes.totalHealthScore.toFixed(1));
+                        setCfoHealthGrade(healthRes.healthGrade || 'B');
+                    }
+                    if (nbaRes?.rankedActions?.[0]) {
+                        setCfoTopAction(nbaRes.rankedActions[0]);
+                    }
+                }
+            } catch (e) {
+                // Non-blocking graceful fallback
+            }
+        };
+        loadCFOIntelligence();
+        return () => { isMounted = false; };
+    }, [activeTab]);
 
     // --- Sub-Hub State Hooks for Financial Hub ---
     const [activeHubTab, setActiveHubTab] = useState('dashboard'); // 'dashboard' | 'loans' | 'split'
@@ -2262,8 +2294,60 @@ export default function SelfScreen() {
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* 1. Money Flow */}
                 {activeTab === 'flow' && (
-                    <View style={styles.card}>
-                        <Text style={styles.cardTitle}>Personal Spending Table</Text>
+                    <>
+                        {/* Stage AX.1 Personal CFO Decision Intelligence Integration Banner */}
+                        <View style={{
+                            backgroundColor: '#1E1B4B',
+                            borderColor: '#4338CA',
+                            borderWidth: 1,
+                            borderRadius: 16,
+                            padding: 16,
+                            marginBottom: 16
+                        }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <ShieldCheck size={18} color="#818CF8" />
+                                    <Text style={{ color: '#818CF8', fontSize: 12, fontWeight: '800', letterSpacing: 0.6 }}>
+                                        PERSONAL CFO INTELLIGENCE
+                                    </Text>
+                                </View>
+                                {cfoHealthScore && (
+                                    <View style={{ backgroundColor: '#312E81', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: '#4F46E5' }}>
+                                        <Text style={{ color: '#E0E7FF', fontSize: 11, fontWeight: '800' }}>
+                                            Health: {cfoHealthScore}/100 ({cfoHealthGrade})
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+
+                            <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '800', marginBottom: 4 }}>
+                                {cfoTopAction ? `#1 Priority: ${cfoTopAction.title}` : 'Cash Flow Actively Feeds Portfolio Truth'}
+                            </Text>
+
+                            <Text style={{ color: '#94A3B8', fontSize: 12, lineHeight: 18, marginBottom: 12 }}>
+                                {cfoTopAction?.rationale || 'Categorizing transactions establishes your true monthly burn rate and updates your emergency runway.'}
+                            </Text>
+
+                            <TouchableOpacity 
+                                style={{
+                                    backgroundColor: '#4F46E5',
+                                    paddingVertical: 8,
+                                    paddingHorizontal: 14,
+                                    borderRadius: 8,
+                                    alignSelf: 'flex-start',
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 6
+                                }}
+                                onPress={() => router.push('/investments')}
+                            >
+                                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '700' }}>View Decision Command Center</Text>
+                                <ArrowUpRight size={14} color="#FFFFFF" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.card}>
+                            <Text style={styles.cardTitle}>Personal Spending Table</Text>
                         {/* Clean Integrated Active Period Selector */}
                         <View style={{ backgroundColor: '#141417', padding: 14, borderRadius: 16, borderWidth: 1, borderColor: '#27272A', marginBottom: 16 }}>
                             {/* Title & Preset Pills in vertical stack layout for perfect alignment */}
@@ -3475,6 +3559,7 @@ export default function SelfScreen() {
                             </View>
                         )}
                     </View>
+                    </>
                 )}
 
                 {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
