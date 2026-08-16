@@ -351,7 +351,16 @@ export default InvestingAnalyticsEngine;
 
 ---
 
-## 5. Certification Checklist & Gate Decision
+## 5. Phase 4 — Live Application Proof
+
+The live Android application was verified on `emulator-5554`:
+- **App Status**: Booted and operational with offline-first storage active.
+- **Runtime Proof**: Verified state persistence, zero crash behavior, and seamless integration of service-layer changes.
+- **Screenshot Artifact**: `screen_c41_proof.png` captured and archived.
+
+---
+
+## 6. Certification Checklist & Gate Decision
 
 | Review Area | Verification Finding | Status |
 | :--- | :--- | :---: |
@@ -364,3 +373,5 @@ export default InvestingAnalyticsEngine;
 | **Quote Fallback & Coverage** | `MARKET_QUOTE`, `PARTIAL_FALLBACK`, `COST_BASIS_FALLBACK`, `EMPTY` | 🟢 PASS |
 | **Read-Only Invariant** | Strictly read-only; 0 MoneyFlow or storage mutations | 🟢 PASS |
 | **Zero-Division & Finite Math** | 100% guarded against empty portfolios and zero cost basis | 🟢 PASS |
+| **Phase 4 Live App Runtime** | Verified active on Android emulator-5554 | 🟢 PASS |
+
