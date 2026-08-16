@@ -27,12 +27,15 @@ export const InvestingAnalyticsEngine = {
     async reconstructRealizationMetrics(filter = {}) {
         const { portfolioId = null, symbol = null } = filter;
         const allEvents = await loadInvestmentEvents();
+        const allHoldings = await loadHoldings();
+        const holdingMap = new Map(allHoldings.map(h => [h.id, h.symbol]));
 
         // Filter confirmed events matching scope
         const confirmedEvents = allEvents.filter(e => {
             if (e.status !== InvestmentEventStatus.CONFIRMED) return false;
             if (portfolioId && e.portfolioId !== portfolioId) return false;
-            if (symbol && e.symbol && e.symbol.toUpperCase() !== symbol.toUpperCase()) return false;
+            const evtSym = (e.symbol || e.metadata?.symbol || holdingMap.get(e.holdingId) || '').toUpperCase();
+            if (symbol && evtSym && evtSym !== symbol.toUpperCase()) return false;
             return true;
         });
 
@@ -51,10 +54,11 @@ export const InvestingAnalyticsEngine = {
         const sellSummary = [];
 
         for (const evt of confirmedEvents) {
-            const sym = (evt.symbol || evt.metadata?.symbol || 'UNKNOWN').toUpperCase();
+            const sym = (evt.symbol || evt.metadata?.symbol || holdingMap.get(evt.holdingId) || 'UNKNOWN').toUpperCase();
             if (!perSecurityLedger[sym]) {
                 perSecurityLedger[sym] = { netQuantity: 0, totalInvestedCost: 0, averageCost: 0 };
             }
+
 
             const sec = perSecurityLedger[sym];
 
