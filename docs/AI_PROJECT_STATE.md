@@ -69,7 +69,7 @@ Stage:
 C.6.3
 
 Objective:
-Tax-Efficient Rebalancing Optimizer (Blockers C6.3-01 through C6.3-05 Resolved)
+Tax-Efficient Rebalancing Optimizer (Blockers C6.3-01 through C6.3-08 Resolved)
 
 Architecture:
 AMENDED_SUBMITTED_FOR_GATE_REVIEW (`docs/C6_3_ARCHITECTURE_PLAN.md`)
@@ -136,12 +136,11 @@ PASS (emulator-5554 operational) 🟢
 
 ## 6. BLOCKERS LOG
 
-- Stage C.6.3 Hardening Items:
-  - C6.3-01 (Deterministic Tax-Minimization Lot Selector): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
-  - C6.3-02 (Authoritative TaxPolicy, Exemption & Set-off Rules): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
-  - C6.3-03 (Asset-Specific Loss Harvesting Eligibility): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
-  - C6.3-04 (Exact Sell-Notional Reconciliation Invariant): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
-  - C6.3-05 (Deterministic OpenTaxLot Accounting Invariants): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+- Stage C.6.3 Hardening Resolutions:
+  - C6.3-01 through C6.3-05: 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-06 (Deterministic Tax-Minimization Lot Selector): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-07 (Shared LTCG Exemption Allocator): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
+  - C6.3-08 (Authoritative Shared Loss Set-Off Allocator): 🟢 RESOLVED in `docs/C6_3_ARCHITECTURE_PLAN.md`
 
 
 ## 7. NEXT ACTION

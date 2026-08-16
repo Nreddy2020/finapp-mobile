@@ -1,7 +1,7 @@
 # Stage C.6.3 Architecture Plan
 ## Tax-Efficient Rebalancing Optimizer
 
-**Status**: HARDENED / SUBMITTED FOR ARCHITECTURE GATE APPROVAL  
+**Status**: HARDENED & RECONCILED / PENDING FINAL GATE APPROVAL  
 **Certified Baseline Commit**: [`24e2cea`](https://github.com/Nreddy2020/finapp-mobile/commit/24e2cea)  
 **Execution Branch**: `fintech-using-chatgpt`  
 **Author**: Lead Architecture & Implementation Agent  
@@ -25,14 +25,14 @@ $$\begin{matrix}
 
 ### Clean Architectural Boundary
 - **Stage C.6.2 Owns**: Portfolio allocation, percentage-point drift, target deltas, cash scaling, 8-class quantity rounding, and executable sell notional ($S_c$).
-- **Stage C.6.3 Owns**: Open FIFO tax-lot reconstruction, marginal tax efficiency lot ranking, annual exemption tracking, asset-specific loss set-off rules, tax liability minimization, and exact sell-notional reconciliation.
+- **Stage C.6.3 Owns**: Open FIFO tax-lot reconstruction, deterministic tax-minimization lot selection, shared annual LTCG exemption allocation, multi-category loss set-off accounting, and rounding-aware sell-notional reconciliation.
 - **Stage C.6.3 Never Recalculates**: Allocation weights, target notional deltas, or cash scaling formulas.
 
 ---
 
 ## 2. Authoritative Data Contracts & DTOs
 
-### 2.1 Authoritative Versioned Tax Policy Model (`TaxPolicy`) (Blocker C6.3-02)
+### 2.1 Authoritative Versioned Tax Policy Model (`TaxPolicy`) (Blockers C6.3-02 & C6.3-03)
 ```typescript
 export type LossSetOffEligibility = 'SET_OFF_ELIGIBLE' | 'SET_OFF_RESTRICTED' | 'NO_SET_OFF';
 
@@ -41,7 +41,7 @@ export interface AssetTaxRule {
     shortTermRate: number;                // e.g. 0.20 (20%)
     longTermRate: number;                 // e.g. 0.125 (12.5%)
     lossSetOffEligibility: LossSetOffEligibility; // e.g. NO_SET_OFF for Crypto
-    allowedLossSetOffCategories: string[];// e.g. ['STCG', 'LTCG'] for Equity
+    allowedLossSetOffCategories: string[];// e.g. ['STCG', 'LTCG'] for Equity STCL; ['LTCG'] for LTCL
 }
 
 export interface TaxPolicy {
@@ -50,7 +50,7 @@ export interface TaxPolicy {
     effectiveFrom: string;                // ISO-8601 string
     effectiveTo: string | null;
     annualLtcgExemption: number;          // e.g. 125000 (₹1.25L annual exemption for Indian Equity)
-    exemptionConsumed: number;            // Annual exemption consumed to date
+    exemptionConsumedPrior: number;       // Annual exemption consumed in prior tax events
     rules: Record<string, AssetTaxRule>;
 }
 ```
@@ -88,7 +88,7 @@ export interface OpenTaxLot {
     holdingPeriodDays: number;            // floor((asOfDate - buyDate) / 86400000)
     taxCategory: 'LOSS' | 'LTCG' | 'STCG';
     applicableTaxRate: number;            // Based on taxCategory and TaxPolicy rule
-    marginalTaxPerProceeds: number;       // (applicableTaxRate * max(0, unrealizedGainPerUnit)) / currentPrice
+    marginalTaxPerProceeds: number;       // Pre-exemption marginal tax rate per rupee of proceeds
     lossSetOffEligibility: LossSetOffEligibility;
 }
 ```
@@ -115,8 +115,8 @@ export interface SelectedTaxLot {
     realizedGain: number;                 // soldProceeds - soldCostBasis
     applicableTaxRate: number;
     grossTaxLiability: number;            // max(0, realizedGain) * applicableTaxRate
-    exemptionApplied: number;             // Exemption applied to this lot
-    netTaxLiability: number;              // grossTaxLiability - exemptionTaxReduction
+    exemptionApplied: number;             // Allocated from shared annual LTCG exemption
+    netTaxLiability: number;              // Tax liability post-exemption and set-off
     selectionTier: 'TIER_1_LOSS' | 'TIER_2_LTCG' | 'TIER_3_STCG';
     selectionReason: string;
 }
@@ -124,7 +124,7 @@ export interface SelectedTaxLot {
 
 ---
 
-### 2.4 Tax-Optimized Rebalancing Summary (`TaxOptimizedRebalancingSummary`) (Blockers C6.3-02, C6.3-03, C6.3-04)
+### 2.4 Tax-Optimized Rebalancing Summary (`TaxOptimizedRebalancingSummary`)
 ```typescript
 export interface TaxOptimizedRebalancingSummary {
     policyId: string;
@@ -133,7 +133,7 @@ export interface TaxOptimizedRebalancingSummary {
     portfolioId: string | null;
     sourceRebalancingSummary: Object;     // Intact C.6.2 output
     
-    // Exact Notional Reconciliation
+    // Rounding-Aware Notional Reconciliation (Hardening)
     requestedSellNotional: number;        // From C.6.2 executableSellNotional
     selectedSellNotional: number;         // Total soldProceeds across selected lots
     unfilledSellNotional: number;         // max(0, requestedSellNotional - selectedSellNotional)
@@ -145,17 +145,17 @@ export interface TaxOptimizedRebalancingSummary {
     estimatedTaxSavings: number;          // naiveEstimatedTaxLiability - optimizedEstimatedTaxLiability
     taxDragPercentage: number;            // (optimizedEstimatedTaxLiability / selectedSellNotional) * 100
     
-    // Loss Harvesting Metrics
+    // Authoritative Shared Loss Set-Off Metrics (Blocker C6.3-08)
     harvestedLosses: number;              // Total gross unrealized losses realized
     effectiveOffsettableLosses: number;   // Losses eligible for set-off under TaxPolicy
     nonOffsettableLosses: number;         // Ineligible losses (e.g. Crypto)
     taxBenefitFromLosses: number;         // Actual tax reduction from offsettable losses
     
-    // Exemption Tracking
+    // Authoritative Shared LTCG Exemption Ledger (Blocker C6.3-07)
     annualLtcgExemption: number;
     exemptionConsumedPrior: number;
-    exemptionConsumedCurrent: number;
-    remainingExemptionAfterSale: number;
+    exemptionConsumedCurrent: number;     // Total exemption allocated to selected lots
+    remainingExemptionAfterSale: number;  // max(0, annualLtcgExemption - prior - current)
     
     // Detailed Lot Audit
     selectedTaxLots: SelectedTaxLot[];
@@ -168,31 +168,69 @@ export interface TaxOptimizedRebalancingSummary {
 
 ---
 
-## 3. Mathematical Optimization & Exact Lot Selection (Blocker C6.3-01)
+## 3. Mathematical Optimization & Shared Tax Ledger (Blockers C6.3-06, C6.3-07, C6.3-08)
 
-### 3.1 Objective Function
+### 3.1 Deterministic Tax-Minimization Lot Selector (Blocker C6.3-06)
 For each overweight asset class $c$ requiring executable sell notional $S_c$:
-$$\min_{\mathbf{q}} \sum_{l \in \text{OpenLots}(c)} \text{NetTax}_l(q_l)$$
-$$\text{subject to: } \sum_{l \in \text{OpenLots}(c)} q_l \cdot P_l = S_c, \quad 0 \le q_l \le \text{RemainingQuantity}_l$$
 
-### 3.2 Marginal Tax Efficiency Ranking & Global Optimality
-For each open lot $l$, the marginal tax rate per rupee of proceeds generated is:
-$$\text{MarginalTaxPerProceeds}(l) = \begin{cases}
-\frac{-\text{lossBenefitRate} \cdot |P_l - \text{buyPrice}_l|}{P_l} < 0, & P_l < \text{buyPrice}_l \land \text{SET\_OFF\_ELIGIBLE} \\
-0, & P_l < \text{buyPrice}_l \land \text{NO\_SET\_OFF} \\
-\frac{\text{longTermRate} \cdot (P_l - \text{buyPrice}_l)}{P_l}, & P_l \ge \text{buyPrice}_l \land \text{holdingPeriodDays} \ge \text{STCG\_Days} \\
-\frac{\text{shortTermRate} \cdot (P_l - \text{buyPrice}_l)}{P_l}, & P_l \ge \text{buyPrice}_l \land \text{holdingPeriodDays} < \text{STCG\_Days}
-\end{cases}$$
+1. **Lot Tiering & Ranking**:
+   - **Tier 1 (Tax Loss Harvesting)**: Lots with $P_l < \text{buyPrice}_l$.
+     - Sorted by loss rate DESC ($|P_l - \text{buyPrice}_l| / P_l$).
+   - **Tier 2 (Long-Term Capital Gains)**: Lots with $\text{holdingPeriodDays}_l \ge \text{shortTermHoldingDays}$.
+     - Sorted by unrealized gain rate ASC ($(P_l - \text{buyPrice}_l) / P_l$).
+   - **Tier 3 (Short-Term Capital Gains)**: Lots with $\text{holdingPeriodDays}_l < \text{shortTermHoldingDays}$.
+     - Sorted by unrealized gain rate ASC ($(P_l - \text{buyPrice}_l) / P_l$).
+   - **Deterministic Tie-Breakers**: `symbol` ASC $\to$ `buyDate` ASC (FIFO) $\to$ `lotId` ASC.
 
-**Mathematical Invariant**:
-Sorting open lots in strictly ascending order of $\text{MarginalTaxPerProceeds}(l)$ guarantees that any greedy selection of quantity $q_l$ up to notional $S_c$ achieves the **global minimum tax liability** for the linear continuous relaxation, and provides the optimal discrete solution subject to standard share rounding constraints:
-$$\text{Tax}_{\text{selected}} \le \text{Tax}_{\text{any other feasible selection}}$$
+2. **Discrete Quantity Allocation**:
+   - For each ranked lot $l$, compute raw sold quantity: $q_{\text{raw}} = \min(\text{RemainingQty}_l, \text{RemainingSellNeed} / P_l)$.
+   - Apply asset class rounding mode (`FLOOR_WHOLE` for Stocks/ETFs/Bonds; `DECIMAL_4` for MF/Crypto/Gold).
+   - $\text{soldQuantity}_l = \text{round}(q_{\text{raw}})$.
 
-**Deterministic Tie-Breakers**:
-1. Primary: $\text{MarginalTaxPerProceeds}(l)$ ASC
-2. Secondary: `symbol` ASC
-3. Tertiary: `buyDate` ASC (FIFO)
-4. Quaternary: `lotId` ASC
+---
+
+### 3.2 Authoritative Shared LTCG Exemption Allocator (Blocker C6.3-07)
+The annual LTCG exemption is evaluated as a **shared portfolio-level resource**:
+$$\text{remainingAnnualExemption} = \max(0, \text{annualLtcgExemption} - \text{exemptionConsumedPrior})$$
+$$\text{totalGrossLtcg} = \sum_{l \in \text{SelectedLots}, \text{taxCategory} = \text{'LTCG'}, \text{eligible}} \max(0, \text{RealizedGain}_l)$$
+$$\text{exemptionConsumedCurrent} = \min(\text{remainingAnnualExemption}, \text{totalGrossLtcg})$$
+$$\text{remainingExemptionAfterSale} = \text{remainingAnnualExemption} - \text{exemptionConsumedCurrent}$$
+
+**Exemption Allocation Invariants**:
+$$\sum_{l} \text{exemptionApplied}_l = \text{exemptionConsumedCurrent} \le \text{remainingAnnualExemption}$$
+$$0 \le \text{exemptionApplied}_l \le \max(0, \text{RealizedGain}_l)$$
+
+---
+
+### 3.3 Authoritative Shared Loss Set-Off Allocator (Blocker C6.3-08)
+Loss set-off is evaluated collectively across all selected lots according to statutory category boundaries:
+1. **Gross Aggregation**:
+   - $\text{GrossSTCL} = \sum_{\text{lots}} |\min(0, \text{RealizedGain}_l)| \text{ for STCG lots with } \text{SET\_OFF\_ELIGIBLE}$
+   - $\text{GrossLTCL} = \sum_{\text{lots}} |\min(0, \text{RealizedGain}_l)| \text{ for LTCG lots with } \text{SET\_OFF\_ELIGIBLE}$
+   - $\text{GrossSTCG} = \sum_{\text{lots}} \max(0, \text{RealizedGain}_l) \text{ for STCG lots}$
+   - $\text{GrossLTCG} = \sum_{\text{lots}} \max(0, \text{RealizedGain}_l) \text{ for LTCG lots}$
+   - $\text{nonOffsettableLosses} = \sum_{\text{lots}} |\min(0, \text{RealizedGain}_l)| \text{ for lots with } \text{NO\_SET\_OFF (e.g. Crypto)}$
+2. **Statutory Loss Allocation**:
+   - $\text{STCL\_to\_STCG} = \min(\text{GrossSTCL}, \text{GrossSTCG})$
+   - $\text{STCL\_rem} = \text{GrossSTCL} - \text{STCL\_to\_STCG}$
+   - $\text{STCL\_to\_LTCG} = \min(\text{STCL\_rem}, \text{GrossLTCG})$
+   - $\text{LTCG\_rem} = \text{GrossLTCG} - \text{STCL\_to\_LTCG}$
+   - $\text{LTCL\_to\_LTCG} = \min(\text{GrossLTCL}, \text{LTCG\_rem})$
+3. **Net Taxable Gains**:
+   - $\text{NetTaxableSTCG} = \max(0, \text{GrossSTCG} - \text{STCL\_to\_STCG})$
+   - $\text{NetEligibleLTCG} = \max(0, \text{GrossLTCG} - \text{STCL\_to\_LTCG} - \text{LTCL\_to\_LTCG})$
+   - $\text{NetTaxableLTCG} = \max(0, \text{NetEligibleLTCG} - \text{exemptionConsumedCurrent})$
+4. **Authoritative Total Tax**:
+   $$\text{optimizedEstimatedTaxLiability} = (\text{NetTaxableSTCG} \times \text{stcgRate}) + (\text{NetTaxableLTCG} \times \text{ltcgRate}) + (\text{GrossCryptoGains} \times 0.30)$$
+
+---
+
+### 3.4 Rounding-Aware Reconciliation Invariant
+$$\text{selectedSellNotional} + \text{unfilledSellNotional} \approx \text{requestedSellNotional}$$
+- `optimizationStatus`:
+  - `'OPTIMAL'`: `unfilledSellNotional == 0` (or `sellNotionalResidual <= maxHoldingPrice` due to discrete whole-unit floor rounding).
+  - `'PARTIAL_FILL'`: `unfilledSellNotional > 0` because total available holdings in that asset class are strictly less than `requestedSellNotional`.
+  - `'ZERO_SELLS_REQUIRED'`: `requestedSellNotional == 0`.
 
 ---
 
@@ -216,22 +254,9 @@ The `openTaxLotAdapter.js` module reconstructs open tax lots chronologically fro
 
 ---
 
-## 5. Exact Sell-Notional Reconciliation Invariant (Blocker C6.3-04)
+## 5. Stage C.6.3 34-Point Acceptance Test Plan (`tests/test_c63.mjs`)
 
-For each overweight asset class $c$:
-$$\text{requestedSellNotional} = S_c \quad (\text{from C.6.2 executableSellNotional})$$
-$$\text{selectedSellNotional} = \sum_{l \in \text{SelectedLots}(c)} \text{soldQuantity}_l \times P_l$$
-$$\text{sellNotionalResidual} = |\text{requestedSellNotional} - \text{selectedSellNotional}|$$
-$$\text{unfilledSellNotional} = \max(0, \text{requestedSellNotional} - \text{selectedSellNotional})$$
-
-- If $\text{totalOpenValue}(c) < S_c \implies \text{unfilledSellNotional} > 0$, `optimizationStatus = 'PARTIAL_FILL'`.
-- If $\text{totalOpenValue}(c) \ge S_c \implies \text{unfilledSellNotional} = 0$, `optimizationStatus = 'OPTIMAL'`.
-
----
-
-## 6. Stage C.6.3 30-Point Acceptance Test Plan (`tests/test_c63.mjs`) (Blocker J)
-
-The acceptance suite covers **30 explicit behavioral scenarios**:
+The acceptance suite covers **34 explicit behavioral scenarios**:
 
 ### Group 1: Open Tax Lot Accounting (Tests 1–6)
 1. Single BUY lot derivation and remaining quantity matching.
@@ -245,37 +270,41 @@ The acceptance suite covers **30 explicit behavioral scenarios**:
 7. Tier 1 Loss Harvesting Priority (selects loss lot first, ₹0 tax).
 8. Tier 2 LTCG Priority over STCG (selects long-term lot before short-term lot).
 9. Tier 3 STCG Sold Strictly Last (short-term lot only consumed when necessary).
-10. Marginal tax efficiency ordering across multiple lots with different prices.
-11. Deterministic tie-breaker (symbol ASC, buyDate ASC).
-12. Exact sell-notional reconciliation ($\text{selectedSellNotional} == \text{requestedSellNotional}$).
+10. Marginal tax efficiency ordering across multiple lots with different purchase prices.
+11. Deterministic tie-breaker (`symbol` ASC, `buyDate` ASC, `lotId` ASC).
+12. Rounding-aware sell-notional reconciliation ($\text{selectedSellNotional} \approx \text{requestedSellNotional}$).
 13. Unfilled sell-notional detection when holdings are insufficient (`PARTIAL_FILL`).
 14. Partial lot consumption residual tracking ($\text{remainingQuantityAfterSale}$).
 
-### Group 3: Tax Policy & Exemption Rules (Tests 15–20)
+### Group 3: Shared LTCG Exemption & Loss Set-Off Allocators (Tests 15–22)
 15. Versioned `TaxPolicy` consumption (custom rates applied).
 16. Indian FY24-25 default policy rules (STCG 20%, LTCG 12.5%).
-17. Annual LTCG ₹1.25L exemption application and residual tracking.
-18. Loss set-off eligibility for Equity (`SET_OFF_ELIGIBLE`).
-19. Crypto 30% flat tax rule without loss set-off (`NO_SET_OFF`).
-20. Listed Bond holding period (1095 days) and slab/rate application.
+17. Shared annual LTCG ₹1.25L exemption allocation across multiple competing LTCG lots.
+18. Prior consumed exemption tracking ($\text{remainingAnnualExemption} = \text{annualExemption} - \text{consumedPrior}$).
+19. Multi-lot STCL set-off allocation (STCL offsets STCG first, then LTCG).
+20. LTCL set-off restriction (LTCL offsets LTCG only, never STCG).
+21. Crypto `NO_SET_OFF` rule (Crypto 30% tax on gains, crypto losses cannot offset gains).
+22. Listed Bond holding period (1095 days) and rate application.
 
-### Group 4: Tax Metrics & Savings (Tests 21–25)
-21. Naive vs Optimized tax liability comparison and `estimatedTaxSavings`.
-22. `taxDragPercentage` exact computation.
-23. `taxBenefitFromLosses` computation for eligible loss harvesting.
-24. Pure fresh-cash rebalance ($C \ge C_{\text{pure\_cash\_min}}$) producing ₹0 tax.
-25. In-band balanced portfolio producing ₹0 tax (`ZERO_SELLS_REQUIRED`).
+### Group 4: Tax Metrics & Savings (Tests 23–27)
+23. Naive vs Optimized tax liability comparison and `estimatedTaxSavings`.
+24. `taxDragPercentage` exact computation.
+25. `taxBenefitFromLosses` computation for eligible loss harvesting.
+26. Pure fresh-cash rebalance ($C \ge C_{\text{pure\_cash\_min}}$) producing ₹0 tax.
+27. In-band balanced portfolio producing ₹0 tax (`ZERO_SELLS_REQUIRED`).
 
-### Group 5: Scoping, Invariants & Master Regression (Tests 26–30)
-26. Multi-portfolio tax lot isolation (Portfolio A lots never mixed with Portfolio B).
-27. Global universe lot optimization (`portfolioId: null`).
-28. Read-only adapter invariant (0 storage/MoneyFlow mutations).
-29. Deterministic repeatability across multiple executions with identical `asOfDate`.
-30. Full prior system regression matrix $\to$ **227/227 Total System Tests Passing**.
+### Group 5: Scoping, Rounding & Invariants (Tests 28–34)
+28. Multi-portfolio tax lot isolation (Portfolio A lots never mixed with Portfolio B).
+29. Global universe lot optimization (`portfolioId: null`).
+30. Read-only adapter invariant (0 storage/MoneyFlow mutations).
+31. Deterministic repeatability across multiple executions with identical `asOfDate`.
+32. Whole-unit floor rounding with non-zero sell-notional residual safety.
+33. Partial fill feasibility warning emission.
+34. Full prior system regression matrix $\to$ **231/231 Total System Tests Passing**.
 
 ---
 
-## 7. Gate Approval Confirmation
+## 6. Gate Approval Confirmation
 
-All 5 architectural blockers (`C6.3-01` through `C6.3-05`) are mathematically formulated and locked in this plan.  
+All blockers and hardening requirements (`C6.3-01` through `C6.3-08`) are mathematically formulated and locked in this plan.  
 We respectfully request the **Stage C.6.3 Architecture Gate Approval & Implementation Authorization**.
