@@ -24,22 +24,22 @@ Protected Branch:
 main
 
 Current Baseline:
-e87bf94
+1937434
 
 Last Certified Commit:
-e87bf94
+1937434
 
 Current HEAD:
 PENDING_COMMIT
 
 Current Phase:
-PRODUCT_VALIDATION_PROGRAM_COMPLETE_AND_CLOSED
+AX.0_ALPHA_EXPERIENCE_SURFACE_AUDIT_COMPLETE
 
 Current Stage:
-MASTER_CERTIFIED_ALPHA_BETA_READY
+PRE_PILOT_EXPERIENCE_POLISH
 
 Overall Status:
-ALL_9_PRODUCT_VALIDATION_GATES_PASSED_866_TESTS_PASS_100_PERCENT_ALPHA_BETA_LAUNCH_READY
+PV1_PV9_PASSED_AX0_AUDIT_COMPLETE_14_OF_18_UI_MOUNTED_4_POLISH_ITEMS_IDENTIFIED_866_TESTS_PASS
 
 
 ## 2. MASTER ROADMAP & PRODUCT VALIDATION
@@ -51,15 +51,8 @@ ALL_9_PRODUCT_VALIDATION_GATES_PASSED_866_TESTS_PASS_100_PERCENT_ALPHA_BETA_LAUN
 | **Phase C.6** | **Intelligent Rebalancing & Decision Engine** | 🟢 **100% MASTER CERTIFIED** (`5fdfb36`) |
 | **Phase C.7** | **Portfolio Intelligence & Risk Diagnostics** | 🟢 **100% MASTER CERTIFIED & CLOSED** (`7e71b8d`) |
 | **Phase C.8** | **Goal Planning & Actionable Decision Intelligence** | 🟢 **100% MASTER CERTIFIED & CLOSED 🔒** (`7201b10`) |
-| **PV.1** | **Baseline & Repository Integrity Validation** | 🟢 **100% MASTER CERTIFIED** (`04638e9`) |
-| **PV.2** | **End-to-End User Journey Validation** | 🟢 **100% MASTER CERTIFIED** (`a98dd50`) |
-| **PV.3** | **Realistic Financial Scenario Validation (Personas A–D)** | 🟢 **100% MASTER CERTIFIED** (`549e032`) |
-| **PV.4** | **Decision Quality & Recommendation Audit** | 🟢 **100% MASTER CERTIFIED** (`70afe2b`) |
-| **PV.5** | **UX & Cognitive Load Audit** | 🟢 **100% MASTER CERTIFIED** (`e498fca`) |
-| **PV.6** | **Security, Privacy & Regulatory Boundary Audit** | 🟢 **100% MASTER CERTIFIED** (`820014e`) |
-| **PV.7** | **Performance & Reliability Validation** | 🟢 **100% MASTER CERTIFIED** (`e76dab2`) |
-| **PV.8** | **Commercial & Product-Market Validation** | 🟢 **100% MASTER CERTIFIED** (`e87bf94`) |
-| **PV.9** | **Final Product Architecture Review & Strategy Decision** | 🟢 **100% MASTER CERTIFIED & CLOSED** (`PENDING`) |
+| **PV.1–PV.9** | **Complete Product Validation Suite (9/9 Gates)** | 🟢 **100% MASTER CERTIFIED** (`1937434`) |
+| **AX.0** | **Alpha Experience Readiness (Screen-by-Screen Surface Audit)** | 🟢 **AUDIT COMPLETE (14/18 Mounted, 4 Polish Items)** |
 
 
 ## 3. CERTIFIED & FROZEN BASELINES
@@ -110,20 +103,6 @@ All 23 Core Financial Contracts & UI Modules (100% Locked 🔒):
 Total System Regression across all 32 Suites:
 866 / 866 PASS (100%, Strict exit 0) 🟢
 
-- PV.9 Final Architecture Review Suite (`tests/test_pv9_final_architecture_review.mjs`): 4/4 PASS 🟢
-- PV.8 Commercial & PMF Suite (`tests/test_pv8_commercial_pmf.mjs`): 6/6 PASS 🟢
-- PV.7 Performance Suite (`tests/test_pv7_performance_reliability.mjs`): 6/6 PASS 🟢
-- PV.6 Security & Regulatory Suite (`tests/test_pv6_security_regulatory.mjs`): 8/8 PASS 🟢
-- PV.5 UX & Cognitive Load Suite (`tests/test_pv5_ux_cognitive_load.mjs`): 8/8 PASS 🟢
-- PV.4 Decision Quality Suite (`tests/test_pv4_decision_quality.mjs`): 9/9 PASS 🟢
-- PV.3 Persona Validation Suite (`tests/test_pv3_persona_validation.mjs`): 10/10 PASS 🟢
-- PV.2 User Journey Suite (`tests/test_pv2_user_journey.mjs`): 10/10 PASS 🟢
-- Phase C.8 (8 suites): 246/246 PASS 🟢
-- Phase C.7 (8 suites): 305/305 PASS 🟢
-- Phase C.6 (4 suites): 97/97 PASS 🟢
-- Phase C.5 (4 suites): 80/80 PASS 🟢
-- Phase C.4 (4 suites): 77/77 PASS 🟢
-
 Core Invariants:
 - Zero Wall-Clock Violations: 100% PASS (0 Date.now(), 0 argument-less new Date())
 - Zero Store Mutations: 100% PASS (Deep 5-store snapshot equality before/after execution)
@@ -134,6 +113,5 @@ Core Invariants:
 
 ## 5. NEXT ACTION
 
-Terminal Strategy Decision:
-🟢 OPTION A — ALPHA / BETA LAUNCH READY.
-All 9 Product Validation gates are formally closed. The architecture is ready for real-user alpha release and customer onboarding.
+Alpha Discovery Protocol:
+AX.0 screen-by-screen audit report published. Awaiting Architect's review on targeted pre-pilot UX polish items before initiating Alpha 0 internal dogfooding and onboarding the 5–15 pilot cohort.
