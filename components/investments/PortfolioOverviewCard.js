@@ -77,10 +77,17 @@ export default function PortfolioOverviewCard({
                 >
                     {formatCurrency(totalMarketValue)}
                 </Text>
-                {refreshing && (
-                    <RefreshCw size={16} color={COLORS.textTertiary || '#71717A'} style={styles.spinningIcon} />
-                )}
+                <TouchableOpacity
+                    onPress={onRefresh}
+                    disabled={refreshing}
+                    accessible={true}
+                    accessibilityRole="button"
+                    accessibilityLabel="Refresh Portfolio Quotes"
+                >
+                    <RefreshCw size={16} color={refreshing ? (COLORS.primaryLight || '#6366F1') : (COLORS.textTertiary || '#71717A')} style={styles.spinningIcon} />
+                </TouchableOpacity>
             </View>
+
 
             {/* Empty State Onboarding CTA */}
             {isEmpty ? (

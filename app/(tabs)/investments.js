@@ -144,17 +144,28 @@ export default function InvestmentsScreen() {
         return () => clearInterval(intervalRef.current);
     }, [refreshMetals]);
 
-    const onRefresh = () => {
+    const onRefresh = async () => {
         setRefreshing(true);
-        // Simulate market update
-        const updatedMarket = marketData.map(item => ({
-            ...item,
-            price: item.price * (1 + (Math.random() * 0.02 - 0.01)),
-            change: item.change + (Math.random() * 0.5 - 0.25)
-        }));
-        setMarketData(updatedMarket);
-        fetchData();
+        try {
+            // 1. Fetch live quotes for all holding symbols via MarketDataService
+            const allHoldings = await loadHoldings();
+            const symbolsToRefresh = Array.from(new Set(allHoldings.map(h => h.symbol).filter(Boolean)));
+            if (symbolsToRefresh.length > 0) {
+                await Promise.all(symbolsToRefresh.map(sym => MarketDataService.getQuote(sym)));
+            }
+
+            // 2. Refresh metals & market pulse ticker
+            await refreshMetals();
+
+            // 3. Re-fetch portfolio summary and valuation snapshot
+            await fetchData(selectedPortfolioId);
+        } catch (err) {
+            console.warn('[InvestmentsScreen] Error refreshing quotes via MarketDataService:', err);
+        } finally {
+            setRefreshing(false);
+        }
     };
+
 
     const handleBuy = async () => {
         if (!newInv.name || !newInv.investedAmount) {

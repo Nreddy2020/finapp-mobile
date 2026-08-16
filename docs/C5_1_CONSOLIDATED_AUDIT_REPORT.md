@@ -18,7 +18,7 @@ Stage C.5.1 implements the **Portfolio Overview & Executive Dashboard** presenta
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
 | `app/(tabs)/investments.js` | **[MODIFIED]** | Upgrades main investments screen to incorporate Stage C.5.1 dashboard |
-| `components/investments/PortfolioOverviewCard.js` | **[NEW]** | Executive valuation hero card, unrealized gain pill, net return |
+| `components/investments/PortfolioOverviewCard.js` | **[NEW]** | Executive valuation hero card, unrealized gain pill, net return, refresh button |
 | `components/investments/PortfolioHeader.js` | **[NEW]** | Multi-portfolio switcher with dynamic discovery and race safety |
 | `components/investments/ValuationStatusBadge.js` | **[NEW]** | Portfolio valuation basis visual indicator (`MARKET_QUOTE`, etc.) |
 | `docs/C5_1_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit document on GitHub |
@@ -50,8 +50,9 @@ Stage C.5.1 implements the **Portfolio Overview & Executive Dashboard** presenta
 - Discovered dynamically by querying unique `portfolioId` values across holdings/events.
 - Monotonically increasing `requestIdRef` ensures out-of-order async responses from prior portfolio switches are cleanly discarded.
 
-### D. Reactive Lifecycle & Non-Blanking Pull-to-Refresh
-- Pull-to-refresh keeps current values visible on screen during refresh without blanking out.
+### D. Real MarketDataService Refresh Integration & Non-Blanking Pull-to-Refresh
+- `onRefresh` directly queries unique holding symbols from `loadHoldings()` and invokes `MarketDataService.getQuote(sym)` to refresh the quote cache, updates metals, and recalculates valuations.
+- Previous values stay visible on screen during refresh without blanking out.
 - Exactly 0 MoneyFlow or storage mutations created during refresh.
 
 ---
@@ -84,8 +85,8 @@ Stage C.5.1 implements the **Portfolio Overview & Executive Dashboard** presenta
 --- Test 7: Empty Portfolio Onboarding State ---
 ✅ Test 7 PASS: Empty portfolio returns valid zero-state without NaN.
 
---- Test 8: Pull-to-Refresh Quote Sync ---
-✅ Test 8 PASS: Pull-to-refresh updated market quotes from ₹10,000 -> ₹12,500.
+--- Test 8: Pull-to-Refresh Quote Sync (invoking MarketDataService.getQuote) ---
+✅ Test 8 PASS: Pull-to-refresh updated market quotes from ₹10,000 -> ₹12,500 via MarketDataService.
 
 --- Test 9: Theme & Contrast Consistency ---
 ✅ Test 9 PASS: Theme contrast and color tokens verified.
@@ -157,6 +158,7 @@ Stage C.5.1 implements the **Portfolio Overview & Executive Dashboard** presenta
 | **Valuation Basis Badge** | `MARKET_QUOTE`, `PARTIAL_FALLBACK`, `COST_BASIS_FALLBACK`, `EMPTY` | 🟢 PASS |
 | **Dynamic Portfolio Picker**| Discovered from holdings/events; canonical ID keys | 🟢 PASS |
 | **Race-Condition Safety** | Monotonic `requestIdRef` drops stale async responses | 🟢 PASS |
+| **Real MarketData Refresh** | `onRefresh` fetches live quotes via `MarketDataService.getQuote()` | 🟢 PASS |
 | **Non-Blanking Refresh** | Previous state remains visible during pull-to-refresh | 🟢 PASS |
 | **Provider Error Resilience**| Offline/network failure gracefully renders cost basis fallback | 🟢 PASS |
 | **Read-Only Invariant** | Exactly 0 MoneyFlow, holding, or event mutations | 🟢 PASS |
