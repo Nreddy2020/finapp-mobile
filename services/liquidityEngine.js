@@ -13,6 +13,7 @@
  * 3. 5-Tier Authority Hierarchy: Regulatory > Authoritative Product Metadata > Derived Asset Class > User Declared > Policy Default.
  * 4. Zero Manufactured Liquidity: Unknown assets remain UNKNOWN; never converted to liquid.
  * 5. Estimated Burn Isolation: Estimated burn (70% fallback) caps confidence at MODERATE and reports sensitivity spectrum.
+ * 6. Conservative Regulatory Safety: Regulatory locks with missing dates default strictly to LOCKED_ILLIQUID.
  */
 
 import { DEFAULT_ASSET_LIQUIDITY_MAP, LiquidityTier } from './riskTaxonomy.js';
@@ -112,7 +113,12 @@ function getDaysDifference(dateAStr, dateBStr) {
 
 /**
  * Classifies a single holding into its authoritative liquidity horizon according to the
- * 5-tier authority hierarchy.
+ * strict 5-tier authority hierarchy:
+ * 1. REGULATORY_CONSTRAINT
+ * 2. AUTHORITATIVE_PRODUCT_METADATA
+ * 3. DERIVED_ASSET_CLASS
+ * 4. USER_DECLARED_METADATA
+ * 5. POLICY_DEFAULT
  */
 export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_POLICY_V1) {
     const asOfISO = normalizeDateISO(asOfDate, 'asOfDate');
@@ -123,12 +129,31 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
     // Check lockEndDate and maturityDate
     const lockEndDateISO = holding.lockEndDate ? normalizeDateISO(holding.lockEndDate, 'lockEndDate') : null;
     const maturityDateISO = holding.maturityDate ? normalizeDateISO(holding.maturityDate, 'maturityDate') : null;
-    const effectiveRestrictedDate = lockEndDateISO || maturityDateISO;
 
     // 1. TIER 1: REGULATORY / STATUTORY CONSTRAINT (Highest Authority)
-    if (isStatutoryLock && effectiveRestrictedDate) {
-        const daysRemaining = getDaysDifference(asOfISO, effectiveRestrictedDate);
-        if (daysRemaining > 0) {
+    if (isStatutoryLock) {
+        const effectiveRestrictedDate = lockEndDateISO || maturityDateISO;
+        if (effectiveRestrictedDate) {
+            const daysRemaining = getDaysDifference(asOfISO, effectiveRestrictedDate);
+            if (daysRemaining > 0) {
+                return {
+                    holdingId: holding.id || symbol,
+                    symbol,
+                    assetClass,
+                    liquidityTier: LIQUIDITY_HORIZONS.LOCKED_ILLIQUID,
+                    liquidityClassificationSource: LIQUIDITY_CLASSIFICATION_SOURCES.REGULATORY_CONSTRAINT,
+                    overrideApplied: false,
+                    isLocked: true,
+                    daysToAccess: daysRemaining,
+                    lockEndDate: effectiveRestrictedDate,
+                    realizablePenaltyRate: 0.0,
+                    earlyExitAllowed: false,
+                    warning: null
+                };
+            }
+            // If daysRemaining <= 0, regulatory lock has expired; fall through to subsequent authority tiers.
+        } else {
+            // C7.5-R3-B: Regulatory lock identified but lock date is unavailable -> Conservative LOCKED_ILLIQUID
             return {
                 holdingId: holding.id || symbol,
                 symbol,
@@ -137,19 +162,22 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                 liquidityClassificationSource: LIQUIDITY_CLASSIFICATION_SOURCES.REGULATORY_CONSTRAINT,
                 overrideApplied: false,
                 isLocked: true,
-                daysToAccess: daysRemaining,
-                lockEndDate: effectiveRestrictedDate,
+                daysToAccess: 9999,
+                lockEndDate: null,
                 realizablePenaltyRate: 0.0,
-                earlyExitAllowed: false
+                earlyExitAllowed: false,
+                warning: 'REGULATORY_LOCK_DATE_UNAVAILABLE'
             };
         }
     }
 
-    // 2. TIER 2: AUTHORITATIVE PRODUCT / CONTRACTUAL METADATA
-    if (effectiveRestrictedDate) {
-        const daysRemaining = getDaysDifference(asOfISO, effectiveRestrictedDate);
+    // 2. TIER 2: AUTHORITATIVE PRODUCT / CONTRACTUAL METADATA (e.g. FD / Bond maturity / contract lock)
+    // Only applies if instrument has contractual maturity or contractual (non-statutory) lockEndDate
+    const contractualRestrictedDate = maturityDateISO || (!isStatutoryLock ? lockEndDateISO : null);
+    if (contractualRestrictedDate) {
+        const daysRemaining = getDaysDifference(asOfISO, contractualRestrictedDate);
         if (daysRemaining > 0) {
-            // Instrument is pre-maturity / active lock
+            // Instrument is pre-maturity / active contract lock
             if (holding.allowEarlyExit === true) {
                 const earlyExitDateISO = holding.earlyExitDate || holding.liquidityDate ? normalizeDateISO(holding.earlyExitDate || holding.liquidityDate, 'earlyExitDate') : null;
                 const penaltyRate = typeof holding.earlyExitPenaltyRate === 'number' && holding.earlyExitPenaltyRate >= 0
@@ -168,9 +196,10 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                             overrideApplied: false,
                             isLocked: false,
                             daysToAccess: 0,
-                            lockEndDate: effectiveRestrictedDate,
+                            lockEndDate: contractualRestrictedDate,
                             realizablePenaltyRate: penaltyRate,
-                            earlyExitAllowed: true
+                            earlyExitAllowed: true,
+                            warning: null
                         };
                     } else if (daysToExit <= 3) {
                         return {
@@ -182,9 +211,10 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                             overrideApplied: false,
                             isLocked: false,
                             daysToAccess: daysToExit,
-                            lockEndDate: effectiveRestrictedDate,
+                            lockEndDate: contractualRestrictedDate,
                             realizablePenaltyRate: penaltyRate,
-                            earlyExitAllowed: true
+                            earlyExitAllowed: true,
+                            warning: null
                         };
                     } else if (daysToExit <= 7) {
                         return {
@@ -196,9 +226,10 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                             overrideApplied: false,
                             isLocked: false,
                             daysToAccess: daysToExit,
-                            lockEndDate: effectiveRestrictedDate,
+                            lockEndDate: contractualRestrictedDate,
                             realizablePenaltyRate: penaltyRate,
-                            earlyExitAllowed: true
+                            earlyExitAllowed: true,
+                            warning: null
                         };
                     } else {
                         return {
@@ -210,9 +241,10 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                             overrideApplied: false,
                             isLocked: true,
                             daysToAccess: daysToExit,
-                            lockEndDate: effectiveRestrictedDate,
+                            lockEndDate: contractualRestrictedDate,
                             realizablePenaltyRate: 0.0,
-                            earlyExitAllowed: true
+                            earlyExitAllowed: true,
+                            warning: null
                         };
                     }
                 } else {
@@ -226,9 +258,10 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                         overrideApplied: false,
                         isLocked: true,
                         daysToAccess: daysRemaining,
-                        lockEndDate: effectiveRestrictedDate,
+                        lockEndDate: contractualRestrictedDate,
                         realizablePenaltyRate: 0.0,
-                        earlyExitAllowed: true
+                        earlyExitAllowed: true,
+                        warning: null
                     };
                 }
             } else {
@@ -242,13 +275,14 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                     overrideApplied: false,
                     isLocked: true,
                     daysToAccess: daysRemaining,
-                    lockEndDate: effectiveRestrictedDate,
+                    lockEndDate: contractualRestrictedDate,
                     realizablePenaltyRate: 0.0,
-                    earlyExitAllowed: false
+                    earlyExitAllowed: false,
+                    warning: null
                 };
             }
         } else {
-            // Matured instrument (daysRemaining <= 0)
+            // Contractual Matured instrument (daysRemaining <= 0)
             if (holding.accessibilityTier === 'T0' || holding.settlementTier === 'T0' || holding.isAutoSweep === true) {
                 return {
                     holdingId: holding.id || symbol,
@@ -261,7 +295,8 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                     daysToAccess: 0,
                     lockEndDate: null,
                     realizablePenaltyRate: 0.0,
-                    earlyExitAllowed: false
+                    earlyExitAllowed: false,
+                    warning: null
                 };
             } else if (holding.accessibilityTier === 'T2_T3' || holding.settlementTier === 'T2_T3') {
                 return {
@@ -275,10 +310,11 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                     daysToAccess: 2,
                     lockEndDate: null,
                     realizablePenaltyRate: 0.0,
-                    earlyExitAllowed: false
+                    earlyExitAllowed: false,
+                    warning: null
                 };
-            } else {
-                // Fallback for matured instrument when accessibility is unspecified
+            } else if (maturityDateISO) {
+                // Matured FD/bond with unspecified accessibility metadata -> policy fallback T2_T3
                 const fallbackTier = policy.defaults.MATURED_FD_FALLBACK_TIER || LIQUIDITY_HORIZONS.T2_T3;
                 return {
                     holdingId: holding.id || symbol,
@@ -291,33 +327,14 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                     daysToAccess: fallbackTier === LIQUIDITY_HORIZONS.T0 ? 0 : 2,
                     lockEndDate: null,
                     realizablePenaltyRate: 0.0,
-                    earlyExitAllowed: false
+                    earlyExitAllowed: false,
+                    warning: null
                 };
             }
         }
     }
 
-    // 3. TIER 3: USER DECLARED OVERRIDE (Allowed ONLY on unrestricted assets)
-    if (holding.userLiquidityTier || holding.liquidityTier) {
-        const declaredTier = holding.userLiquidityTier || holding.liquidityTier;
-        if (Object.values(LIQUIDITY_HORIZONS).includes(declaredTier) && declaredTier !== LIQUIDITY_HORIZONS.UNKNOWN) {
-            return {
-                holdingId: holding.id || symbol,
-                symbol,
-                assetClass,
-                liquidityTier: declaredTier,
-                liquidityClassificationSource: LIQUIDITY_CLASSIFICATION_SOURCES.USER_DECLARED_METADATA,
-                overrideApplied: true,
-                isLocked: declaredTier === LIQUIDITY_HORIZONS.LOCKED_ILLIQUID,
-                daysToAccess: declaredTier === LIQUIDITY_HORIZONS.T0 ? 0 : (declaredTier === LIQUIDITY_HORIZONS.T2_T3 ? 2 : 5),
-                lockEndDate: null,
-                realizablePenaltyRate: 0.0,
-                earlyExitAllowed: false
-            };
-        }
-    }
-
-    // 4. TIER 4: DERIVED CANONICAL ASSET CLASS TAXONOMY
+    // 3. TIER 3: DERIVED CANONICAL ASSET CLASS TAXONOMY (Higher authority than User Declaration)
     if (assetClass) {
         let tier = LIQUIDITY_HORIZONS.UNKNOWN;
         let isLocked = false;
@@ -350,7 +367,29 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
                 daysToAccess,
                 lockEndDate: null,
                 realizablePenaltyRate: 0.0,
-                earlyExitAllowed: false
+                earlyExitAllowed: false,
+                warning: null
+            };
+        }
+    }
+
+    // 4. TIER 4: USER DECLARED OVERRIDE (Allowed ONLY when higher tiers 1-3 do not classify)
+    if (holding.userLiquidityTier || holding.liquidityTier) {
+        const declaredTier = holding.userLiquidityTier || holding.liquidityTier;
+        if (Object.values(LIQUIDITY_HORIZONS).includes(declaredTier) && declaredTier !== LIQUIDITY_HORIZONS.UNKNOWN) {
+            return {
+                holdingId: holding.id || symbol,
+                symbol,
+                assetClass,
+                liquidityTier: declaredTier,
+                liquidityClassificationSource: LIQUIDITY_CLASSIFICATION_SOURCES.USER_DECLARED_METADATA,
+                overrideApplied: true,
+                isLocked: declaredTier === LIQUIDITY_HORIZONS.LOCKED_ILLIQUID,
+                daysToAccess: declaredTier === LIQUIDITY_HORIZONS.T0 ? 0 : (declaredTier === LIQUIDITY_HORIZONS.T2_T3 ? 2 : 5),
+                lockEndDate: null,
+                realizablePenaltyRate: 0.0,
+                earlyExitAllowed: false,
+                warning: null
             };
         }
     }
@@ -367,7 +406,8 @@ export function classifyHoldingLiquidity(holding, asOfDate, policy = LIQUIDITY_P
         daysToAccess: null,
         lockEndDate: null,
         realizablePenaltyRate: 0.0,
-        earlyExitAllowed: false
+        earlyExitAllowed: false,
+        warning: null
     };
 }
 
@@ -387,6 +427,7 @@ export function calculateLiquidityBreakdown(holdings, asOfDate, policy = LIQUIDI
     let stressedAccessibleSevere = 0.0;
 
     const breakdownList = [];
+    const warnings = [];
 
     for (const h of holdings) {
         const val = typeof h.currentValue === 'number' ? h.currentValue : (typeof h.value === 'number' ? h.value : 0.0);
@@ -400,6 +441,10 @@ export function calculateLiquidityBreakdown(holdings, asOfDate, policy = LIQUIDI
             value: val
         };
         breakdownList.push(item);
+
+        if (classification.warning && !warnings.includes(classification.warning)) {
+            warnings.push(classification.warning);
+        }
 
         grossPortfolioValue += val;
 
@@ -450,7 +495,8 @@ export function calculateLiquidityBreakdown(holdings, asOfDate, policy = LIQUIDI
         stressedAccessibleValue,
         stressedAccessiblePercentage,
         stressedAccessibleModerate: Math.max(0.0, stressedAccessibleModerate),
-        holdingsBreakdown: breakdownList
+        holdingsBreakdown: breakdownList,
+        warnings
     };
 }
 
@@ -910,6 +956,15 @@ export function evaluatePortfolioLiquidityAndStress(portfolioData = {}, asOfDate
 
     // 2. LIQUIDITY BREAKDOWN
     const liquidityBreakdown = calculateLiquidityBreakdown(holdings, asOfISO, policy);
+
+    // Propagate holding-level warnings (e.g. REGULATORY_LOCK_DATE_UNAVAILABLE)
+    if (Array.isArray(liquidityBreakdown.warnings)) {
+        for (const w of liquidityBreakdown.warnings) {
+            if (!warnings.includes(w)) {
+                warnings.push(w);
+            }
+        }
+    }
 
     // 3. CASH-FLOW & RUNWAY
     const { monthlyCashFlow, runway } = evaluateCashFlowAndRunway(monthlyCashFlowInput, liquidityBreakdown, policy);
