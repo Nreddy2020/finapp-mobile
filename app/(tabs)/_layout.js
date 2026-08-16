@@ -67,7 +67,8 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
         { id: 'insights', name: 'Insights', icon: TrendingUp, route: '/insights' },
         { id: 'markets', name: 'Markets', icon: TrendingUp, route: '/markets' },
         { id: 'financial-health', name: 'Fin Health', icon: Heart, route: '/financial-health' },
-        { id: 'tax', name: 'Tax', icon: Wallet, route: '/tax' }
+        { id: 'tax', name: 'Tax', icon: Wallet, route: '/tax' },
+        { id: 'testing', name: 'In-App Test Hub', icon: Activity, route: '/(tabs)/testing' }
     ];
     
     const securitySubTabs = [
@@ -246,6 +247,7 @@ export default function TabLayout() {
                     <Tabs.Screen name="career" options={{ href: null }} />
                     <Tabs.Screen name="reports" options={{ href: null }} />
                     <Tabs.Screen name="affirmations" options={{ href: null }} />
+                    <Tabs.Screen name="testing" options={{ href: null }} />
                 </Tabs>
             </View>
         </DrawerContext.Provider>

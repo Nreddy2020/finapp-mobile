@@ -292,9 +292,18 @@ export default function Dashboard() {
                     </View>
                 </View>
 
-                <View style={styles.privacyBadge}>
-                    <Lock size={12} color="#10B981" />
-                    <Text style={styles.privacyBadgeText}>100% On-Device</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <View style={styles.privacyBadge}>
+                        <Lock size={12} color="#10B981" />
+                        <Text style={styles.privacyBadgeText}>100% On-Device</Text>
+                    </View>
+                    <TouchableOpacity
+                        style={[styles.privacyBadge, { backgroundColor: '#6366F120', borderColor: '#6366F140' }]}
+                        onPress={() => router.push('/(tabs)/testing')}
+                    >
+                        <ShieldCheck size={12} color="#818CF8" />
+                        <Text style={[styles.privacyBadgeText, { color: '#818CF8' }]}>🧪 Test Hub</Text>
+                    </TouchableOpacity>
                 </View>
             </Animated.View>
 

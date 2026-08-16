@@ -84,8 +84,9 @@ export default function MoreScreen() {
             ]
         },
         {
-            category: 'Analytics',
+            category: 'Analytics & Verification',
             items: [
+                { name: 'In-App Testing Hub', route: '/(tabs)/testing', icon: ShieldCheck, color: '#10B981' },
                 { name: 'Insights', route: '/insights', icon: Sparkles, color: '#4F46E5' },
                 { name: 'Reports', route: '/reports', icon: BarChart3, color: '#52525B' },
             ]
