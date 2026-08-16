@@ -114,15 +114,8 @@ export default function InvestmentsScreen() {
         }
     };
 
-        } finally {
-            if (currentReqId === requestIdRef.current) {
-                setLoading(false);
-                setRefreshing(false);
-            }
-        }
-    };
-
     const handleSelectPortfolio = (pId) => {
+
         setSelectedPortfolioId(pId);
         fetchData(pId);
     };

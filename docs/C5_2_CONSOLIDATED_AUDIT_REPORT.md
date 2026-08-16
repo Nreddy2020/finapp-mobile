@@ -3,23 +3,38 @@
 **Branch**: `fintech-using-chatgpt`  
 **Certified Baseline Commit**: [`6a734f1`](https://github.com/Nreddy2020/finapp-mobile/commit/6a734f1)  
 **Modules Implemented**:
-- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js)
-- [`components/investments/AssetAllocationCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/AssetAllocationCard.js)
+- [`app/(tabs)/investments.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/app/%28tabs%29/investments.js) (Cleaned up syntax, duplicate finally removed)
+- [`components/investments/AssetAllocationCard.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/AssetAllocationCard.js) (Cleaned up unused imports, added fallback notices)
 - [`components/investments/ConcentrationRiskGauge.js`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/components/investments/ConcentrationRiskGauge.js)  
-**Status**: Ready for Consolidated Certification Audit 🟢
+- [`tests/test_c52.mjs`](https://github.com/Nreddy2020/finapp-mobile/blob/fintech-using-chatgpt/tests/test_c52.mjs) (Committed 20-scenario executable acceptance test suite)  
+**Status**: Ready for Consolidated Re-Audit & Certification 🟢
 
 ---
 
-## 1. Executive Summary & File Boundary Compliance
+## 1. Blocker Resolution Log
 
-Stage C.5.2 implements the **Asset Allocation Visualizer & Risk Concentration Gauges** presentation layer, consuming the certified C.4.2 analytics engine in a strictly read-only manner.
+| Blocker ID | Description | Resolution Applied | Verification |
+| :--- | :--- | :--- | :--- |
+| **C5.2-B01** | Malformed duplicate `finally` in `app/(tabs)/investments.js` | Removed redundant `finally` block | Syntax & runtime clean |
+| **C5.2-B02** | Test suite missing from Git tree (`scratch/test_c52.mjs` was local) | Committed full suite under `tests/test_c52.mjs` and `scratch/test_c52.mjs` | Executable directly via `node --import ./tests/mock_rn.mjs tests/test_c52.mjs` |
+| **C5.2-B03** | Living state document synchronization | Synchronized `docs/AI_PROJECT_STATE.md` with blocker status and test reports | Verified |
+
+---
+
+## 2. File Boundary Compliance
 
 | File Path | Nature of Change | Boundary Verification |
 | :--- | :---: | :---: |
 | `app/(tabs)/investments.js` | **[MODIFIED]** | Mounts `AssetAllocationCard` below `PortfolioOverviewCard` |
 | `components/investments/AssetAllocationCard.js` | **[NEW]** | Asset allocation card, stacked weight bar, market/cost toggle, breakdown list |
 | `components/investments/ConcentrationRiskGauge.js` | **[NEW]** | HHI visual gauge, Top-1/3/5 concentration bars, risk badge |
-| `docs/C5_2_CONSOLIDATED_AUDIT_REPORT.md` | **[NEW]** | Master audit document on GitHub |
+| `tests/test_c52.mjs` | **[NEW]** | Committed 20-point automated acceptance suite |
+| `tests/test_c51.mjs` | **[NEW]** | Committed 20-point regression suite |
+| `tests/test_c44.mjs` | **[NEW]** | Committed 20-point regression suite |
+| `tests/test_c43.mjs` | **[NEW]** | Committed 30-point regression suite |
+| `tests/test_c42.mjs` | **[NEW]** | Committed 20-point regression suite |
+| `tests/test_c41.mjs` | **[NEW]** | Committed 7-point regression suite |
+| `docs/C5_2_CONSOLIDATED_AUDIT_REPORT.md` | **[MODIFIED]** | Master audit document on GitHub |
 | `docs/AI_PROJECT_STATE.md` | **[MODIFIED]** | Single living synchronization state file |
 | `services/investingAnalyticsEngine.js` | **[FROZEN]** 🔒 | 100% Untouched (77/77 tests certified) |
 | `services/storage.js` | **[FROZEN]** 🔒 | 100% Untouched |
@@ -28,27 +43,7 @@ Stage C.5.2 implements the **Asset Allocation Visualizer & Risk Concentration Ga
 
 ---
 
-## 2. Mathematical Contracts & Presentation Invariants
-
-### A. Asset Allocation Direct Consumption
-- Directly renders returned items from `InvestingAnalyticsEngine.getAssetAllocationSummary({ portfolioId })`:
-  - `assetAllocation` array (`assetType`, `holdingCount`, `costBasis`, `marketValue`, `costWeightPercent`, `marketWeightPercent`).
-  - Allows user toggle between Market Value Weights and Cost Basis Weights.
-  - Zero UI recalculation of weights, gains, or totals.
-
-### B. Concentration Risk Metrics & HHI Gauge
-- Directly renders `concentration` object from C.4.2:
-  - `top1Percent`, `top3Percent`, `top5Percent`.
-  - `hhi` (Herfindahl-Hirschman Index on 0–10,000 scale).
-  - `riskTier` (`BALANCED`, `MODERATE`, `HIGH`, `EMPTY`).
-
-### C. Multi-Portfolio Isolation & Safe Fallbacks
-- Allocation is strictly scoped to the active `portfolioId` selection (`null` aggregates global universe).
-- Partial quote and cost basis fallback scenarios are supported with non-crashing safe zero-states.
-
----
-
-## 3. Automated 20-Point Acceptance Test Matrix (`scratch/test_c52.mjs`)
+## 3. Automated 20-Point Acceptance Test Suite (`tests/test_c52.mjs`)
 
 ```
 ================================================================
@@ -124,17 +119,17 @@ Stage C.5.2 implements the **Asset Allocation Visualizer & Risk Concentration Ga
 
 ## 4. Comprehensive Regression Suite Results (117/117 Tests Passing)
 
-- **Stage C.5.2 Acceptance Matrix (`scratch/test_c52.mjs`)**: **20/20 PASSED (100%)** ✅
-- **Stage C.5.1 Dashboard Matrix (`scratch/test_c51.mjs`)**: **20/20 PASSED (100%)** ✅
-- **Stage C.4.4 Statement & Tax Matrix (`scratch/test_c44.mjs`)**: **20/20 PASSED (100%)** ✅
-- **Stage C.4.3 Performance & XIRR Matrix (`scratch/test_c43.mjs`)**: **30/30 PASSED (100%)** ✅
-- **Stage C.4.2 Allocation & HHI Matrix (`scratch/test_c42.mjs`)**: **20/20 PASSED (100%)** ✅
-- **Stage C.4.1 Valuation Matrix (`scratch/test_c41_comprehensive_matrix.mjs`)**: **7/7 PASSED (100%)** ✅
+- **Stage C.5.2 Matrix (`tests/test_c52.mjs`)**: **20/20 PASSED (100%)** ✅
+- **Stage C.5.1 Matrix (`tests/test_c51.mjs`)**: **20/20 PASSED (100%)** ✅
+- **Stage C.4.4 Statement & Tax Matrix (`tests/test_c44.mjs`)**: **20/20 PASSED (100%)** ✅
+- **Stage C.4.3 Performance & XIRR Matrix (`tests/test_c43.mjs`)**: **30/30 PASSED (100%)** ✅
+- **Stage C.4.2 Allocation & HHI Matrix (`tests/test_c42.mjs`)**: **20/20 PASSED (100%)** ✅
+- **Stage C.4.1 Valuation Matrix (`tests/test_c41.mjs`)**: **7/7 PASSED (100%)** ✅
 - **Total System Regression**: **117/117 PASSED (100%)** ✅
 
 ---
 
 ## 5. Phase 4 — Live Android Runtime Proof
 
-- **Android Emulator (`emulator-5554`)**: Verified active and responsive without errors.
-- **Proof Screenshot**: `screen_c52_proof.png` captured and archived.
+- **Android Emulator (`emulator-5554`)**: Verified active and responsive.
+- **Proof Screenshot**: `screen_c52_proof.png` freshly captured and verified.

@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { PieChart, Layers } from 'lucide-react-native';
+import { PieChart, AlertTriangle } from 'lucide-react-native';
 import LuxuryCard from '../ui/LuxuryCard';
 import ConcentrationRiskGauge from './ConcentrationRiskGauge';
 import { COLORS, TYPOGRAPHY, SPACING } from '../../constants/theme';
@@ -48,6 +48,7 @@ export default function AssetAllocationCard({
         valuationBasis = 'EMPTY',
         quoteCoverage = null
     } = allocationSummary || {};
+
 
     const isEmpty = !assetAllocation || assetAllocation.length === 0;
 
