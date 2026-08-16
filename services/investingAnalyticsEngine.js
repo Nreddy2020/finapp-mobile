@@ -246,6 +246,8 @@ export const InvestingAnalyticsEngine = {
                                      Number.isFinite(Number(quote.price)) && 
                                      Number(quote.price) > 0;
 
+
+
             let currentPrice = avgCost;
             let mktVal = costBasis;
             let unrlGain = 0;
@@ -471,8 +473,325 @@ export const InvestingAnalyticsEngine = {
             valuationBasis: portfolioSummary.valuationBasis,
             quoteCoverage: portfolioSummary.quoteCoverage
         };
+    },
+
+    /**
+     * Stage C.4.3: Money-Weighted Returns (XIRR) & Time-Weighted Performance (CAGR) Engine.
+     * 
+     * Extracts chronological cash flows, executes Newton-Raphson XIRR solver with progressive
+     * bisection fallback, computes point-to-point active CAGR, and surfaces audit integrity.
+     * 
+     * @param {Object} options { portfolioId = null, symbol = null, asOfDate = new Date() }
+     * @returns {Object} Performance snapshot including XIRR, CAGR, and cash flow accounting
+     */
+    async getPerformanceMetrics(options = {}) {
+        const { portfolioId = null, symbol = null, asOfDate: rawAsOfDate = new Date() } = options;
+        const asOfDate = (rawAsOfDate instanceof Date && !isNaN(rawAsOfDate.getTime())) ? rawAsOfDate : new Date(rawAsOfDate);
+        const asOfTimeMs = !isNaN(asOfDate.getTime()) ? asOfDate.getTime() : Date.now();
+
+        const allEvents = await loadInvestmentEvents();
+        const allHoldings = await loadHoldings();
+        const holdingMap = new Map(allHoldings.map(h => [h.id, h.symbol]));
+
+        const integrityWarnings = [];
+        let skippedEventCount = 0;
+        const relevantEvents = [];
+
+        for (const evt of allEvents) {
+            if (evt.status !== InvestmentEventStatus.CONFIRMED) continue;
+            if (portfolioId && evt.portfolioId !== portfolioId) continue;
+            const evtSym = (evt.symbol || evt.metadata?.symbol || holdingMap.get(evt.holdingId) || '').toUpperCase();
+            if (symbol && evtSym && evtSym !== symbol.toUpperCase()) continue;
+
+            const dateVal = evt.date || evt.createdAt;
+            const eventDate = new Date(dateVal);
+            if (isNaN(eventDate.getTime())) {
+                skippedEventCount++;
+                integrityWarnings.push({
+                    type: 'INVALID_EVENT_DATE',
+                    eventId: evt.id,
+                    eventType: evt.type,
+                    message: `Event ${evt.id} skipped due to invalid date "${dateVal}"`
+                });
+                continue;
+            }
+
+            if (eventDate.getTime() > asOfTimeMs) {
+                skippedEventCount++;
+                integrityWarnings.push({
+                    type: 'FUTURE_EVENT_DATE',
+                    eventId: evt.id,
+                    eventType: evt.type,
+                    message: `Event ${evt.id} skipped because date is after evaluation asOfDate`
+                });
+                continue;
+            }
+
+            relevantEvents.push({
+                ...evt,
+                parsedDate: eventDate,
+                parsedTimeMs: eventDate.getTime(),
+                symbol: evtSym
+            });
+        }
+
+        // Sort chronologically ascending
+        relevantEvents.sort((a, b) => a.parsedTimeMs - b.parsedTimeMs);
+
+        // Build historical cash flow vector
+        const cashFlows = [];
+        let historicalInflows = 0;
+        let historicalOutflows = 0;
+
+        for (const evt of relevantEvents) {
+            const qty = Number(evt.quantity) || 0;
+            const price = Number(evt.price) || 0;
+            const fees = Number(evt.fees) || 0;
+            const taxes = Number(evt.taxes) || 0;
+            const amount = Number(evt.amount) || 0;
+
+            if (evt.type === EventType.BUY) {
+                const outflow = Number((qty * price + fees + taxes).toFixed(2));
+                if (outflow > 0) {
+                    cashFlows.push({ amount: -outflow, dateMs: evt.parsedTimeMs, type: 'BUY' });
+                    historicalOutflows = Number((historicalOutflows + outflow).toFixed(2));
+                }
+            } else if (evt.type === EventType.SELL) {
+                const inflow = Number((qty * price - fees - taxes).toFixed(2));
+                if (inflow > 0) {
+                    cashFlows.push({ amount: inflow, dateMs: evt.parsedTimeMs, type: 'SELL' });
+                    historicalInflows = Number((historicalInflows + inflow).toFixed(2));
+                }
+            } else if (evt.type === EventType.DIVIDEND) {
+                const netDiv = evt.metadata?.netDividend !== undefined 
+                    ? Number(evt.metadata.netDividend) 
+                    : Number((amount - taxes).toFixed(2));
+                if (netDiv > 0) {
+                    cashFlows.push({ amount: netDiv, dateMs: evt.parsedTimeMs, type: 'DIVIDEND' });
+                    historicalInflows = Number((historicalInflows + netDiv).toFixed(2));
+                }
+            } else if (evt.type === EventType.FEE) {
+                const feeAmt = evt.metadata?.feeAmount !== undefined ? Number(evt.metadata.feeAmount) : (fees || amount);
+                if (feeAmt > 0) {
+                    cashFlows.push({ amount: -feeAmt, dateMs: evt.parsedTimeMs, type: 'FEE' });
+                    historicalOutflows = Number((historicalOutflows + feeAmt).toFixed(2));
+                }
+            } else if (evt.type === EventType.TAX) {
+                const taxAmt = evt.metadata?.taxAmount !== undefined ? Number(evt.metadata.taxAmount) : (taxes || amount);
+                if (taxAmt > 0) {
+                    cashFlows.push({ amount: -taxAmt, dateMs: evt.parsedTimeMs, type: 'TAX' });
+                    historicalOutflows = Number((historicalOutflows + taxAmt).toFixed(2));
+                }
+            }
+            // BONUS and SPLIT create ₹0 cash flows
+        }
+
+        // Terminal Market Value and Current Cost Basis from C.4.1
+        const portfolioSummary = await this.getPortfolioSummary({ portfolioId });
+        let terminalMarketValue = 0;
+        let currentCostBasis = 0;
+        let targetHoldings = portfolioSummary.holdings || [];
+
+        if (symbol) {
+            targetHoldings = targetHoldings.filter(h => (h.symbol || '').toUpperCase() === symbol.toUpperCase());
+        }
+
+        for (const h of targetHoldings) {
+            terminalMarketValue = Number((terminalMarketValue + h.marketValue).toFixed(2));
+            currentCostBasis = Number((currentCostBasis + h.costBasis).toFixed(2));
+        }
+
+        // Append Terminal Valuation as positive inflow if > 0
+        if (terminalMarketValue > 0) {
+            cashFlows.push({
+                amount: terminalMarketValue,
+                dateMs: asOfTimeMs,
+                type: 'TERMINAL_VALUATION'
+            });
+        }
+
+        // Sort cash flows by dateMs
+        cashFlows.sort((a, b) => a.dateMs - b.dateMs);
+
+        // Solve XIRR
+        const xirrResult = solveXIRR(cashFlows);
+
+        // Holding Period, CAGR & Absolute Return
+        const firstEventDateMs = relevantEvents.length > 0 ? relevantEvents[0].parsedTimeMs : asOfTimeMs;
+        const holdingPeriodMs = Math.max(0, asOfTimeMs - firstEventDateMs);
+        const holdingPeriodDays = Math.round(holdingPeriodMs / (24 * 60 * 60 * 1000));
+        const holdingPeriodYears = Number((holdingPeriodDays / 365.25).toFixed(2));
+
+        let cagrPercent = 0;
+        let absoluteReturnPercent = 0;
+        const performanceType = holdingPeriodYears >= 1.0 ? 'CAGR' : 'ABSOLUTE';
+
+        if (terminalMarketValue === 0 && currentCostBasis > 0 && holdingPeriodYears >= 1.0) {
+            cagrPercent = -100.00;
+        } else if (currentCostBasis > 0 && terminalMarketValue > 0 && holdingPeriodYears >= 1.0) {
+            cagrPercent = Number(((Math.pow(terminalMarketValue / currentCostBasis, 1 / holdingPeriodYears) - 1) * 100).toFixed(2));
+        }
+
+        if (currentCostBasis > 0) {
+            absoluteReturnPercent = Number((((terminalMarketValue - currentCostBasis) / currentCostBasis) * 100).toFixed(2));
+        }
+
+        return {
+            portfolioId: portfolioId || 'ALL_PORTFOLIOS',
+            symbol: symbol ? symbol.toUpperCase() : null,
+            asOfDate: asOfDate.toISOString(),
+
+            xirrPercent: xirrResult.xirrPercent,
+            xirrStatus: xirrResult.xirrStatus,
+
+            cagrPercent,
+            absoluteReturnPercent,
+            performanceType,
+
+            holdingPeriodDays,
+            holdingPeriodYears,
+
+            cashFlowSummary: {
+                historicalInflows,
+                historicalOutflows,
+                netHistoricalCapitalDeployed: Number((historicalOutflows - historicalInflows).toFixed(2)),
+                terminalMarketValue,
+                cashFlowCount: cashFlows.length
+            },
+
+            performanceIntegrity: integrityWarnings.length === 0 ? 'VALID' : 'INCOMPLETE',
+            integrityWarnings,
+            skippedEventCount,
+
+            valuationBasis: portfolioSummary.valuationBasis,
+            quoteCoverage: portfolioSummary.quoteCoverage
+        };
     }
 };
 
+/**
+ * Calculates Net Present Value (NPV) for rate r across cash flows.
+ */
+function calculateNPV(rate, cashFlows, firstDateMs) {
+    let npv = 0;
+    for (const cf of cashFlows) {
+        const yearFraction = (cf.dateMs - firstDateMs) / (365 * 24 * 60 * 60 * 1000);
+        npv += cf.amount / Math.pow(1 + rate, yearFraction);
+    }
+    return npv;
+}
+
+/**
+ * Calculates the derivative of NPV with respect to rate r.
+ */
+function calculateNPVDerivative(rate, cashFlows, firstDateMs) {
+    let derivative = 0;
+    for (const cf of cashFlows) {
+        const yearFraction = (cf.dateMs - firstDateMs) / (365 * 24 * 60 * 60 * 1000);
+        derivative += (-yearFraction * cf.amount) / Math.pow(1 + rate, yearFraction + 1);
+    }
+    return derivative;
+}
+
+/**
+ * Solves for XIRR using Newton-Raphson with deterministic ascending progressive bisection fallback.
+ */
+function solveXIRR(cashFlows) {
+    if (!cashFlows || cashFlows.length === 0) {
+        return { xirrPercent: 0, xirrStatus: 'INSUFFICIENT_CASH_FLOWS' };
+    }
+
+    let hasPositive = false;
+    let hasNegative = false;
+
+    for (const cf of cashFlows) {
+        if (cf.amount > 0) {
+            hasPositive = true;
+        } else if (cf.amount < 0) {
+            hasNegative = true;
+        }
+    }
+
+    // Complete Capital Loss business convention
+    if (hasNegative && !hasPositive) {
+        return { xirrPercent: -100.00, xirrStatus: 'CALCULATED' };
+    }
+
+    if (!hasPositive || !hasNegative || cashFlows.length < 2) {
+        return { xirrPercent: 0, xirrStatus: 'INSUFFICIENT_CASH_FLOWS' };
+    }
+
+
+    const firstDateMs = cashFlows[0].dateMs;
+
+    // 1. Primary Solver: Newton-Raphson starting at r0 = 0.10 (10%)
+    let rate = 0.10;
+    const maxIterations = 100;
+    const tolerance = 1e-6;
+    let converged = false;
+
+    for (let i = 0; i < maxIterations; i++) {
+        if (rate <= -1.0) {
+            rate = -0.999;
+        }
+        const npv = calculateNPV(rate, cashFlows, firstDateMs);
+        if (Math.abs(npv) < tolerance) {
+            converged = true;
+            break;
+        }
+        const derivative = calculateNPVDerivative(rate, cashFlows, firstDateMs);
+        if (Math.abs(derivative) < 1e-12) {
+            break; // Switch to bisection
+        }
+        const nextRate = rate - npv / derivative;
+        if (Math.abs(nextRate - rate) < tolerance) {
+            rate = nextRate;
+            converged = true;
+            break;
+        }
+        rate = nextRate;
+        if (rate <= -1.0) {
+            rate = -0.999;
+        }
+    }
+
+    if (converged && Number.isFinite(rate) && rate > -1.0) {
+        return { xirrPercent: Number((rate * 100).toFixed(2)), xirrStatus: 'CALCULATED' };
+    }
+
+    // 2. Deterministic Ascending Progressive Bisection Fallback
+    const progressiveUpperBounds = [10.0, 25.0, 50.0, 100.0];
+    const low = -0.999;
+    const npvLow = calculateNPV(low, cashFlows, firstDateMs);
+
+    for (const high of progressiveUpperBounds) {
+        const npvHigh = calculateNPV(high, cashFlows, firstDateMs);
+        if (Math.sign(npvLow) !== Math.sign(npvHigh)) {
+            let bLow = low;
+            let bHigh = high;
+            let bMid = (bLow + bHigh) / 2;
+
+            for (let bStep = 0; bStep < 100; bStep++) {
+                bMid = (bLow + bHigh) / 2;
+                const npvMid = calculateNPV(bMid, cashFlows, firstDateMs);
+
+                if (Math.abs(npvMid) < tolerance || (bHigh - bLow) < tolerance) {
+                    return { xirrPercent: Number((bMid * 100).toFixed(2)), xirrStatus: 'CALCULATED' };
+                }
+
+                if (Math.sign(npvMid) === Math.sign(npvLow)) {
+                    bLow = bMid;
+                } else {
+                    bHigh = bMid;
+                }
+            }
+            return { xirrPercent: Number((bMid * 100).toFixed(2)), xirrStatus: 'CALCULATED' };
+        }
+    }
+
+    return { xirrPercent: 0, xirrStatus: 'FAILED_TO_CONVERGE' };
+}
+
 export default InvestingAnalyticsEngine;
+
 
