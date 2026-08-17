@@ -436,160 +436,6 @@ export default function MoneyFlowView({
                 })()}
             </View>
 
-            {/* ── 3. TRANSPARENT EMERGENCY RESERVE CARD ── */}
-            {/* ── 3. UNIFIED EMERGENCY RUNWAY & PERSONAL CFO INTELLIGENCE CARD ── */}
-            <View style={styles.cfoCard}>
-                {/* Header Row: Emergency Reserve & Runway + Status Badge */}
-                <View style={styles.cardHeaderRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Shield size={16} color="#818CF8" />
-                        <Text style={styles.emergencyTitle}>🛡 Emergency Reserve & Runway</Text>
-                    </View>
-                    <View style={[styles.statusBadge, { backgroundColor: `${runwayMetrics.statusColor}20`, borderColor: runwayMetrics.statusColor }]}>
-                        <Text style={[styles.statusBadgeText, { color: runwayMetrics.statusColor }]}>
-                            {runwayMetrics.statusLabel}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Expose Reserve vs Burn Formula Inputs */}
-                <View style={styles.emergencyStatsRow}>
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Designated Reserve</Text>
-                        <Text style={styles.emergencyStatVal}>{runwayMetrics.currentReserveFormatted}</Text>
-                        <Text style={styles.emergencyStatSub}>{reserveData.designatedAccounts.length} accounts</Text>
-                    </View>
-
-                    <View style={styles.mathSignCol}>
-                        <Text style={styles.mathSignText}>÷</Text>
-                    </View>
-
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Essential Monthly Burn</Text>
-                        <Text style={styles.emergencyStatVal}>{runwayMetrics.essentialMonthlyBurnFormatted}</Text>
-                        <Text style={styles.emergencyStatSub}>Rent, EMIs, Food</Text>
-                    </View>
-
-                    <View style={styles.mathSignCol}>
-                        <Text style={styles.mathSignText}>=</Text>
-                    </View>
-
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Emergency Runway</Text>
-                        <Text style={[styles.emergencyStatVal, { color: runwayMetrics.statusColor }]}>
-                            {runwayMetrics.runwayMonths} mo
-                        </Text>
-                        <Text style={styles.emergencyStatSub}>Target: 3–6 mo</Text>
-                    </View>
-                </View>
-
-                {/* Progress Bar & Shortfall */}
-                <View style={styles.runwayProgressTrack}>
-                    <View
-                        style={[
-                            styles.runwayProgressBar,
-                            {
-                                width: `${Math.min(100, (runwayMetrics.runwayMonths / 6) * 100)}%`,
-                                backgroundColor: runwayMetrics.statusColor
-                            }
-                        ]}
-                    />
-                </View>
-
-                {runwayMetrics.shortfall > 0 && (
-                    <View style={styles.shortfallRow}>
-                        <AlertTriangle size={13} color="#F59E0B" />
-                        <Text style={styles.shortfallText}>
-                            Shortfall to Minimum 3M Target: <Text style={{ fontWeight: '800', color: '#FFF' }}>{runwayMetrics.shortfallFormatted}</Text>
-                        </Text>
-                    </View>
-                )}
-
-                {/* Action CTAs: See Math & Designate Accounts */}
-                <View style={styles.emergencyBtnRow}>
-                    <TouchableOpacity
-                        style={styles.mathExplanationBtn}
-                        onPress={() => setShowMathModal(true)}
-                    >
-                        <Info size={13} color="#818CF8" />
-                        <Text style={styles.mathExplanationBtnText}>See Calculation Math</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.designateBtn}
-                        onPress={() => setShowDesignateModal(true)}
-                    >
-                        <Building2 size={13} color="#A1A1AA" />
-                        <Text style={styles.designateBtnText}>Designate Accounts</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Embedded Divider */}
-                <View style={styles.mergedSectionDivider} />
-
-                {/* Personal CFO Intelligence Sub-section */}
-                <View style={styles.cfoHeaderRow}>
-                    <Sparkles size={14} color="#818CF8" />
-                    <Text style={styles.cfoHeaderLabel}>PERSONAL CFO INTELLIGENCE</Text>
-                </View>
-
-                <Text style={styles.cfoPriorityTitle}>🏅 Your #1 Priority Right Now</Text>
-                <Text style={styles.cfoPriorityDesc}>
-                    Increase emergency reserve to achieve 3-month peace of mind and lower liquidity stress.
-                </Text>
-
-                <View style={styles.tagPillRow}>
-                    <View style={[styles.tagPill, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B40' }]}>
-                        <Text style={[styles.tagPillText, { color: '#F59E0B' }]}>High Impact</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: '#0EA5E915', borderColor: '#0EA5E940' }]}>
-                        <Text style={[styles.tagPillText, { color: '#38BDF8' }]}>Liquidity</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: '#10B98115', borderColor: '#10B98140' }]}>
-                        <Text style={[styles.tagPillText, { color: '#10B981' }]}>Low Effort</Text>
-                    </View>
-                </View>
-
-                <View style={styles.cfoMetricsRow}>
-                    <View style={styles.cfoMetricBox}>
-                        <Text style={styles.cfoMetricLabel}>Health Score</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                            <Text style={styles.cfoMetricScore}>72.8 / 100</Text>
-                            <View style={styles.gradeBadge}>
-                                <Text style={styles.gradeBadgeText}>B</Text>
-                            </View>
-                        </View>
-                        <Text style={styles.cfoMetricSub}>Authoritative C.7 Engine</Text>
-                    </View>
-
-                    <View style={styles.cfoMetricBox}>
-                        <Text style={styles.cfoMetricLabel}>Potential improvement</Text>
-                        <Text style={styles.cfoMetricImprovement}>+{simulationResult.deltas.healthScoreDelta} pts</Text>
-                        <Text style={styles.cfoMetricSub}>Simulated via C.8.6</Text>
-                    </View>
-                </View>
-
-                {/* Primary CTA: See Authoritative What-If Simulation */}
-                <TouchableOpacity
-                    style={styles.seeImpactCTA}
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setShowWhatIfModal(true);
-                    }}
-                >
-                    <Text style={styles.seeImpactCTAText}>See Authoritative What-If Simulation</Text>
-                    <ArrowUpRight size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10 }}
-                    onPress={() => router.push('/investments')}
-                >
-                    <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>View All Recommendations</Text>
-                    <ChevronRight size={13} color="#818CF8" />
-                </TouchableOpacity>
-            </View>
-
             {/* ── 5. WHERE IS MY MONEY? (CATEGORY, MERCHANT, ACCOUNT) ── */}
             <View style={styles.sectionCard}>
                 <View style={styles.cardHeaderRow}>
@@ -759,6 +605,159 @@ export default function MoneyFlowView({
                 >
                     <Plus size={16} color="#818CF8" />
                     <Text style={styles.addCustomBtnText}>+ Log Expense / Income / Transfer</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* ── 3. UNIFIED EMERGENCY RUNWAY & PERSONAL CFO INTELLIGENCE CARD ── */}
+            <View style={styles.cfoCard}>
+                {/* Header Row: Emergency Reserve & Runway + Status Badge */}
+                <View style={styles.cardHeaderRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Shield size={16} color="#818CF8" />
+                        <Text style={styles.emergencyTitle}>🛡 Emergency Reserve & Runway</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: `${runwayMetrics.statusColor}20`, borderColor: runwayMetrics.statusColor }]}>
+                        <Text style={[styles.statusBadgeText, { color: runwayMetrics.statusColor }]}>
+                            {runwayMetrics.statusLabel}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Expose Reserve vs Burn Formula Inputs */}
+                <View style={styles.emergencyStatsRow}>
+                    <View style={styles.emergencyStatItem}>
+                        <Text style={styles.emergencyStatLabel}>Designated Reserve</Text>
+                        <Text style={styles.emergencyStatVal}>{runwayMetrics.currentReserveFormatted}</Text>
+                        <Text style={styles.emergencyStatSub}>{reserveData.designatedAccounts.length} accounts</Text>
+                    </View>
+
+                    <View style={styles.mathSignCol}>
+                        <Text style={styles.mathSignText}>÷</Text>
+                    </View>
+
+                    <View style={styles.emergencyStatItem}>
+                        <Text style={styles.emergencyStatLabel}>Essential Monthly Burn</Text>
+                        <Text style={styles.emergencyStatVal}>{runwayMetrics.essentialMonthlyBurnFormatted}</Text>
+                        <Text style={styles.emergencyStatSub}>Rent, EMIs, Food</Text>
+                    </View>
+
+                    <View style={styles.mathSignCol}>
+                        <Text style={styles.mathSignText}>=</Text>
+                    </View>
+
+                    <View style={styles.emergencyStatItem}>
+                        <Text style={styles.emergencyStatLabel}>Emergency Runway</Text>
+                        <Text style={[styles.emergencyStatVal, { color: runwayMetrics.statusColor }]}>
+                            {runwayMetrics.runwayMonths} mo
+                        </Text>
+                        <Text style={styles.emergencyStatSub}>Target: 3–6 mo</Text>
+                    </View>
+                </View>
+
+                {/* Progress Bar & Shortfall */}
+                <View style={styles.runwayProgressTrack}>
+                    <View
+                        style={[
+                            styles.runwayProgressBar,
+                            {
+                                width: `${Math.min(100, (runwayMetrics.runwayMonths / 6) * 100)}%`,
+                                backgroundColor: runwayMetrics.statusColor
+                            }
+                        ]}
+                    />
+                </View>
+
+                {runwayMetrics.shortfall > 0 && (
+                    <View style={styles.shortfallRow}>
+                        <AlertTriangle size={13} color="#F59E0B" />
+                        <Text style={styles.shortfallText}>
+                            Shortfall to Minimum 3M Target: <Text style={{ fontWeight: '800', color: '#FFF' }}>{runwayMetrics.shortfallFormatted}</Text>
+                        </Text>
+                    </View>
+                )}
+
+                {/* Action CTAs: See Math & Designate Accounts */}
+                <View style={styles.emergencyBtnRow}>
+                    <TouchableOpacity
+                        style={styles.mathExplanationBtn}
+                        onPress={() => setShowMathModal(true)}
+                    >
+                        <Info size={13} color="#818CF8" />
+                        <Text style={styles.mathExplanationBtnText}>See Calculation Math</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.designateBtn}
+                        onPress={() => setShowDesignateModal(true)}
+                    >
+                        <Building2 size={13} color="#A1A1AA" />
+                        <Text style={styles.designateBtnText}>Designate Accounts</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Embedded Divider */}
+                <View style={styles.mergedSectionDivider} />
+
+                {/* Personal CFO Intelligence Sub-section */}
+                <View style={styles.cfoHeaderRow}>
+                    <Sparkles size={14} color="#818CF8" />
+                    <Text style={styles.cfoHeaderLabel}>PERSONAL CFO INTELLIGENCE</Text>
+                </View>
+
+                <Text style={styles.cfoPriorityTitle}>🏅 Your #1 Priority Right Now</Text>
+                <Text style={styles.cfoPriorityDesc}>
+                    Increase emergency reserve to achieve 3-month peace of mind and lower liquidity stress.
+                </Text>
+
+                <View style={styles.tagPillRow}>
+                    <View style={[styles.tagPill, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B40' }]}>
+                        <Text style={[styles.tagPillText, { color: '#F59E0B' }]}>High Impact</Text>
+                    </View>
+                    <View style={[styles.tagPill, { backgroundColor: '#0EA5E915', borderColor: '#0EA5E940' }]}>
+                        <Text style={[styles.tagPillText, { color: '#38BDF8' }]}>Liquidity</Text>
+                    </View>
+                    <View style={[styles.tagPill, { backgroundColor: '#10B98115', borderColor: '#10B98140' }]}>
+                        <Text style={[styles.tagPillText, { color: '#10B981' }]}>Low Effort</Text>
+                    </View>
+                </View>
+
+                <View style={styles.cfoMetricsRow}>
+                    <View style={styles.cfoMetricBox}>
+                        <Text style={styles.cfoMetricLabel}>Health Score</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            <Text style={styles.cfoMetricScore}>72.8 / 100</Text>
+                            <View style={styles.gradeBadge}>
+                                <Text style={styles.gradeBadgeText}>B</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.cfoMetricSub}>Authoritative C.7 Engine</Text>
+                    </View>
+
+                    <View style={styles.cfoMetricBox}>
+                        <Text style={styles.cfoMetricLabel}>Potential improvement</Text>
+                        <Text style={styles.cfoMetricImprovement}>+{simulationResult.deltas.healthScoreDelta} pts</Text>
+                        <Text style={styles.cfoMetricSub}>Simulated via C.8.6</Text>
+                    </View>
+                </View>
+
+                {/* Primary CTA: See Authoritative What-If Simulation */}
+                <TouchableOpacity
+                    style={styles.seeImpactCTA}
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        setShowWhatIfModal(true);
+                    }}
+                >
+                    <Text style={styles.seeImpactCTAText}>See Authoritative What-If Simulation</Text>
+                    <ArrowUpRight size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10 }}
+                    onPress={() => router.push('/investments')}
+                >
+                    <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>View All Recommendations</Text>
+                    <ChevronRight size={13} color="#818CF8" />
                 </TouchableOpacity>
             </View>
 
