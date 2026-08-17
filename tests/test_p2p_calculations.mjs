@@ -5,7 +5,7 @@
  * 
  * Verifies:
  * 1. Annual to Monthly Rate conversion precision
- * 2. Simple Interest formula ($I = P \times r \times t$)
+ * 2. Declining-Balance Simple Interest formula
  * 3. Amortization formula ($EMI = P \times \frac{r(1+r)^n}{(1+r)^n - 1}$)
  * 4. Initial Schedule Generation for Amortized and Simple loans
  * 5. Repayment Allocation policies (INTEREST_FIRST, PRINCIPAL_FIRST, PROPORTIONAL)
@@ -36,7 +36,6 @@ console.log('=== P2P SUITE 2: FINANCIAL MATH & ALLOCATION ENGINE ===\n');
 
 // ── 1. RATE CONVERSION & AMORTIZED LOAN DNA ─────────────────────────────────
 console.log('--- 1. Amortized Loan Calculations (ICICI / Kasapa Spec) ---');
-// ₹2,36,746.04 at 9.99% annual for 12 months
 const amortizedDna = calculateLoanDNA({
     principal: 236746.04,
     interestRate: 9.99,
@@ -50,7 +49,7 @@ assert(Math.round(amortizedDna.monthlyInstallment) > 20000 && Math.round(amortiz
 assert(amortizedDna.totalInterest > 0, `Total interest computed: ₹${amortizedDna.totalInterest}`);
 assert(Math.abs(amortizedDna.totalPayable - (amortizedDna.principal + amortizedDna.totalInterest)) < 0.01, 'Total payable equals Principal + Interest');
 
-// ── 2. SIMPLE INTEREST LOAN DNA ─────────────────────────────────────────────
+// ── 2. SIMPLE INTEREST LOAN DNA (DECLINING BALANCE) ─────────────────────────
 console.log('\n--- 2. Simple Interest Calculations ---');
 const simpleDna = calculateLoanDNA({
     principal: 100000,
@@ -59,10 +58,10 @@ const simpleDna = calculateLoanDNA({
     interestMethod: 'SIMPLE'
 });
 
-// ₹1,00,000 * 12% * 1 year = ₹12,000 interest. Monthly = ₹1,000 interest + ₹8,333.33 principal = ₹9,333.33
-assert(simpleDna.totalInterest === 12000, `Simple interest 12% on ₹1L for 1 yr = ₹12,000 (actual: ${simpleDna.totalInterest})`);
-assert(simpleDna.totalPayable === 112000, `Total payable = ₹1,12,000 (actual: ${simpleDna.totalPayable})`);
-assert(Math.round(simpleDna.monthlyInstallment) === 9333, `Monthly installment ~₹9,333 (actual: ${simpleDna.monthlyInstallment})`);
+// Declining balance sum: ₹6,500 interest. Total: ₹1,06,500. Monthly = ₹8,875
+assert(simpleDna.totalInterest === 6500, `Declining-balance simple interest 12% on ₹1L for 1 yr = ₹6,500 (actual: ${simpleDna.totalInterest})`);
+assert(simpleDna.totalPayable === 106500, `Total payable = ₹1,06,500 (actual: ${simpleDna.totalPayable})`);
+assert(Math.round(simpleDna.monthlyInstallment) === 8875, `Monthly installment ~₹8,875 (actual: ${simpleDna.monthlyInstallment})`);
 
 // ── 3. SCHEDULE GENERATION INVARIANTS ───────────────────────────────────────
 console.log('\n--- 3. Schedule Generation Invariants ---');

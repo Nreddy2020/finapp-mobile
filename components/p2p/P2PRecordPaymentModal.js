@@ -15,8 +15,8 @@ export default function P2PRecordPaymentModal({
     if (!loan) return null;
 
     const defaultAmount = scheduleItem 
-        ? String(Math.round(scheduleItem.expectedAmount - (scheduleItem.paidAmount || 0)))
-        : '53519';
+        ? String(Number((scheduleItem.expectedAmount - (scheduleItem.paidAmount || 0)).toFixed(2)))
+        : String(loan.principal ? Number(((loan.principal / (loan.tenureMonths || 12)) + ((loan.principal * (loan.interestRate || 0)) / 1200)).toFixed(2)) : '0');
 
     const [amountInput, setAmountInput] = useState(defaultAmount);
     const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);

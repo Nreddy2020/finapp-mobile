@@ -72,7 +72,9 @@ export const STORAGE_KEYS = {
     P2P_JOURNAL: 'finlife_p2p_journal_v1',
     P2P_ADVANCES: 'finlife_p2p_advances_v1',
     P2P_REPAYMENTS: 'finlife_p2p_repayments_v1',
-    P2P_SETTINGS: 'finlife_p2p_settings_v1'
+    P2P_SETTINGS: 'finlife_p2p_settings_v1',
+    P2P_OPERATIONS: 'finlife_p2p_operations_v1',
+    P2P_SCHEDULES: 'finlife_p2p_schedules_v1'
 };
 
 /**

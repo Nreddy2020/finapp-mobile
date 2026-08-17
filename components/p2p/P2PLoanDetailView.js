@@ -263,35 +263,98 @@ export default function P2PLoanDetailView({
             {/* ── SUB-VIEW 3: REPAYMENTS & SCHEDULE ── */}
             {activeTab === 'REPAYMENTS' && (
                 <View style={styles.contentSection}>
-                    {nextPendingItem && loan.status === 'ACTIVE' && (
-                        <View style={styles.nextPayCard}>
-                            <Text style={styles.nextPayTitle}>Next payment</Text>
-                            <Text style={styles.nextPayDate}>{nextPendingItem.dueDate}</Text>
-                            <Text style={styles.nextPayAmount}>
-                                {formatINR(nextPendingItem.expectedAmount - (nextPendingItem.paidAmount || 0))}
-                            </Text>
-                            <Text style={styles.nextPayRemaining}>
-                                Remaining principal: {formatINR(nextPendingItem.remainingPrincipal)}
-                            </Text>
-                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                    {loan.status === 'ACTIVE' && (
+                        <View style={styles.actionsContainer}>
+                            <Text style={styles.groupHeader}>FINANCIAL ACTIONS & PAYMENTS</Text>
+
+                            {/* 1. Pay Next Installment (🟢 Green Action) */}
+                            {nextPendingItem && (
+                                <View style={styles.actionCardNext}>
+                                    <View style={styles.actionCardHeader}>
+                                        <View style={[styles.actionIconBadge, { backgroundColor: '#10B98120' }]}>
+                                            <CheckCircle2 size={16} color="#10B981" />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.actionCardTitle}>1. Pay Next Installment</Text>
+                                            <Text style={styles.actionCardSub}>
+                                                Installment #{nextPendingItem.installmentNumber} • Due {nextPendingItem.dueDate}
+                                            </Text>
+                                        </View>
+                                        <Text style={[styles.actionCardAmount, { color: '#10B981' }]}>
+                                            {formatINR(nextPendingItem.expectedAmount - (nextPendingItem.paidAmount || 0))}
+                                        </Text>
+                                    </View>
+
+                                    <View style={styles.actionBreakdownRow}>
+                                        <Text style={styles.actionBreakdownItem}>
+                                            Principal: <Text style={{ color: '#FFF', fontWeight: '700' }}>{formatINR(nextPendingItem.principalComponent)}</Text>
+                                        </Text>
+                                        <Text style={styles.actionBreakdownItem}>
+                                            Interest: <Text style={{ color: '#818CF8', fontWeight: '700' }}>{formatINR(nextPendingItem.interestComponent)}</Text>
+                                        </Text>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.primaryActionBtn, { backgroundColor: '#10B981' }]}
+                                        onPress={() => onRecordPayment(loan, nextPendingItem)}
+                                    >
+                                        <CheckCircle2 size={14} color="#FFF" />
+                                        <Text style={styles.primaryActionBtnText}>
+                                            Pay Next Installment — {formatINR(nextPendingItem.expectedAmount - (nextPendingItem.paidAmount || 0))}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            {/* 2. Prepay Principal (🟠 Amber Action) */}
+                            <View style={styles.actionCardPrepay}>
+                                <View style={styles.actionCardHeader}>
+                                    <View style={[styles.actionIconBadge, { backgroundColor: '#F59E0B20' }]}>
+                                        <DollarSign size={16} color="#F59E0B" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.actionCardTitle}>2. Prepay Principal (Lump-Sum)</Text>
+                                        <Text style={styles.actionCardSub}>
+                                            Reduces opening balance & re-amortizes future schedule
+                                        </Text>
+                                    </View>
+                                </View>
                                 <TouchableOpacity
-                                    style={styles.recordPayBtn}
-                                    onPress={() => onRecordPayment(loan, nextPendingItem)}
+                                    style={[styles.primaryActionBtn, { backgroundColor: '#F59E0B' }]}
+                                    onPress={() => onRecordPayment(loan, null, { isPrincipalPrepayment: true })}
                                 >
-                                    <CheckCircle2 size={14} color="#FFF" />
-                                    <Text style={styles.recordPayBtnText}>Record Payment</Text>
+                                    <Text style={[styles.primaryActionBtnText, { color: '#000' }]}>
+                                        Prepay Principal (e.g. ₹1,00,000)
+                                    </Text>
                                 </TouchableOpacity>
+                            </View>
+
+                            {/* 3. Settle & Close Loan (🔴 Red Action) */}
+                            <View style={styles.actionCardSettle}>
+                                <View style={styles.actionCardHeader}>
+                                    <View style={[styles.actionIconBadge, { backgroundColor: '#EF444420' }]}>
+                                        <RefreshCw size={16} color="#EF4444" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.actionCardTitle}>3. Settle & Close Loan</Text>
+                                        <Text style={styles.actionCardSub}>
+                                            Full closure with waiver reconciliation
+                                        </Text>
+                                    </View>
+                                </View>
                                 <TouchableOpacity
-                                    style={styles.settleBtn}
+                                    style={[styles.primaryActionBtn, { backgroundColor: '#EF4444' }]}
                                     onPress={() => onSettleLoan(loan)}
                                 >
-                                    <Text style={styles.settleBtnText}>Settle Up</Text>
+                                    <Text style={styles.primaryActionBtnText}>
+                                        Settle & Close Loan — {formatINR(outstandingPrincipal)}
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                     )}
 
-                    <Text style={styles.groupHeader}>AMORTIZATION SCHEDULE</Text>
+                    <Text style={[styles.groupHeader, { marginTop: 16 }]}>AMORTIZATION SCHEDULE</Text>
                     <View style={{ gap: 8 }}>
                         {schedule.map(item => (
                             <View key={item.id} style={styles.scheduleRow}>
@@ -303,7 +366,7 @@ export default function P2PLoanDetailView({
                                 </View>
                                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
                                     <Text style={styles.scheduleAmount}>{formatINR(item.expectedAmount)}</Text>
-                                    <Text style={[styles.scheduleStatus, item.status === 'PAID' ? { color: '#10B981' } : item.status === 'PARTIALLY_PAID' ? { color: '#F59E0B' } : { color: '#71717A' }]}>
+                                    <Text style={[styles.scheduleStatus, item.status === 'PAID' ? { color: '#10B981' } : item.status === 'PARTIALLY_PAID' ? { color: '#F59E0B' } : item.status === 'PREPAID' ? { color: '#818CF8' } : item.status === 'SKIPPED' ? { color: '#EC4899' } : { color: '#71717A' }]}>
                                         {item.status}
                                     </Text>
                                 </View>
@@ -771,6 +834,84 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontWeight: '800'
     },
+    actionsContainer: {
+        marginBottom: 16,
+        gap: 10
+    },
+    actionCardNext: {
+        backgroundColor: '#0A261A',
+        borderColor: '#10B98150',
+        borderWidth: 1.5,
+        borderRadius: 14,
+        padding: 14
+    },
+    actionCardPrepay: {
+        backgroundColor: '#261C0A',
+        borderColor: '#F59E0B50',
+        borderWidth: 1.5,
+        borderRadius: 14,
+        padding: 14
+    },
+    actionCardSettle: {
+        backgroundColor: '#260A0A',
+        borderColor: '#EF444450',
+        borderWidth: 1.5,
+        borderRadius: 14,
+        padding: 14
+    },
+    actionCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8
+    },
+    actionIconBadge: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    actionCardTitle: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800'
+    },
+    actionCardSub: {
+        color: '#94A3B8',
+        fontSize: 11,
+        marginTop: 1
+    },
+    actionCardAmount: {
+        fontSize: 16,
+        fontWeight: '900'
+    },
+    actionBreakdownRow: {
+        flexDirection: 'row',
+        gap: 12,
+        backgroundColor: '#00000040',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        marginBottom: 10
+    },
+    actionBreakdownItem: {
+        color: '#94A3B8',
+        fontSize: 11
+    },
+    primaryActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        borderRadius: 10,
+        paddingVertical: 10
+    },
+    primaryActionBtnText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800'
+    },
     topUpCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -797,3 +938,4 @@ const styles = StyleSheet.create({
         fontWeight: '800'
     }
 });
+

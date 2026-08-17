@@ -12,11 +12,11 @@
  * 5. What-If calculations route strictly through C.8.6 simulateActionImpact.
  */
 
-import { formatCurrencyINR, formatCompactCurrencyINR } from '../../components/investments/decisionPresentationAdapter';
-import { simulateActionImpact } from '../../services/actionImpactSimulator';
-import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
-import { evaluatePortfolioLiquidityAndStress } from '../../services/liquidityEngine';
-import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
+import { formatCurrencyINR, formatCompactCurrencyINR } from '../../components/investments/decisionPresentationAdapter.js';
+import { simulateActionImpact } from '../../services/actionImpactSimulator.js';
+import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine.js';
+import { evaluatePortfolioLiquidityAndStress } from '../../services/liquidityEngine.js';
+import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine.js';
 
 // ── 1. MERCHANT NORMALIZER RULES ─────────────────────────────────────────────
 const MERCHANT_DICTIONARY = [
