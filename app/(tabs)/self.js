@@ -10,6 +10,7 @@ import { aggregateFinancialOpportunities } from '../../services/financialOpportu
 import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
 import MoneyFlowView from '../../components/moneyflow/MoneyFlowView';
 import P2PMainView from '../../components/p2p/P2PMainView';
+import BankingMainView from '../../components/banking/BankingMainView';
 const { width } = Dimensions.get('window');
 
 const AGENTS_20 = [
@@ -3091,8 +3092,13 @@ export default function SelfScreen() {
                         )}
                 )}
 
-                {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
-                {(activeTab === 'sms' || activeTab === 'banking' || activeTab === 'financial_hub' || activeTab === 'hub') && (
+                {/* ── 🏦 COMPLETE BANKING RELATIONSHIP INTELLIGENCE (AUTHORITATIVE) ── */}
+                {activeTab === 'banking' && (
+                    <BankingMainView />
+                )}
+
+                {/* ── Financial Hub (SMS / Legacy Hub) ── */}
+                {(activeTab === 'sms' || activeTab === 'financial_hub' || activeTab === 'hub') && (
                     <View style={styles.card}>
                         {/* Highest Interest Report Card */}
                         {interestData.highestBank && showLeakWarning && (

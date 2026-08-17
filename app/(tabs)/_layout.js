@@ -44,9 +44,9 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     ];
 
     const wealthSubTabs = [
-        { id: 'banking', name: 'Banking', icon: Landmark, route: '/accounts' },
-        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/loans' },
-        { id: 'emis', name: 'EMI Tracker', icon: Calendar, route: '/emis' },
+        { id: 'banking', name: 'Banking', icon: Landmark, route: '/(tabs)/self?tab=banking' },
+        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/(tabs)/self?tab=banking' },
+        { id: 'emis', name: 'EMI Tracker', icon: Calendar, route: '/(tabs)/self?tab=banking' },
         { id: 'p2p', name: 'P2P Network', icon: Users, route: '/(tabs)/self?tab=p2p' },
         { id: 'assets', name: 'Assets', icon: Building2, route: '/assets' },
         { id: 'properties', name: 'Property', icon: Building2, route: '/properties' },

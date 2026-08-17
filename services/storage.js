@@ -74,7 +74,15 @@ export const STORAGE_KEYS = {
     P2P_REPAYMENTS: 'finlife_p2p_repayments_v1',
     P2P_SETTINGS: 'finlife_p2p_settings_v1',
     P2P_OPERATIONS: 'finlife_p2p_operations_v1',
-    P2P_SCHEDULES: 'finlife_p2p_schedules_v1'
+    P2P_SCHEDULES: 'finlife_p2p_schedules_v1',
+    BANKING_BANKS: 'finlife_banking_banks_v1',
+    BANKING_ACCOUNTS: 'finlife_banking_accounts_v1',
+    BANKING_LOANS: 'finlife_banking_loans_v1',
+    BANKING_JOURNAL: 'finlife_banking_journal_v1',
+    BANKING_SCHEDULES: 'finlife_banking_schedules_v1',
+    BANKING_DOCUMENTS: 'finlife_banking_documents_v1',
+    BANKING_OPERATIONS: 'finlife_banking_operations_v1',
+    BANKING_SETTINGS: 'finlife_banking_settings_v1'
 };
 
 /**

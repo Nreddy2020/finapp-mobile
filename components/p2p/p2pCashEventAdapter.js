@@ -322,3 +322,11 @@ export function mapP2PJournalToMoneyFlowTransactions(journalEntries = [], person
     return allTransactions;
 }
 
+export function adaptJournalEntryToMoneyFlowTx(journalEntry) {
+    const txs = convertJournalEntryToMoneyFlowTransactions(journalEntry);
+    return txs.length > 0 ? txs[0] : null;
+}
+
+export function generateMoneyFlowTransactionsForLoan(journalEntries = []) {
+    return mapP2PJournalToMoneyFlowTransactions(journalEntries);
+}
