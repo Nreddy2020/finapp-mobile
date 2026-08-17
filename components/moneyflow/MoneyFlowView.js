@@ -145,6 +145,7 @@ export default function MoneyFlowView({
     const [customCatInput, setCustomCatInput] = useState('');
     const [isEditingCustomCat, setIsEditingCustomCat] = useState(false);
     const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education']);
+    const [isFeedExpanded, setIsFeedExpanded] = useState(true);
 
     // Simulation Slider State
     const [simulationAmount, setSimulationAmount] = useState(30000);
@@ -761,124 +762,153 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* ── 8. SCALABLE SMART TRANSACTION FEED ── */}
+            {/* ── 8. SCALABLE SMART TRANSACTION FEED (COLLAPSIBLE DROPDOWN) ── */}
             <View style={styles.sectionCard}>
-                <View style={styles.cardHeaderRow}>
-                    <Text style={styles.sectionCardTitle}>Smart Transaction Feed</Text>
-                    {cashFlowTruth.needsSortCount > 0 && (
-                        <TouchableOpacity
-                            style={styles.needsSortTrigger}
-                            onPress={() => setShowNeedsSortInbox(true)}
-                        >
-                            <Text style={styles.needsSortTriggerText}>
-                                🔴 Needs Sort ({cashFlowTruth.needsSortCount})
+                <TouchableOpacity
+                    style={styles.cardHeaderRow}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                        safeHaptic('light');
+                        setIsFeedExpanded(prev => !prev);
+                    }}
+                >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Text style={styles.sectionCardTitle}>Smart Transaction Feed</Text>
+                        <View style={styles.feedCountBadge}>
+                            <Text style={styles.feedCountBadgeText}>
+                                {processedFeed.reduce((acc, g) => acc + g.txList.length, 0)}
                             </Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {/* Search Bar */}
-                <View style={styles.searchBar}>
-                    <Search size={14} color="#71717A" />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="Search description, merchant, amount..."
-                        placeholderTextColor="#71717A"
-                        value={feedSearch}
-                        onChangeText={setFeedSearch}
-                    />
-                    {feedSearch.length > 0 && (
-                        <TouchableOpacity onPress={() => setFeedSearch('')}>
-                            <X size={14} color="#71717A" />
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {/* Filter Pills */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.feedFilterRow}>
-                    {[
-                        { key: 'ALL', label: 'All' },
-                        { key: 'NEEDS_SORT', label: `Needs Sort (${cashFlowTruth.needsSortCount})` },
-                        { key: 'EXPENSE', label: 'Expenses' },
-                        { key: 'INCOME', label: 'Income' },
-                        { key: 'TRANSFER', label: 'Transfers' }
-                    ].map(f => (
-                        <TouchableOpacity
-                            key={f.key}
-                            style={[styles.feedFilterPill, feedFilter === f.key && styles.feedFilterPillActive]}
-                            onPress={() => setFeedFilter(f.key)}
-                        >
-                            <Text style={[styles.feedFilterText, feedFilter === f.key && styles.feedFilterTextActive]}>
-                                {f.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Grouped Chronological Feed */}
-                {processedFeed.length === 0 ? (
-                    <View style={styles.emptyStateBox}>
-                        <FileText size={24} color="#52525B" />
-                        <Text style={styles.emptyStateText}>No transactions found for this filter & period</Text>
+                        </View>
                     </View>
-                ) : (
-                    processedFeed.map(group => (
-                        <View key={group.date} style={styles.dateGroupContainer}>
-                            <View style={styles.dateGroupHeader}>
-                                <Text style={styles.dateGroupTitle}>{group.date}</Text>
-                                <Text style={styles.dateGroupCount}>{group.txList.length} transactions</Text>
-                            </View>
 
-                            {group.txList.map(tx => (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {cashFlowTruth.needsSortCount > 0 && (
+                            <TouchableOpacity
+                                style={styles.needsSortTrigger}
+                                onPress={(e) => {
+                                    e?.stopPropagation?.();
+                                    setShowNeedsSortInbox(true);
+                                }}
+                            >
+                                <Text style={styles.needsSortTriggerText}>
+                                    🔴 ({cashFlowTruth.needsSortCount})
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        {isFeedExpanded ? (
+                            <ChevronDown size={20} color="#A1A1AA" />
+                        ) : (
+                            <ChevronRight size={20} color="#A1A1AA" />
+                        )}
+                    </View>
+                </TouchableOpacity>
+
+                {isFeedExpanded && (
+                    <View style={{ marginTop: 8 }}>
+                        {/* Search Bar */}
+                        <View style={styles.searchBar}>
+                            <Search size={14} color="#71717A" />
+                            <TextInput
+                                style={styles.searchInput}
+                                placeholder="Search description, merchant, amount..."
+                                placeholderTextColor="#71717A"
+                                value={feedSearch}
+                                onChangeText={setFeedSearch}
+                            />
+                            {feedSearch.length > 0 && (
+                                <TouchableOpacity onPress={() => setFeedSearch('')}>
+                                    <X size={14} color="#71717A" />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+
+                        {/* Filter Pills */}
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.feedFilterRow}>
+                            {[
+                                { key: 'ALL', label: 'All' },
+                                { key: 'NEEDS_SORT', label: `Needs Sort (${cashFlowTruth.needsSortCount})` },
+                                { key: 'EXPENSE', label: 'Expenses' },
+                                { key: 'INCOME', label: 'Income' },
+                                { key: 'TRANSFER', label: 'Transfers' }
+                            ].map(f => (
                                 <TouchableOpacity
-                                    key={tx.id}
-                                    style={styles.feedTxCard}
-                                    activeOpacity={0.7}
-                                    onPress={() => {
-                                        safeHaptic('light');
-                                        setSelectedTxDetail(tx);
-                                    }}
+                                    key={f.key}
+                                    style={[styles.feedFilterPill, feedFilter === f.key && styles.feedFilterPillActive]}
+                                    onPress={() => setFeedFilter(f.key)}
                                 >
-                                    <View style={styles.feedTxLeft}>
-                                        <View style={[
-                                            styles.feedTxAvatar,
-                                            { backgroundColor: tx.type === 'INCOME' ? '#10B98120' : tx.type === 'TRANSFER' ? '#818CF820' : '#EF444420' }
-                                        ]}>
-                                            {tx.type === 'TRANSFER' ? (
-                                                <ArrowLeftRight size={16} color="#818CF8" />
-                                            ) : tx.type === 'INCOME' ? (
-                                                <TrendingUp size={16} color="#10B981" />
-                                            ) : (
-                                                <TrendingDown size={16} color="#EF4444" />
-                                            )}
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={styles.feedTxTitle} numberOfLines={1}>{tx.merchant}</Text>
-                                            <Text style={styles.feedTxSub} numberOfLines={1}>
-                                                {tx.category} • {tx.account}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={[
-                                            styles.feedTxAmount,
-                                            { color: tx.type === 'INCOME' ? '#10B981' : tx.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }
-                                        ]}>
-                                            {tx.type === 'INCOME' ? '+' : tx.type === 'TRANSFER' ? '⇄ ' : '-'}₹{Math.round(tx.amount).toLocaleString()}
-                                        </Text>
-                                        {tx.needsSort ? (
-                                            <View style={styles.needsSortChip}>
-                                                <Text style={styles.needsSortChipText}>Needs Sort</Text>
-                                            </View>
-                                        ) : (
-                                            <Text style={styles.sortedStatusText}>Sorted ✓</Text>
-                                        )}
-                                    </View>
+                                    <Text style={[styles.feedFilterText, feedFilter === f.key && styles.feedFilterTextActive]}>
+                                        {f.label}
+                                    </Text>
                                 </TouchableOpacity>
                             ))}
-                        </View>
-                    ))
+                        </ScrollView>
+
+                        {/* Grouped Chronological Feed */}
+                        {processedFeed.length === 0 ? (
+                            <View style={styles.emptyStateBox}>
+                                <FileText size={24} color="#52525B" />
+                                <Text style={styles.emptyStateText}>No transactions found for this filter & period</Text>
+                            </View>
+                        ) : (
+                            processedFeed.map(group => (
+                                <View key={group.date} style={styles.dateGroupContainer}>
+                                    <View style={styles.dateGroupHeader}>
+                                        <Text style={styles.dateGroupTitle}>{group.date}</Text>
+                                        <Text style={styles.dateGroupCount}>{group.txList.length} transactions</Text>
+                                    </View>
+
+                                    {group.txList.map(tx => (
+                                        <TouchableOpacity
+                                            key={tx.id}
+                                            style={styles.feedTxCard}
+                                            activeOpacity={0.7}
+                                            onPress={() => {
+                                                safeHaptic('light');
+                                                setSelectedTxDetail(tx);
+                                            }}
+                                        >
+                                            <View style={styles.feedTxLeft}>
+                                                <View style={[
+                                                    styles.feedTxAvatar,
+                                                    { backgroundColor: tx.type === 'INCOME' ? '#10B98120' : tx.type === 'TRANSFER' ? '#818CF820' : '#EF444420' }
+                                                ]}>
+                                                    {tx.type === 'TRANSFER' ? (
+                                                        <ArrowLeftRight size={16} color="#818CF8" />
+                                                    ) : tx.type === 'INCOME' ? (
+                                                        <TrendingUp size={16} color="#10B981" />
+                                                    ) : (
+                                                        <TrendingDown size={16} color="#EF4444" />
+                                                    )}
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.feedTxTitle} numberOfLines={1}>{tx.merchant}</Text>
+                                                    <Text style={styles.feedTxSub} numberOfLines={1}>
+                                                        {tx.category} • {tx.account}
+                                                    </Text>
+                                                </View>
+                                            </View>
+
+                                            <View style={{ alignItems: 'flex-end' }}>
+                                                <Text style={[
+                                                    styles.feedTxAmount,
+                                                    { color: tx.type === 'INCOME' ? '#10B981' : tx.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }
+                                                ]}>
+                                                    {tx.type === 'INCOME' ? '+' : tx.type === 'TRANSFER' ? '⇄ ' : '-'}₹{Math.round(tx.amount).toLocaleString()}
+                                                </Text>
+                                                {tx.needsSort ? (
+                                                    <View style={styles.needsSortChip}>
+                                                        <Text style={styles.needsSortChipText}>Needs Sort</Text>
+                                                    </View>
+                                                ) : (
+                                                    <Text style={styles.sortedStatusText}>Sorted ✓</Text>
+                                                )}
+                                            </View>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            ))
+                        )}
+                    </View>
                 )}
             </View>
 
@@ -3268,6 +3298,17 @@ const styles = StyleSheet.create({
     customCatApplyBtnText: {
         color: '#FFFFFF',
         fontSize: 11,
+        fontWeight: '800'
+    },
+    feedCountBadge: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10
+    },
+    feedCountBadgeText: {
+        color: '#A1A1AA',
+        fontSize: 10,
         fontWeight: '800'
     }
 });
