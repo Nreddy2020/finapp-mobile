@@ -692,34 +692,6 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* ── 6. UPCOMING OUTFLOWS & COMMITTED OBLIGATIONS ── */}
-            <View style={styles.sectionCard}>
-                <View style={styles.cardHeaderRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Clock size={15} color="#F59E0B" />
-                        <Text style={styles.sectionCardTitle}>Upcoming Obligations (Next 30 Days)</Text>
-                    </View>
-                    <Text style={{ color: '#F59E0B', fontSize: 13, fontWeight: '800' }}>
-                        {upcomingData.totalExpectedOutflowFormatted}
-                    </Text>
-                </View>
-
-                <View style={{ gap: 8, marginTop: 10 }}>
-                    {upcomingData.obligations.map(ob => (
-                        <View key={ob.id} style={styles.obligationRow}>
-                            <View>
-                                <Text style={styles.obligationTitle}>{ob.title}</Text>
-                                <Text style={styles.obligationDate}>Due {ob.dueDate} • {ob.merchant}</Text>
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={styles.obligationAmount}>{ob.amountFormatted}</Text>
-                                <Text style={styles.obligationBadge}>{ob.isAutoDebit ? 'Auto-Debit' : 'Manual Pay'}</Text>
-                            </View>
-                        </View>
-                    ))}
-                </View>
-            </View>
-
             {/* ── 7. QUICK TRANSACTION LOGGER (INCOME, EXPENSE, TRANSFER) ── */}
             <View style={styles.sectionCard}>
                 <View style={styles.cardHeaderRow}>

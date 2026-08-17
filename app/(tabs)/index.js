@@ -15,7 +15,7 @@
  * STRICT INVARIANT: 100% state-derived from certified engines. Zero hardcoded mock numbers.
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -46,7 +46,8 @@ import {
     CreditCard,
     Layers,
     ChevronRight,
-    Lock
+    Lock,
+    Clock
 } from 'lucide-react-native';
 
 import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
@@ -73,6 +74,8 @@ import {
     formatCompactCurrencyINR,
     formatCurrencyINR
 } from '../../components/investments/decisionPresentationAdapter';
+
+import { getUpcomingOutflows } from '../../components/moneyflow/moneyFlowPresentationAdapter';
 
 // Certified Backend Intelligence Engines (Frozen 🔒)
 import InvestingAnalyticsEngine from '../../services/investingAnalyticsEngine';
@@ -109,6 +112,8 @@ export default function Dashboard() {
     const [opportunitiesDTO, setOpportunitiesDTO] = useState(null);
     const [nextBestActionsDTO, setNextBestActionsDTO] = useState(null);
     const [goalsSolvencyDTO, setGoalsSolvencyDTO] = useState(null);
+
+    const upcomingData = useMemo(() => getUpcomingOutflows(), []);
 
     // Simulation Modal State
     const [activeSimulationDTO, setActiveSimulationDTO] = useState(null);
@@ -397,6 +402,38 @@ export default function Dashboard() {
                 )}
             </Animated.View>
 
+            {/* 4b. 🕒 Upcoming Obligations (Next 30 Days) */}
+            <Animated.View entering={FadeInDown.delay(220).springify()} style={styles.sectionWrap}>
+                <View style={styles.obligationCard}>
+                    <View style={styles.obligationHeaderRow}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Clock size={16} color="#F59E0B" />
+                            <Text style={styles.obligationHeaderTitle}>Upcoming Obligations (Next 30 Days)</Text>
+                        </View>
+                        <Text style={styles.obligationHeaderTotal}>
+                            {upcomingData.totalExpectedOutflowFormatted}
+                        </Text>
+                    </View>
+
+                    <View style={{ gap: 8, marginTop: 12 }}>
+                        {upcomingData.obligations.map(ob => (
+                            <View key={ob.id} style={styles.obligationItemRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.obligationItemTitle}>{ob.title}</Text>
+                                    <Text style={styles.obligationItemDate}>Due {ob.dueDate} • {ob.merchant}</Text>
+                                </View>
+                                <View style={{ alignItems: 'flex-end' }}>
+                                    <Text style={styles.obligationItemAmount}>{ob.amountFormatted}</Text>
+                                    <Text style={[styles.obligationItemBadge, ob.isAutoDebit ? styles.autoDebitBadge : styles.manualPayBadge]}>
+                                        {ob.isAutoDebit ? 'Auto-Debit' : 'Manual Pay'}
+                                    </Text>
+                                </View>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+            </Animated.View>
+
             {/* 5. Four Financial Pillars Navigation Tiles */}
             <Animated.View entering={FadeInDown.delay(250).springify()} style={styles.sectionWrap}>
                 <Text style={styles.sectionTitle}>FINANCIAL TRUTH & HUBS</Text>
@@ -681,5 +718,61 @@ const styles = StyleSheet.create({
         color: '#71717A',
         fontSize: 11,
         marginTop: 1
+    },
+    obligationCard: {
+        backgroundColor: '#121215',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    obligationHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    obligationHeaderTitle: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800'
+    },
+    obligationHeaderTotal: {
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800'
+    },
+    obligationItemRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#1F1F23'
+    },
+    obligationItemTitle: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    obligationItemDate: {
+        color: '#71717A',
+        fontSize: 10,
+        marginTop: 2
+    },
+    obligationItemAmount: {
+        color: '#EF4444',
+        fontSize: 13,
+        fontWeight: '800'
+    },
+    obligationItemBadge: {
+        fontSize: 9,
+        fontWeight: '700',
+        marginTop: 2
+    },
+    autoDebitBadge: {
+        color: '#F59E0B'
+    },
+    manualPayBadge: {
+        color: '#F97316'
     }
 });
