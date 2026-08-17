@@ -613,56 +613,72 @@ export default function MoneyFlowView({
 
                 {/* Tab 1: Category Bars */}
                 {breakdownTab === 'category' && (
-                    <View style={styles.categoryList}>
-                        {cashFlowTruth.categoryBreakdown.slice(0, 5).map((item, idx) => {
-                            const colors = ['#10B981', '#F97316', '#0EA5E9', '#8B5CF6', '#71717A'];
-                            const color = colors[idx % colors.length];
-                            return (
-                                <View key={item.category} style={styles.categoryRow}>
-                                    <View style={styles.categoryHeader}>
-                                        <View style={styles.categoryNameContainer}>
-                                            <View style={[styles.categoryDot, { backgroundColor: color }]} />
-                                            <Text style={styles.categoryName}>{item.category}</Text>
+                    cashFlowTruth.categoryBreakdown.length > 0 ? (
+                        <View style={styles.categoryList}>
+                            {cashFlowTruth.categoryBreakdown.slice(0, 5).map((item, idx) => {
+                                const colors = ['#10B981', '#F97316', '#0EA5E9', '#8B5CF6', '#71717A'];
+                                const color = colors[idx % colors.length];
+                                return (
+                                    <View key={item.category} style={styles.categoryRow}>
+                                        <View style={styles.categoryHeader}>
+                                            <View style={styles.categoryNameContainer}>
+                                                <View style={[styles.categoryDot, { backgroundColor: color }]} />
+                                                <Text style={styles.categoryName}>{item.category}</Text>
+                                            </View>
+                                            <View style={styles.categoryAmountContainer}>
+                                                <Text style={styles.categoryPercent}>{item.percentage}%</Text>
+                                                <Text style={styles.categoryAmount}>{item.amountFormatted}</Text>
+                                            </View>
                                         </View>
-                                        <View style={styles.categoryAmountContainer}>
-                                            <Text style={styles.categoryPercent}>{item.percentage}%</Text>
-                                            <Text style={styles.categoryAmount}>{item.amountFormatted}</Text>
+                                        <View style={styles.categoryProgressTrack}>
+                                            <View style={[styles.categoryProgressBar, { width: `${item.percentage}%`, backgroundColor: color }]} />
                                         </View>
                                     </View>
-                                    <View style={styles.categoryProgressTrack}>
-                                        <View style={[styles.categoryProgressBar, { width: `${item.percentage}%`, backgroundColor: color }]} />
-                                    </View>
-                                </View>
-                            );
-                        })}
-                    </View>
+                                );
+                            })}
+                        </View>
+                    ) : (
+                        <View style={styles.emptyBreakdownCard}>
+                            <Info size={16} color="#71717A" />
+                            <Text style={styles.emptyBreakdownTitle}>No spending in this timeframe</Text>
+                            <Text style={styles.emptyBreakdownSub}>Switch to "This Month" or select another period from the date picker above.</Text>
+                        </View>
+                    )
                 )}
 
                 {/* Tab 2: Normalized Merchant List */}
                 {breakdownTab === 'merchant' && (
-                    <View style={styles.categoryList}>
-                        {cashFlowTruth.merchantBreakdown.slice(0, 5).map((m, idx) => (
-                            <TouchableOpacity
-                                key={m.merchant}
-                                style={styles.merchantRow}
-                                onPress={() => setSelectedMerchantDetail(m)}
-                            >
-                                <View style={styles.merchantLeft}>
-                                    <View style={styles.merchantAvatar}>
-                                        <Text style={styles.merchantAvatarText}>{m.merchant.charAt(0)}</Text>
+                    cashFlowTruth.merchantBreakdown.length > 0 ? (
+                        <View style={styles.categoryList}>
+                            {cashFlowTruth.merchantBreakdown.slice(0, 5).map((m, idx) => (
+                                <TouchableOpacity
+                                    key={m.merchant}
+                                    style={styles.merchantRow}
+                                    onPress={() => setSelectedMerchantDetail(m)}
+                                >
+                                    <View style={styles.merchantLeft}>
+                                        <View style={styles.merchantAvatar}>
+                                            <Text style={styles.merchantAvatarText}>{m.merchant.charAt(0)}</Text>
+                                        </View>
+                                        <View>
+                                            <Text style={styles.merchantName}>{m.merchant}</Text>
+                                            <Text style={styles.merchantSub}>{m.transactionCount} transactions</Text>
+                                        </View>
                                     </View>
-                                    <View>
-                                        <Text style={styles.merchantName}>{m.merchant}</Text>
-                                        <Text style={styles.merchantSub}>{m.transactionCount} transactions</Text>
+                                    <View style={{ alignItems: 'flex-end' }}>
+                                        <Text style={styles.merchantAmount}>{m.amountFormatted}</Text>
+                                        <Text style={styles.merchantPercent}>{m.percentage}% of spend</Text>
                                     </View>
-                                </View>
-                                <View style={{ alignItems: 'flex-end' }}>
-                                    <Text style={styles.merchantAmount}>{m.amountFormatted}</Text>
-                                    <Text style={styles.merchantPercent}>{m.percentage}% of spend</Text>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={styles.emptyBreakdownCard}>
+                            <Info size={16} color="#71717A" />
+                            <Text style={styles.emptyBreakdownTitle}>No merchant activity in this timeframe</Text>
+                            <Text style={styles.emptyBreakdownSub}>Switch to "This Month" or select another period from the date picker above.</Text>
+                        </View>
+                    )
                 )}
 
                 {/* Tab 3: Account Where Money Resides */}
@@ -2806,5 +2822,28 @@ const styles = StyleSheet.create({
         color: '#71717A',
         fontSize: 8,
         marginTop: 2
+    },
+    emptyBreakdownCard: {
+        backgroundColor: '#121215',
+        borderRadius: 10,
+        padding: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginVertical: 6,
+        borderWidth: 1,
+        borderColor: '#27272A',
+        gap: 4
+    },
+    emptyBreakdownTitle: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        fontWeight: '700',
+        marginTop: 4
+    },
+    emptyBreakdownSub: {
+        color: '#52525B',
+        fontSize: 10,
+        textAlign: 'center',
+        paddingHorizontal: 12
     }
 });

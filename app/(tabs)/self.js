@@ -704,14 +704,19 @@ export default function SelfScreen() {
     // FUNCTION 1: Money Flow
     // ==========================================
     const [transactions, setTransactions] = useState([
-        { id: '1', desc: 'Salary Credit', amount: 120000, type: 'INCOME', category: 'Salary', date: '2026-07-01', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '2', desc: 'Business Dividend', amount: 45000, type: 'INCOME', category: 'Business', date: '2026-07-04', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '3', desc: 'Home Rent Outflow', amount: 28000, type: 'EXPENSE', category: 'Rent', date: '2026-07-02', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '4', desc: 'Organic Groceries', amount: 6500, type: 'EXPENSE', category: 'Food', date: '2026-07-03', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '5', desc: 'Fuel Refill', amount: 4200, type: 'EXPENSE', category: 'Travel', date: '2026-07-05', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '6', desc: 'Entertainment Subscription', amount: 999, type: 'EXPENSE', category: 'Entertainment', date: '2026-07-06', syncedFromSms: false, smsBody: null, isLogged: true },
-        { id: '7', desc: 'Unknown Outflow 1', amount: 2500, type: 'EXPENSE', category: 'Other', date: '2026-07-07', syncedFromSms: true, smsBody: 'UPI: A/c XX8810 debited by Rs.2,500.00. Ref 601928371', isLogged: true, smsId: 's7' },
-        { id: '8', desc: 'Misc Shop Expense', amount: 1200, type: 'EXPENSE', category: 'Other', date: '2026-07-08', syncedFromSms: true, smsBody: 'Alert: Your HDFC Bank A/c XX4231 debited by Rs.1,200.00. Bal: Rs.39,000.00', isLogged: false, smsId: 's8' }
+        // August 2026 (Current Active Month)
+        { id: '1', desc: 'Salary Credit', amount: 120000, type: 'INCOME', category: 'Salary', date: '2026-08-01', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'HDFC Bank', account: 'HDFC Savings Account' },
+        { id: '2', desc: 'Business Dividend', amount: 45000, type: 'INCOME', category: 'Business', date: '2026-08-04', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Zerodha Broking', account: 'ICICI Current Account' },
+        { id: '3', desc: 'Home Rent Outflow', amount: 28000, type: 'EXPENSE', category: 'Rent', date: '2026-08-02', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
+        { id: '4', desc: 'Organic Groceries', amount: 6500, type: 'EXPENSE', category: 'Food', date: '2026-08-03', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' },
+        { id: '5', desc: 'Fuel Refill', amount: 4200, type: 'EXPENSE', category: 'Travel', date: '2026-08-05', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Shell Fuel', account: 'SBI Savings Account' },
+        { id: '6', desc: 'Entertainment Subscription', amount: 999, type: 'EXPENSE', category: 'Entertainment', date: '2026-08-06', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Netflix', account: 'HDFC Savings Account' },
+        { id: '7', desc: 'Swiggy Dinner Order', amount: 1450, type: 'EXPENSE', category: 'Food', date: '2026-08-10', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Swiggy', account: 'HDFC Savings Account' },
+        { id: '8', desc: 'Amazon Household Items', amount: 2250, type: 'EXPENSE', category: 'Shopping', date: '2026-08-14', syncedFromSms: true, smsBody: 'UPI: A/c XX8810 debited by Rs.2,250.00 to Amazon', isLogged: true, merchant: 'Amazon', account: 'HDFC Savings Account', smsId: 's8' },
+        // July 2026 (Previous Month)
+        { id: '9', desc: 'Salary Credit - Jul', amount: 120000, type: 'INCOME', category: 'Salary', date: '2026-07-01', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'HDFC Bank', account: 'HDFC Savings Account' },
+        { id: '10', desc: 'Home Rent - Jul', amount: 28000, type: 'EXPENSE', category: 'Rent', date: '2026-07-02', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
+        { id: '11', desc: 'Groceries - Jul', amount: 6500, type: 'EXPENSE', category: 'Food', date: '2026-07-03', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' }
     ]);
     const [newTxDesc, setNewTxDesc] = useState('');
     const [newTxAmt, setNewTxAmt] = useState('');
