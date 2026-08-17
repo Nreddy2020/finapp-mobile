@@ -152,7 +152,7 @@ export default function SelfScreen() {
     const { tab } = useLocalSearchParams();
 
     const { setIsDrawerOpen } = useDrawer();
-    const [activeTab, setActiveTab] = useState('p2p');
+    const [activeTab, setActiveTab] = useState(tab || 'flow');
     const [activeSubTab, setActiveSubTab] = useState('renewals');
 
     useEffect(() => {

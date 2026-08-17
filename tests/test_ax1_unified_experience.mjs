@@ -190,34 +190,33 @@ async function main() {
     });
 
     // -------------------------------------------------------------------
-    // GROUP 3: AX1-03 MONEY FLOW FEEDER & INTELLIGENCE CALLOUT (TESTS 7-9)
+    // GROUP 3: AX1-03 MONEY FLOW CASH SUBSYSTEM & CASH SAFETY (TESTS 7-9)
     // -------------------------------------------------------------------
-    console.log('\n--- Group 3: AX1-03 Money Flow Feeder & Intelligence Callout ---');
+    console.log('\n--- Group 3: AX1-03 Money Flow Cash Subsystem & Cash Safety ---');
 
-    await runTest(7, 'Personal CFO Callout Banner in Money Flow: Present & properly styled', async () => {
+    await runTest(7, 'Money Flow Cash Subsystem & Cash Safety: Present & authoritative', async () => {
         const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
         const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
         const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
 
-        assert.ok(content.includes('PERSONAL CFO INTELLIGENCE'), 'Must include Personal CFO Intelligence banner');
-        assert.ok(content.includes('View Decision Command Center') || content.includes('View All Recommendations'), 'Must include deep link to Decision Command Center');
+        assert.ok(content.includes('CASH ONLY') || content.includes('Cash Safety'), 'Must include Cash Only / Cash Safety boundary');
+        assert.ok(content.includes('Emergency Runway') || content.includes('computeEmergencyRunwayMetrics'), 'Must include Emergency Runway calculation');
     });
 
-    await runTest(8, 'Zero Local Recalculation in Money Flow: Pure engine consumption', async () => {
-        const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
-        const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
-        const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
+    await runTest(8, 'Authoritative Cash Truth & Adapter Isolation', async () => {
+        const adapterPath = path.resolve(process.cwd(), 'components/moneyflow/moneyFlowPresentationAdapter.js');
+        const content = fs.readFileSync(adapterPath, 'utf8');
 
-        assert.ok(content.includes('evaluatePortfolioHealthScore'), 'Consumes certified health score engine');
-        assert.ok(content.includes('prioritizeNextBestActions'), 'Consumes certified next best actions engine');
+        assert.ok(content.includes('computePeriodCashFlowTruth'), 'Consumes authoritative period cash flow engine');
+        assert.ok(content.includes('computeEmergencyReserve'), 'Consumes designated cash reserve engine');
     });
 
-    await runTest(9, 'Money Flow Navigation Bridge: Links to /investments', async () => {
+    await runTest(9, 'Money Flow Navigation & Period Bounding', async () => {
         const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
         const flowPath = path.resolve(process.cwd(), 'components/moneyflow/MoneyFlowView.js');
         const content = fs.readFileSync(selfPath, 'utf8') + (fs.existsSync(flowPath) ? fs.readFileSync(flowPath, 'utf8') : '');
 
-        assert.ok(content.includes("router.push('/investments')"), 'Must link to investments decision center');
+        assert.ok(content.includes('getPeriodBounds') || content.includes('periodBounds'), 'Must bind to period bounds');
     });
 
     // -------------------------------------------------------------------

@@ -19,7 +19,8 @@ const testFiles = [
     'test_pv8_commercial_pmf.mjs',
     'test_pv9_final_architecture_review.mjs',
     'test_ui_comprehensive_suite.mjs',
-    'test_ax1_unified_experience.mjs'
+    'test_ax1_unified_experience.mjs',
+    'test_ax2_money_flow_cash_truth.mjs'
 ];
 
 console.log('================================================================');

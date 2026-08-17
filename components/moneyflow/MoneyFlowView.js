@@ -1,8 +1,13 @@
 /**
  * MoneyFlowView.js
  * 
- * WORLD-CLASS PERSONAL FINANCIAL DECISION ASSISTANT
- * Flow: Money Flow → Financial Truth → Health → What Matters → Action → What-If → Decision
+ * AUTHORITATIVE FINLIFE MONEY FLOW SUBSYSTEM (CASH ONLY)
+ * Architecture:
+ * 1. Capture Cash Activity (Expense, Income, Transfer)
+ * 2. Ingest & Review Bank Messages (Needs Review Workflow + Apply to Similar)
+ * 3. Understand Cash Outflows (Category, Merchant, Cash Accounts)
+ * 4. Cash Safety & Runway (Point-in-Time Liquid Cash, Designated Reserve, Essential Burn, Runway)
+ * 5. Feed Authoritative Cash Truth to Personal CFO
  */
 
 import React, { useState, useMemo, useCallback } from 'react';
@@ -56,7 +61,9 @@ import {
     Trash2,
     Tag,
     MessageSquare,
-    Edit3
+    Edit3,
+    Zap,
+    HelpCircle
 } from 'lucide-react-native';
 
 import {
@@ -66,7 +73,6 @@ import {
     DEFAULT_ESSENTIAL_BURN_BREAKDOWN,
     computeEmergencyRunwayMetrics,
     computePeriodCashFlowTruth,
-    runAuthoritativeWhatIfSimulation,
     getUpcomingOutflows,
     getHistoricalCashFlowTrend,
     normalizeMerchant
@@ -128,7 +134,7 @@ export default function MoneyFlowView({
     const [feedSearch, setFeedSearch] = useState('');
     const [feedFilter, setFeedFilter] = useState('ALL'); // 'ALL' | 'NEEDS_SORT' | 'INCOME' | 'EXPENSE' | 'TRANSFER'
 
-    // Active Tab in "Where Is My Money?"
+    // Active Tab in "Where Did My Cash Go?"
     const [breakdownTab, setBreakdownTab] = useState('category'); // 'category' | 'merchant' | 'account'
     const [selectedMerchantDetail, setSelectedMerchantDetail] = useState(null);
 
@@ -136,28 +142,26 @@ export default function MoneyFlowView({
     const [showPeriodModal, setShowPeriodModal] = useState(false);
     const [showMathModal, setShowMathModal] = useState(false);
     const [showDesignateModal, setShowDesignateModal] = useState(false);
-    const [showWhatIfModal, setShowWhatIfModal] = useState(false);
-    const [showLoggerModal, setShowLoggerModal] = useState(false);
+    const [showAddActivityModal, setShowAddActivityModal] = useState(false);
+    const [showReviewWizardModal, setShowReviewWizardModal] = useState(false);
+    const [reviewWizardIndex, setReviewWizardIndex] = useState(0);
     const [showBreakdownModal, setShowBreakdownModal] = useState(false);
-    const [showNeedsSortInbox, setShowNeedsSortInbox] = useState(false);
     const [showTrendModal, setShowTrendModal] = useState(false);
     const [selectedTxDetail, setSelectedTxDetail] = useState(null);
     const [customCatInput, setCustomCatInput] = useState('');
     const [isEditingCustomCat, setIsEditingCustomCat] = useState(false);
-    const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education']);
+    const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education', 'Bills']);
     const [isFeedExpanded, setIsFeedExpanded] = useState(true);
 
-    // Simulation Slider State
-    const [simulationAmount, setSimulationAmount] = useState(30000);
-
-    // Logger Form State
-    const [txType, setTxType] = useState('EXPENSE'); // 'EXPENSE' | 'INCOME' | 'TRANSFER'
+    // Unified Add Activity State
+    const [addActivityMode, setAddActivityMode] = useState('EXPENSE'); // 'EXPENSE' | 'INCOME' | 'TRANSFER'
     const [txDesc, setTxDesc] = useState('');
     const [txAmount, setTxAmount] = useState('');
     const [txCategory, setTxCategory] = useState('Food');
     const [txAccount, setTxAccount] = useState('HDFC Savings Account');
     const [txToAccount, setTxToAccount] = useState('ICICI Current Account');
     const [txMerchant, setTxMerchant] = useState('');
+    const [txIncomeSource, setTxIncomeSource] = useState('Salary');
     const [txDate, setTxDate] = useState('2026-08-17');
     const [txIsRecurring, setTxIsRecurring] = useState(false);
 
@@ -178,17 +182,34 @@ export default function MoneyFlowView({
         return computePeriodCashFlowTruth(transactions, periodBounds);
     }, [transactions, periodBounds]);
 
-    const simulationResult = useMemo(() => {
-        return runAuthoritativeWhatIfSimulation({
-            allocationAmount: simulationAmount,
-            currentReserve: reserveData.currentReserve,
-            essentialMonthlyBurn: runwayMetrics.essentialMonthlyBurn,
-            asOfDate
+    // Review Queue (Items needing classification)
+    const reviewQueue = useMemo(() => {
+        return transactions.filter(t => t.needsSort || t.status === 'UNPARSED');
+    }, [transactions]);
+
+    const currentReviewItem = useMemo(() => {
+        if (reviewQueue.length === 0) return null;
+        const validIdx = Math.min(reviewWizardIndex, reviewQueue.length - 1);
+        return reviewQueue[validIdx] || null;
+    }, [reviewQueue, reviewWizardIndex]);
+
+    const matchingSimilarReviewItems = useMemo(() => {
+        if (!currentReviewItem) return [];
+        const canonical = currentReviewItem.merchant || normalizeMerchant(currentReviewItem.description || currentReviewItem.text || currentReviewItem.smsBody || '');
+        return reviewQueue.filter(t => {
+            if (t.id === currentReviewItem.id) return false;
+            const otherCanonical = t.merchant || normalizeMerchant(t.description || t.text || t.smsBody || '');
+            return otherCanonical.toLowerCase() === canonical.toLowerCase();
         });
-    }, [simulationAmount, reserveData.currentReserve, runwayMetrics.essentialMonthlyBurn, asOfDate]);
+    }, [currentReviewItem, reviewQueue]);
 
     const upcomingData = useMemo(() => getUpcomingOutflows(), []);
     const trendData = useMemo(() => getHistoricalCashFlowTrend(), []);
+
+    // Filter only Cash/Savings/Current Accounts for Money Flow display
+    const cashOnlyAccounts = useMemo(() => {
+        return accounts.filter(acc => acc.type === 'LIQUID_SAVINGS' || acc.type === 'LIQUID_CURRENT' || acc.type === 'PHYSICAL_CASH');
+    }, [accounts]);
 
     // ── 3. FILTERED & GROUPED FEED ───────────────────────────────────────────
     const processedFeed = useMemo(() => {
@@ -204,126 +225,167 @@ export default function MoneyFlowView({
             list = list.filter(t => t.type === 'TRANSFER');
         }
 
-        if (feedSearch.trim()) {
-            const q = feedSearch.toLowerCase();
+        if (feedSearch.trim().length > 0) {
+            const q = feedSearch.toLowerCase().trim();
             list = list.filter(t =>
-                t.rawDescription.toLowerCase().includes(q) ||
-                t.merchant.toLowerCase().includes(q) ||
-                t.category.toLowerCase().includes(q) ||
-                String(t.amount).includes(q)
+                (t.merchant && t.merchant.toLowerCase().includes(q)) ||
+                (t.rawDescription && t.rawDescription.toLowerCase().includes(q)) ||
+                (t.category && t.category.toLowerCase().includes(q)) ||
+                (t.amount && String(t.amount).includes(q))
             );
         }
 
         // Group by Date
         const groups = {};
-        for (const t of list) {
-            const d = t.date || '2026-08-17';
+        for (const tx of list) {
+            const d = tx.date || 'Undated';
             if (!groups[d]) groups[d] = [];
-            groups[d].push(t);
+            groups[d].push(tx);
         }
 
-        return Object.entries(groups).map(([date, txList]) => ({
-            date,
-            txList
-        }));
+        return Object.entries(groups).map(([date, txList]) => {
+            let displayDate = date;
+            if (date === '2026-08-17') displayDate = 'Today';
+            else if (date === '2026-08-16') displayDate = 'Yesterday';
+
+            return {
+                date: displayDate,
+                rawDate: date,
+                txList
+            };
+        }).sort((a, b) => b.rawDate.localeCompare(a.rawDate));
     }, [cashFlowTruth.filteredTransactions, feedFilter, feedSearch]);
 
     // ── 4. HANDLERS ──────────────────────────────────────────────────────────
-    const handleAddTransaction = () => {
-        if (!txDesc.trim() || !txAmount || isNaN(Number(txAmount))) {
-            Alert.alert('Invalid Entry', 'Please provide a valid description and amount.');
+    const handleSaveCashActivity = () => {
+        const amt = parseFloat(txAmount);
+        if (!amt || isNaN(amt) || amt <= 0) {
+            Alert.alert('Invalid Amount', 'Please enter a valid cash amount.');
             return;
         }
 
-        const amt = Number(txAmount);
         const newTx = {
-            id: `tx_${Date.now()}`,
-            description: txDesc.trim(),
+            id: `tx_cash_${Date.now()}`,
             amount: amt,
-            type: txType,
-            category: txType === 'TRANSFER' ? 'Transfer' : txCategory,
+            type: addActivityMode,
+            category: addActivityMode === 'INCOME' ? (txIncomeSource || 'Salary') : (addActivityMode === 'TRANSFER' ? 'Transfer' : (txCategory || 'Other')),
+            description: txDesc.trim() || (addActivityMode === 'TRANSFER' ? `Transfer: ${txAccount} → ${txToAccount}` : (addActivityMode === 'INCOME' ? `Income: ${txIncomeSource}` : (txMerchant || 'Manual Expense'))),
+            merchant: addActivityMode === 'EXPENSE' ? (txMerchant.trim() || normalizeMerchant(txDesc) || 'General') : (addActivityMode === 'INCOME' ? txIncomeSource : 'Internal Transfer'),
             account: txAccount,
-            toAccount: txType === 'TRANSFER' ? txToAccount : null,
-            merchant: txMerchant ? normalizeMerchant(txMerchant) : normalizeMerchant(txDesc),
-            date: txDate,
+            toAccount: addActivityMode === 'TRANSFER' ? txToAccount : undefined,
+            date: txDate || new Date().toISOString().split('T')[0],
             isRecurring: txIsRecurring,
-            needsSort: false
+            needsSort: false,
+            status: 'CONFIRMED'
         };
 
         if (onAddTransaction) {
             onAddTransaction(newTx);
         }
 
-        setShowLoggerModal(false);
-        setTxDesc('');
-        setTxAmount('');
-        setTxMerchant('');
         safeHaptic('success');
-        Alert.alert('Transaction Logged', `${txType === 'TRANSFER' ? 'Transfer' : txType === 'INCOME' ? 'Income' : 'Expense'} of ₹${amt.toLocaleString()} recorded successfully.`);
+        setShowAddActivityModal(false);
+        setTxAmount('');
+        setTxDesc('');
+        setTxMerchant('');
+
+        Alert.alert(
+            'Activity Recorded',
+            addActivityMode === 'TRANSFER'
+                ? `Transferred ₹${amt.toLocaleString()} from ${txAccount} to ${txToAccount}. Total cash remains preserved.`
+                : `${addActivityMode === 'INCOME' ? 'Income' : 'Expense'} of ₹${amt.toLocaleString()} recorded to ${txAccount}.`
+        );
     };
 
-    const handleToggleAccountDesignation = (accId) => {
-        setDesignatedAccountIds(prev => {
-            if (prev.includes(accId)) {
-                if (prev.length === 1) {
-                    Alert.alert('Warning', 'You must have at least one designated liquid account for Emergency Reserve.');
-                    return prev;
-                }
-                return prev.filter(id => id !== accId);
-            } else {
-                return [...prev, accId];
+    // Review Wizard Actions
+    const handleConfirmReviewItem = (chosenCategory, chosenAccount) => {
+        if (!currentReviewItem) return;
+        const updated = {
+            ...currentReviewItem,
+            category: chosenCategory || currentReviewItem.category || 'Other',
+            account: chosenAccount || currentReviewItem.account || 'HDFC Savings Account',
+            needsSort: false,
+            status: 'CONFIRMED'
+        };
+
+        if (onUpdateTransaction) {
+            onUpdateTransaction(updated);
+        } else if (onCategorizeTransaction) {
+            onCategorizeTransaction(currentReviewItem.id, chosenCategory);
+        }
+
+        safeHaptic('success');
+        if (reviewWizardIndex >= reviewQueue.length - 1) {
+            setReviewWizardIndex(0);
+            setShowReviewWizardModal(false);
+            Alert.alert('Review Complete', 'All pending bank messages have been classified into financial truth.');
+        }
+    };
+
+    const handleIgnoreReviewItem = () => {
+        if (!currentReviewItem) return;
+        const updated = {
+            ...currentReviewItem,
+            needsSort: false,
+            status: 'IGNORED'
+        };
+
+        if (onUpdateTransaction) {
+            onUpdateTransaction(updated);
+        }
+
+        safeHaptic('medium');
+        if (reviewWizardIndex >= reviewQueue.length - 1) {
+            setReviewWizardIndex(0);
+            setShowReviewWizardModal(false);
+        }
+    };
+
+    const handleApplyToSimilar = (chosenCategory, chosenAccount) => {
+        if (!currentReviewItem) return;
+        const canonical = currentReviewItem.merchant || normalizeMerchant(currentReviewItem.description || currentReviewItem.text || currentReviewItem.smsBody || '');
+
+        // Confirm current item
+        handleConfirmReviewItem(chosenCategory, chosenAccount);
+
+        // Confirm all similar items
+        matchingSimilarReviewItems.forEach(sim => {
+            const updated = {
+                ...sim,
+                category: chosenCategory,
+                account: chosenAccount || sim.account || 'HDFC Savings Account',
+                merchant: canonical,
+                needsSort: false,
+                status: 'CONFIRMED'
+            };
+            if (onUpdateTransaction) {
+                onUpdateTransaction(updated);
             }
         });
-        safeHaptic('light');
+
+        safeHaptic('success');
+        Alert.alert(
+            'Applied to Similar',
+            `Applied "${chosenCategory}" to ${matchingSimilarReviewItems.length + 1} "${canonical}" transactions.`
+        );
     };
 
-    const handleApplyCategoryToAllSimilar = (merchantName, categoryName) => {
-        if (onCategorizeTransaction) {
-            cashFlowTruth.filteredTransactions.forEach(t => {
-                if (t.merchant === merchantName && t.needsSort) {
-                    onCategorizeTransaction(t.id, categoryName);
+    const handleToggleAccountDesignation = (accountId) => {
+        setDesignatedAccountIds(prev => {
+            const exists = prev.includes(accountId);
+            let next;
+            if (exists) {
+                if (prev.length === 1) {
+                    Alert.alert('Minimum Reserve Account', 'You must maintain at least one designated emergency cash account.');
+                    return prev;
                 }
-            });
-        }
-        safeHaptic('success');
-        Alert.alert('Bulk Categorization', `Assigned "${categoryName}" to all transactions from ${merchantName}.`);
-    };
-
-    const handleApplyCustomRange = (start = customStartDateInput, end = customEndDateInput) => {
-        const s = start.trim() || '2026-08-01';
-        const e = end.trim() || '2026-08-17';
-        setCustomRange({ start: s, end: e });
-        setPeriodType('custom');
-        setShowPeriodModal(false);
-        safeHaptic('success');
-        Alert.alert('Timeframe Updated', `Displaying cash flow from ${s} to ${e}.`);
-    };
-
-    const handleSelectPeriodPreset = (type, customDates = null) => {
-        if (type === 'custom' && customDates) {
-            setCustomStartDateInput(customDates.start);
-            setCustomEndDateInput(customDates.end);
-            setCustomRange(customDates);
-            setPeriodType('custom');
-        } else {
-            setPeriodType(type);
-        }
-        setShowPeriodModal(false);
-        safeHaptic('light');
-    };
-
-    const handleSelectSpecificMonth = (monthIndex, year = selectedYear) => {
-        const monthNum = String(monthIndex + 1).padStart(2, '0');
-        const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
-        const start = `${year}-${monthNum}-01`;
-        const end = `${year}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
-        setCustomStartDateInput(start);
-        setCustomEndDateInput(end);
-        setCustomRange({ start, end });
-        setPeriodType('custom');
-        setShowPeriodModal(false);
-        safeHaptic('success');
-        Alert.alert('Month Selected', `Displaying cash flow for ${MONTH_LABELS[monthIndex].name} ${year}.`);
+                next = prev.filter(id => id !== accountId);
+            } else {
+                next = [...prev, accountId];
+            }
+            safeHaptic('light');
+            return next;
+        });
     };
 
     return (
@@ -331,27 +393,33 @@ export default function MoneyFlowView({
             {/* ── HEADER & PERIOD SELECTOR ── */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <Text style={styles.headerTitle}>Money Flow</Text>
-                    <Text style={styles.headerSubtitle}>Live cash flow powering your financial decisions</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.headerTitle}>💸 Money Flow</Text>
+                        <View style={styles.cashOnlyBadge}>
+                            <Text style={styles.cashOnlyBadgeText}>CASH ONLY</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.headerSubtitle}>Authoritative Cash Movement & Safety</Text>
                 </View>
 
-                {/* Period Selector Dropdown Trigger */}
+                {/* Period Selector Pill */}
                 <TouchableOpacity
                     style={styles.periodPill}
                     onPress={() => setShowPeriodModal(true)}
+                    activeOpacity={0.7}
                 >
                     <Calendar size={13} color="#818CF8" />
-                    <Text style={styles.periodPillText}>{periodBounds.periodSubtitle}</Text>
+                    <Text style={styles.periodPillText}>{periodBounds.label}</Text>
                     <ChevronDown size={13} color="#818CF8" />
                 </TouchableOpacity>
             </View>
 
-            {/* ── 2. PERIOD CASH FLOW HERO CARD ── */}
+            {/* ── 2. PERIOD CASH FLOW 3-COLUMN HERO CARD ── */}
             <View style={styles.heroCard}>
                 <View style={styles.heroHeaderRow}>
                     <View style={styles.liveIndicator}>
                         <View style={styles.liveDot} />
-                        <Text style={styles.liveText}>PERIOD CASH FLOW ({periodBounds.label})</Text>
+                        <Text style={styles.liveText}>CASH FLOW ({periodBounds.periodSubtitle})</Text>
                     </View>
                     <TouchableOpacity
                         style={styles.trendTriggerBtn}
@@ -362,10 +430,10 @@ export default function MoneyFlowView({
                     </TouchableOpacity>
                 </View>
 
-                {/* 3-Column Period Numbers */}
+                {/* 3-Column Numbers: Income | Out | Net */}
                 <View style={styles.heroMetricsGrid}>
                     <View style={styles.heroMetricCol}>
-                        <Text style={styles.heroMetricLabel}>Total Income</Text>
+                        <Text style={styles.heroMetricLabel}>INCOME</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                             <Text style={styles.incomeValue}>{cashFlowTruth.totalIncomeFormatted}</Text>
                             <TrendingUp size={12} color="#10B981" />
@@ -373,7 +441,7 @@ export default function MoneyFlowView({
                     </View>
 
                     <View style={styles.heroMetricCol}>
-                        <Text style={styles.heroMetricLabel}>Total Spending</Text>
+                        <Text style={styles.heroMetricLabel}>EXPENSE</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
                             <Text style={styles.expenseValue}>{cashFlowTruth.totalSpendingFormatted}</Text>
                             <TrendingDown size={12} color="#EF4444" />
@@ -381,14 +449,14 @@ export default function MoneyFlowView({
                     </View>
 
                     <View style={styles.heroMetricCol}>
-                        <Text style={styles.heroMetricLabel}>Net Cash Flow</Text>
+                        <Text style={styles.heroMetricLabel}>NET FLOW</Text>
                         <Text style={[styles.netFlowValue, { color: cashFlowTruth.netCashFlow >= 0 ? '#10B981' : '#EF4444' }]}>
                             {cashFlowTruth.netCashFlowFormatted}
                         </Text>
                     </View>
                 </View>
 
-                {/* Dynamic Surplus / Cash Flow Status Banner */}
+                {/* Surplus / Cash Flow Status Banner */}
                 {(() => {
                     const isZeroActivity = cashFlowTruth.totalIncome === 0 && cashFlowTruth.totalSpending === 0;
                     const isPureExpense = cashFlowTruth.totalIncome === 0 && cashFlowTruth.totalSpending > 0;
@@ -402,28 +470,22 @@ export default function MoneyFlowView({
 
                     if (isZeroActivity) {
                         bannerText = 'No cash transactions recorded for this period yet.';
-                        bannerStyle = styles.surplusBannerNeutral;
-                        textStyle = styles.surplusBannerTextNeutral;
                     } else if (isPureIncome) {
-                        bannerText = `100% savings rate! ${cashFlowTruth.totalIncomeFormatted} income preserved as surplus.`;
+                        bannerText = `🟢 100% savings rate! ${cashFlowTruth.totalIncomeFormatted} income preserved as surplus.`;
                         bannerStyle = styles.surplusBannerPositive;
                         textStyle = styles.surplusBannerTextPositive;
                     } else if (isPureExpense) {
-                        bannerText = `Net deficit of ${cashFlowTruth.totalSpendingFormatted} (No income logged this period).`;
+                        bannerText = `🔴 Net deficit of ${cashFlowTruth.totalSpendingFormatted} (No income logged this period).`;
                         bannerStyle = styles.surplusBannerNegative;
                         textStyle = styles.surplusBannerTextNegative;
                     } else if (isSurplus) {
-                        bannerText = `Surplus is healthy! ${cashFlowTruth.savingsRate}% savings rate this period.`;
+                        bannerText = `🟢 Cash surplus is healthy! ${cashFlowTruth.savingsRate}% savings rate this period.`;
                         bannerStyle = styles.surplusBannerPositive;
                         textStyle = styles.surplusBannerTextPositive;
                     } else if (isDeficit) {
-                        bannerText = `Deficit detected this period. Spending exceeded income.`;
+                        bannerText = `🔴 Deficit detected this period. Spending exceeded income.`;
                         bannerStyle = styles.surplusBannerNegative;
                         textStyle = styles.surplusBannerTextNegative;
-                    } else {
-                        bannerText = 'Broke even: Income exactly matches spending this period.';
-                        bannerStyle = styles.surplusBannerNeutral;
-                        textStyle = styles.surplusBannerTextNeutral;
                     }
 
                     return (
@@ -436,28 +498,122 @@ export default function MoneyFlowView({
                 })()}
             </View>
 
-            {/* ── 5. WHERE IS MY MONEY? (CATEGORY, MERCHANT, ACCOUNT) ── */}
+            {/* ── 3. UNIFIED "+ ADD CASH ACTIVITY" BAR ── */}
+            <View style={styles.addActivityCard}>
+                <TouchableOpacity
+                    style={styles.addActivityPrimaryBtn}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                        safeHaptic('medium');
+                        setShowAddActivityModal(true);
+                    }}
+                >
+                    <Plus size={18} color="#FFFFFF" />
+                    <Text style={styles.addActivityPrimaryText}>+ Add Cash Activity</Text>
+                </TouchableOpacity>
+
+                {/* 3 Shortcut Action Buttons */}
+                <View style={styles.addActivityShortcutRow}>
+                    <TouchableOpacity
+                        style={[styles.shortcutBtn, { borderColor: '#EF444440', backgroundColor: '#EF444410' }]}
+                        onPress={() => {
+                            setAddActivityMode('EXPENSE');
+                            setShowAddActivityModal(true);
+                        }}
+                    >
+                        <Text style={[styles.shortcutBtnText, { color: '#EF4444' }]}>💸 Expense</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.shortcutBtn, { borderColor: '#10B98140', backgroundColor: '#10B98110' }]}
+                        onPress={() => {
+                            setAddActivityMode('INCOME');
+                            setShowAddActivityModal(true);
+                        }}
+                    >
+                        <Text style={[styles.shortcutBtnText, { color: '#10B981' }]}>💰 Income</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.shortcutBtn, { borderColor: '#818CF840', backgroundColor: '#818CF810' }]}
+                        onPress={() => {
+                            setAddActivityMode('TRANSFER');
+                            setShowAddActivityModal(true);
+                        }}
+                    >
+                        <Text style={[styles.shortcutBtnText, { color: '#818CF8' }]}>🔄 Transfer</Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 1-Tap Category Quick Chips */}
+                <View style={styles.quickChipsRow}>
+                    {[
+                        { label: 'Food', icon: '🍔' },
+                        { label: 'Travel', icon: '✈️' },
+                        { label: 'Shopping', icon: '🛍' },
+                        { label: 'Bills', icon: '⚡' },
+                        { label: 'Other', icon: '⋯' }
+                    ].map(chip => (
+                        <TouchableOpacity
+                            key={chip.label}
+                            style={styles.quickChipItem}
+                            onPress={() => {
+                                setAddActivityMode('EXPENSE');
+                                setTxCategory(chip.label);
+                                setShowAddActivityModal(true);
+                            }}
+                        >
+                            <Text style={styles.quickChipText}>{chip.icon} {chip.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+
+            {/* ── 4. REVIEW CENTER ("NEEDS REVIEW" BANNER) ── */}
+            {reviewQueue.length > 0 && (
+                <View style={styles.reviewBannerCard}>
+                    <View style={styles.reviewBannerLeft}>
+                        <View style={styles.reviewPulseDot} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.reviewBannerTitle}>🔴 {reviewQueue.length} Need Review</Text>
+                            <Text style={styles.reviewBannerSub}>Bank messages awaiting classification</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.reviewBannerBtn}
+                        onPress={() => {
+                            safeHaptic('medium');
+                            setReviewWizardIndex(0);
+                            setShowReviewWizardModal(true);
+                        }}
+                    >
+                        <Text style={styles.reviewBannerBtnText}>Review Now ➔</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* ── 5. WHERE DID MY CASH GO? (PURE CASH BREAKDOWNS) ── */}
             <View style={styles.sectionCard}>
                 <View style={styles.cardHeaderRow}>
-                    <Text style={styles.sectionCardTitle}>Where Is My Money?</Text>
+                    <Text style={styles.sectionCardTitle}>Where Did My Cash Go?</Text>
                     <TouchableOpacity onPress={() => setShowBreakdownModal(true)}>
                         <Eye size={16} color="#71717A" />
                     </TouchableOpacity>
                 </View>
 
-                {/* Triad Tabs: Category (What) | Merchant (Who) | Account (Where) */}
+                {/* Triad Tabs: Category (What) | Merchant (Who) | Cash Account (Where) */}
                 <View style={styles.triadTabRow}>
                     {[
-                        { key: 'category', label: 'By Category' },
-                        { key: 'merchant', label: 'By Merchant' },
-                        { key: 'account', label: 'By Account' }
+                        { key: 'category', label: 'Category' },
+                        { key: 'merchant', label: 'Merchant' },
+                        { key: 'account', label: 'Cash Account' }
                     ].map(tab => (
                         <TouchableOpacity
                             key={tab.key}
                             style={[styles.triadTabBtn, breakdownTab === tab.key && styles.triadTabBtnActive]}
                             onPress={() => {
                                 setBreakdownTab(tab.key);
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                safeHaptic('light');
                             }}
                         >
                             <Text style={[styles.triadTabText, breakdownTab === tab.key && styles.triadTabTextActive]}>
@@ -496,8 +652,8 @@ export default function MoneyFlowView({
                     ) : (
                         <View style={styles.emptyBreakdownCard}>
                             <Info size={16} color="#71717A" />
-                            <Text style={styles.emptyBreakdownTitle}>No spending in this timeframe</Text>
-                            <Text style={styles.emptyBreakdownSub}>Switch to "This Month" or select another period from the date picker above.</Text>
+                            <Text style={styles.emptyBreakdownTitle}>No spending recorded in this period</Text>
+                            <Text style={styles.emptyBreakdownSub}>Log an expense or choose another timeframe from the date picker.</Text>
                         </View>
                     )
                 )}
@@ -506,7 +662,7 @@ export default function MoneyFlowView({
                 {breakdownTab === 'merchant' && (
                     cashFlowTruth.merchantBreakdown.length > 0 ? (
                         <View style={styles.categoryList}>
-                            {cashFlowTruth.merchantBreakdown.slice(0, 5).map((m, idx) => (
+                            {cashFlowTruth.merchantBreakdown.slice(0, 5).map((m) => (
                                 <TouchableOpacity
                                     key={m.merchant}
                                     style={styles.merchantRow}
@@ -531,27 +687,33 @@ export default function MoneyFlowView({
                     ) : (
                         <View style={styles.emptyBreakdownCard}>
                             <Info size={16} color="#71717A" />
-                            <Text style={styles.emptyBreakdownTitle}>No merchant activity in this timeframe</Text>
-                            <Text style={styles.emptyBreakdownSub}>Switch to "This Month" or select another period from the date picker above.</Text>
+                            <Text style={styles.emptyBreakdownTitle}>No merchant activity in this period</Text>
+                            <Text style={styles.emptyBreakdownSub}>Switch timeframe or log cash activity above.</Text>
                         </View>
                     )
                 )}
 
-                {/* Tab 3: Account Where Money Resides */}
+                {/* Tab 3: Liquid Cash Accounts Only */}
                 {breakdownTab === 'account' && (
                     <View style={styles.categoryList}>
-                        {accounts.map(acc => (
+                        {cashOnlyAccounts.map(acc => (
                             <View key={acc.id} style={styles.accountRow}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                     <Building2 size={16} color={acc.isDesignated ? '#10B981' : '#71717A'} />
                                     <View>
                                         <Text style={styles.accountName}>{acc.name}</Text>
-                                        <Text style={styles.accountSub}>{acc.type.replace('_', ' ')}</Text>
+                                        <Text style={styles.accountSub}>{acc.isDesignated ? '🛡 Designated Reserve' : 'Liquid Cash'}</Text>
                                     </View>
                                 </View>
                                 <Text style={styles.accountBalance}>{formatCurrencyINR(acc.balance, false)}</Text>
                             </View>
                         ))}
+
+                        {/* Liquid Cash Sum Total Banner */}
+                        <View style={styles.liquidTotalRow}>
+                            <Text style={styles.liquidTotalLabel}>Total Liquid Cash (Point-in-Time)</Text>
+                            <Text style={styles.liquidTotalVal}>{reserveData.totalLiquidCashFormatted}</Text>
+                        </View>
                     </View>
                 )}
 
@@ -564,57 +726,12 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* ── 7. QUICK TRANSACTION LOGGER (INCOME, EXPENSE, TRANSFER) ── */}
-            <View style={styles.sectionCard}>
-                <View style={styles.cardHeaderRow}>
-                    <Text style={styles.sectionCardTitle}>Quick Transaction Logger</Text>
-                    <Text style={styles.addInstantlyText}>Add instantly</Text>
-                </View>
-
-                {/* Quick 1-tap shortcuts */}
-                <View style={styles.quickIconRow}>
-                    {[
-                        { icon: Utensils, label: 'Food', color: '#F97316' },
-                        { icon: Plane, label: 'Travel', color: '#0EA5E9' },
-                        { icon: ShoppingBag, label: 'Shopping', color: '#EC4899' },
-                        { icon: MoreHorizontal, label: 'Other', color: '#8B5CF6' }
-                    ].map(item => (
-                        <TouchableOpacity
-                            key={item.label}
-                            style={styles.quickIconItem}
-                            onPress={() => {
-                                setTxCategory(item.label);
-                                setTxType('EXPENSE');
-                                setShowLoggerModal(true);
-                            }}
-                        >
-                            <View style={[styles.quickIconCircle, { backgroundColor: `${item.color}20` }]}>
-                                <item.icon size={20} color={item.color} />
-                            </View>
-                            <Text style={styles.quickIconLabel}>{item.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                <TouchableOpacity
-                    style={styles.addCustomBtn}
-                    onPress={() => {
-                        setTxType('EXPENSE');
-                        setShowLoggerModal(true);
-                    }}
-                >
-                    <Plus size={16} color="#818CF8" />
-                    <Text style={styles.addCustomBtnText}>+ Log Expense / Income / Transfer</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* ── 3. UNIFIED EMERGENCY RUNWAY & PERSONAL CFO INTELLIGENCE CARD ── */}
-            <View style={styles.cfoCard}>
-                {/* Header Row: Emergency Reserve & Runway + Status Badge */}
+            {/* ── 6. CASH SAFETY & RUNWAY (CASH ONLY) ── */}
+            <View style={styles.safetyCard}>
                 <View style={styles.cardHeaderRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Shield size={16} color="#818CF8" />
-                        <Text style={styles.emergencyTitle}>🛡 Emergency Reserve & Runway</Text>
+                        <Shield size={16} color="#10B981" />
+                        <Text style={styles.safetyTitle}>🛡 Cash Safety & Runway</Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: `${runwayMetrics.statusColor}20`, borderColor: runwayMetrics.statusColor }]}>
                         <Text style={[styles.statusBadgeText, { color: runwayMetrics.statusColor }]}>
@@ -623,145 +740,59 @@ export default function MoneyFlowView({
                     </View>
                 </View>
 
-                {/* Expose Reserve vs Burn Formula Inputs */}
-                <View style={styles.emergencyStatsRow}>
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Designated Reserve</Text>
-                        <Text style={styles.emergencyStatVal}>{runwayMetrics.currentReserveFormatted}</Text>
-                        <Text style={styles.emergencyStatSub}>{reserveData.designatedAccounts.length} accounts</Text>
+                {/* Point-in-Time Metrics Table */}
+                <View style={styles.safetyStatsTable}>
+                    <View style={styles.safetyStatRow}>
+                        <Text style={styles.safetyStatLabel}>Liquid Cash</Text>
+                        <Text style={styles.safetyStatVal}>{reserveData.totalLiquidCashFormatted}</Text>
                     </View>
-
-                    <View style={styles.mathSignCol}>
-                        <Text style={styles.mathSignText}>÷</Text>
+                    <View style={styles.safetyStatRow}>
+                        <Text style={styles.safetyStatLabel}>Designated Emergency Cash</Text>
+                        <Text style={[styles.safetyStatVal, { color: '#10B981' }]}>{reserveData.currentReserveFormatted}</Text>
                     </View>
-
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Essential Monthly Burn</Text>
-                        <Text style={styles.emergencyStatVal}>{runwayMetrics.essentialMonthlyBurnFormatted}</Text>
-                        <Text style={styles.emergencyStatSub}>Rent, EMIs, Food</Text>
+                    <View style={styles.safetyStatRow}>
+                        <Text style={styles.safetyStatLabel}>Essential Monthly Burn</Text>
+                        <Text style={styles.safetyStatVal}>{runwayMetrics.essentialMonthlyBurnFormatted}/mo</Text>
                     </View>
-
-                    <View style={styles.mathSignCol}>
-                        <Text style={styles.mathSignText}>=</Text>
-                    </View>
-
-                    <View style={styles.emergencyStatItem}>
-                        <Text style={styles.emergencyStatLabel}>Emergency Runway</Text>
-                        <Text style={[styles.emergencyStatVal, { color: runwayMetrics.statusColor }]}>
-                            {runwayMetrics.runwayMonths} mo
+                    <View style={[styles.safetyStatRow, { borderBottomWidth: 0 }]}>
+                        <Text style={styles.safetyStatLabel}>Emergency Runway</Text>
+                        <Text style={[styles.safetyStatVal, { color: runwayMetrics.statusColor, fontWeight: '800' }]}>
+                            {runwayMetrics.runwayMonths} months ⚠️
                         </Text>
-                        <Text style={styles.emergencyStatSub}>Target: 3–6 mo</Text>
                     </View>
                 </View>
 
-                {/* Progress Bar & Shortfall */}
-                <View style={styles.runwayProgressTrack}>
-                    <View
-                        style={[
-                            styles.runwayProgressBar,
-                            {
-                                width: `${Math.min(100, (runwayMetrics.runwayMonths / 6) * 100)}%`,
-                                backgroundColor: runwayMetrics.statusColor
-                            }
-                        ]}
-                    />
-                </View>
-
+                {/* Shortfall Alert */}
                 {runwayMetrics.shortfall > 0 && (
                     <View style={styles.shortfallRow}>
-                        <AlertTriangle size={13} color="#F59E0B" />
+                        <AlertTriangle size={14} color="#F59E0B" />
                         <Text style={styles.shortfallText}>
                             Shortfall to Minimum 3M Target: <Text style={{ fontWeight: '800', color: '#FFF' }}>{runwayMetrics.shortfallFormatted}</Text>
                         </Text>
                     </View>
                 )}
 
-                {/* Action CTAs: See Math & Designate Accounts */}
-                <View style={styles.emergencyBtnRow}>
+                {/* Actions: See Calculation Math & Designate Accounts */}
+                <View style={styles.safetyActionRow}>
                     <TouchableOpacity
-                        style={styles.mathExplanationBtn}
+                        style={styles.safetyActionBtn}
                         onPress={() => setShowMathModal(true)}
                     >
                         <Info size={13} color="#818CF8" />
-                        <Text style={styles.mathExplanationBtnText}>See Calculation Math</Text>
+                        <Text style={styles.safetyActionBtnText}>How is this calculated?</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.designateBtn}
+                        style={styles.safetyActionBtnSecondary}
                         onPress={() => setShowDesignateModal(true)}
                     >
                         <Building2 size={13} color="#A1A1AA" />
-                        <Text style={styles.designateBtnText}>Designate Accounts</Text>
+                        <Text style={styles.safetyActionBtnSecondaryText}>Designate Cash</Text>
                     </TouchableOpacity>
                 </View>
-
-                {/* Embedded Divider */}
-                <View style={styles.mergedSectionDivider} />
-
-                {/* Personal CFO Intelligence Sub-section */}
-                <View style={styles.cfoHeaderRow}>
-                    <Sparkles size={14} color="#818CF8" />
-                    <Text style={styles.cfoHeaderLabel}>PERSONAL CFO INTELLIGENCE</Text>
-                </View>
-
-                <Text style={styles.cfoPriorityTitle}>🏅 Your #1 Priority Right Now</Text>
-                <Text style={styles.cfoPriorityDesc}>
-                    Increase emergency reserve to achieve 3-month peace of mind and lower liquidity stress.
-                </Text>
-
-                <View style={styles.tagPillRow}>
-                    <View style={[styles.tagPill, { backgroundColor: '#F59E0B15', borderColor: '#F59E0B40' }]}>
-                        <Text style={[styles.tagPillText, { color: '#F59E0B' }]}>High Impact</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: '#0EA5E915', borderColor: '#0EA5E940' }]}>
-                        <Text style={[styles.tagPillText, { color: '#38BDF8' }]}>Liquidity</Text>
-                    </View>
-                    <View style={[styles.tagPill, { backgroundColor: '#10B98115', borderColor: '#10B98140' }]}>
-                        <Text style={[styles.tagPillText, { color: '#10B981' }]}>Low Effort</Text>
-                    </View>
-                </View>
-
-                <View style={styles.cfoMetricsRow}>
-                    <View style={styles.cfoMetricBox}>
-                        <Text style={styles.cfoMetricLabel}>Health Score</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                            <Text style={styles.cfoMetricScore}>72.8 / 100</Text>
-                            <View style={styles.gradeBadge}>
-                                <Text style={styles.gradeBadgeText}>B</Text>
-                            </View>
-                        </View>
-                        <Text style={styles.cfoMetricSub}>Authoritative C.7 Engine</Text>
-                    </View>
-
-                    <View style={styles.cfoMetricBox}>
-                        <Text style={styles.cfoMetricLabel}>Potential improvement</Text>
-                        <Text style={styles.cfoMetricImprovement}>+{simulationResult.deltas.healthScoreDelta} pts</Text>
-                        <Text style={styles.cfoMetricSub}>Simulated via C.8.6</Text>
-                    </View>
-                </View>
-
-                {/* Primary CTA: See Authoritative What-If Simulation */}
-                <TouchableOpacity
-                    style={styles.seeImpactCTA}
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        setShowWhatIfModal(true);
-                    }}
-                >
-                    <Text style={styles.seeImpactCTAText}>See Authoritative What-If Simulation</Text>
-                    <ArrowUpRight size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 10 }}
-                    onPress={() => router.push('/investments')}
-                >
-                    <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>View All Recommendations</Text>
-                    <ChevronRight size={13} color="#818CF8" />
-                </TouchableOpacity>
             </View>
 
-            {/* ── 8. SCALABLE SMART TRANSACTION FEED (COLLAPSIBLE DROPDOWN) ── */}
+            {/* ── 7. CASH ACTIVITY FEED (SMART COLLAPSIBLE FEED) ── */}
             <View style={styles.sectionCard}>
                 <TouchableOpacity
                     style={styles.cardHeaderRow}
@@ -772,7 +803,7 @@ export default function MoneyFlowView({
                     }}
                 >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Text style={styles.sectionCardTitle}>Smart Transaction Feed</Text>
+                        <Text style={styles.sectionCardTitle}>📱 Cash Activity</Text>
                         <View style={styles.feedCountBadge}>
                             <Text style={styles.feedCountBadgeText}>
                                 {processedFeed.reduce((acc, g) => acc + g.txList.length, 0)}
@@ -782,17 +813,9 @@ export default function MoneyFlowView({
 
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         {cashFlowTruth.needsSortCount > 0 && (
-                            <TouchableOpacity
-                                style={styles.needsSortTrigger}
-                                onPress={(e) => {
-                                    e?.stopPropagation?.();
-                                    setShowNeedsSortInbox(true);
-                                }}
-                            >
-                                <Text style={styles.needsSortTriggerText}>
-                                    🔴 ({cashFlowTruth.needsSortCount})
-                                </Text>
-                            </TouchableOpacity>
+                            <View style={styles.needsSortBadge}>
+                                <Text style={styles.needsSortBadgeText}>🔴 {cashFlowTruth.needsSortCount} Review</Text>
+                            </View>
                         )}
                         {isFeedExpanded ? (
                             <ChevronDown size={20} color="#A1A1AA" />
@@ -809,7 +832,7 @@ export default function MoneyFlowView({
                             <Search size={14} color="#71717A" />
                             <TextInput
                                 style={styles.searchInput}
-                                placeholder="Search description, merchant, amount..."
+                                placeholder="Search merchant, description, amount..."
                                 placeholderTextColor="#71717A"
                                 value={feedSearch}
                                 onChangeText={setFeedSearch}
@@ -821,11 +844,11 @@ export default function MoneyFlowView({
                             )}
                         </View>
 
-                        {/* Filter Pills */}
+                        {/* Filter Tabs */}
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.feedFilterRow}>
                             {[
                                 { key: 'ALL', label: 'All' },
-                                { key: 'NEEDS_SORT', label: `Needs Sort (${cashFlowTruth.needsSortCount})` },
+                                { key: 'NEEDS_SORT', label: `Needs Review (${cashFlowTruth.needsSortCount})` },
                                 { key: 'EXPENSE', label: 'Expenses' },
                                 { key: 'INCOME', label: 'Income' },
                                 { key: 'TRANSFER', label: 'Transfers' }
@@ -846,14 +869,14 @@ export default function MoneyFlowView({
                         {processedFeed.length === 0 ? (
                             <View style={styles.emptyStateBox}>
                                 <FileText size={24} color="#52525B" />
-                                <Text style={styles.emptyStateText}>No transactions found for this filter & period</Text>
+                                <Text style={styles.emptyStateText}>No cash activity found for this filter & period</Text>
                             </View>
                         ) : (
                             processedFeed.map(group => (
                                 <View key={group.date} style={styles.dateGroupContainer}>
                                     <View style={styles.dateGroupHeader}>
-                                        <Text style={styles.dateGroupTitle}>{group.date}</Text>
-                                        <Text style={styles.dateGroupCount}>{group.txList.length} transactions</Text>
+                                        <Text style={styles.dateGroupTitle}>{group.date.toUpperCase()}</Text>
+                                        <Text style={styles.dateGroupCount}>{group.txList.length} activities</Text>
                                     </View>
 
                                     {group.txList.map(tx => (
@@ -896,10 +919,10 @@ export default function MoneyFlowView({
                                                 </Text>
                                                 {tx.needsSort ? (
                                                     <View style={styles.needsSortChip}>
-                                                        <Text style={styles.needsSortChipText}>Needs Sort</Text>
+                                                        <Text style={styles.needsSortChipText}>Needs Review</Text>
                                                     </View>
                                                 ) : (
-                                                    <Text style={styles.sortedStatusText}>Sorted ✓</Text>
+                                                    <Text style={styles.sortedStatusText}>✓ Sorted</Text>
                                                 )}
                                             </View>
                                         </TouchableOpacity>
@@ -911,7 +934,7 @@ export default function MoneyFlowView({
                 )}
             </View>
 
-            {/* ── MODAL 0: PERIOD & CUSTOM DATE RANGE PICKER ── */}
+            {/* ── MODAL 1: PERIOD PICKER ── */}
             <Modal
                 visible={showPeriodModal}
                 transparent={true}
@@ -923,158 +946,389 @@ export default function MoneyFlowView({
                         <View style={styles.modalHeader}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                 <Calendar size={18} color="#818CF8" />
-                                <Text style={styles.modalTitle}>Select Financial Period</Text>
+                                <Text style={styles.modalTitle}>Select Cash Flow Period</Text>
                             </View>
                             <TouchableOpacity onPress={() => setShowPeriodModal(false)}>
                                 <X size={20} color="#A1A1AA" />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
-                            {/* Current Active Span Preview */}
-                            <View style={styles.periodPreviewBanner}>
-                                <Text style={styles.periodPreviewLabel}>ACTIVE TIMEFRAME</Text>
-                                <Text style={styles.periodPreviewDates}>{periodBounds.periodSubtitle}</Text>
-                            </View>
-
-                            {/* Section 1: Month-by-Month Selection Grid */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 8 }}>
-                                <Text style={styles.periodSectionHeading}>SELECT MONTH</Text>
-                                <View style={styles.yearSwitcherContainer}>
-                                    <TouchableOpacity
-                                        style={styles.yearNavBtn}
-                                        onPress={() => {
-                                            setSelectedYear(y => y - 1);
-                                            safeHaptic('light');
-                                        }}
-                                    >
-                                        <ChevronLeft size={14} color="#A5B4FC" />
-                                    </TouchableOpacity>
-                                    <Text style={styles.yearSwitcherText}>{selectedYear}</Text>
-                                    <TouchableOpacity
-                                        style={styles.yearNavBtn}
-                                        onPress={() => {
-                                            setSelectedYear(y => y + 1);
-                                            safeHaptic('light');
-                                        }}
-                                    >
-                                        <ChevronRight size={14} color="#A5B4FC" />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* 12-Month Interactive Grid */}
-                            <View style={styles.monthsGrid}>
-                                {MONTH_LABELS.map(m => {
-                                    const monthNum = String(m.key + 1).padStart(2, '0');
-                                    const isMonthActive = periodType === 'custom' && customRange.start.startsWith(`${selectedYear}-${monthNum}`);
-                                    return (
-                                        <TouchableOpacity
-                                            key={m.key}
-                                            style={[styles.monthGridCard, isMonthActive && styles.monthGridCardActive]}
-                                            onPress={() => handleSelectSpecificMonth(m.key, selectedYear)}
-                                        >
-                                            <Text style={[styles.monthGridShort, isMonthActive && styles.monthGridShortActive]}>
-                                                {m.short}
-                                            </Text>
-                                            <Text style={styles.monthGridYear}>{selectedYear}</Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                            {/* Section 2: Standard Presets */}
-                            <Text style={styles.periodSectionHeading}>STANDARD PRESETS</Text>
-                            <View style={styles.periodPresetsGrid}>
+                        <ScrollView style={{ maxHeight: 440 }} showsVerticalScrollIndicator={false}>
+                            {/* Preset Buttons */}
+                            <Text style={styles.periodSectionHeading}>PRESETS</Text>
+                            <View style={styles.presetGrid}>
                                 {[
-                                    { key: 'today', label: 'Today', desc: 'Current 24-hr day' },
-                                    { key: 'week', label: 'This Week', desc: 'Mon – Sun' },
-                                    { key: 'month', label: 'This Month', desc: 'Aug 1 – Aug 31' },
-                                    { key: 'quarter', label: 'This Quarter', desc: 'Jul 1 – Sep 30' },
-                                    { key: 'year', label: 'This Year', desc: 'Jan 1 – Dec 31' }
+                                    { key: 'month', label: 'This Month' },
+                                    { key: 'today', label: 'Today' },
+                                    { key: 'week', label: 'This Week' },
+                                    { key: 'quarter', label: 'This Quarter' },
+                                    { key: 'year', label: 'This Year' }
                                 ].map(p => (
                                     <TouchableOpacity
                                         key={p.key}
-                                        style={[styles.presetOptionCard, periodType === p.key && styles.presetOptionCardActive]}
-                                        onPress={() => handleSelectPeriodPreset(p.key)}
-                                    >
-                                        <Text style={[styles.presetOptionTitle, periodType === p.key && styles.presetOptionTitleActive]}>
-                                            {p.label}
-                                        </Text>
-                                        <Text style={styles.presetOptionDesc}>{p.desc}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            {/* Section B: Quick Custom Range Shortcuts */}
-                            <Text style={styles.periodSectionHeading}>CUSTOM DATE SHORTCUTS</Text>
-                            <View style={styles.quickShortcutsRow}>
-                                {[
-                                    { label: 'Last 7D', start: '2026-08-10', end: '2026-08-17' },
-                                    { label: 'Last 30D', start: '2026-07-18', end: '2026-08-17' },
-                                    { label: 'Last 90D', start: '2026-05-19', end: '2026-08-17' },
-                                    { label: 'July 2026', start: '2026-07-01', end: '2026-07-31' },
-                                    { label: 'Year to Date', start: '2026-01-01', end: '2026-08-17' }
-                                ].map((q, idx) => (
-                                    <TouchableOpacity
-                                        key={idx}
-                                        style={styles.quickShortcutPill}
+                                        style={[styles.presetBtn, periodType === p.key && styles.presetBtnActive]}
                                         onPress={() => {
-                                            setCustomStartDateInput(q.start);
-                                            setCustomEndDateInput(q.end);
-                                            handleApplyCustomRange(q.start, q.end);
+                                            setPeriodType(p.key);
+                                            setShowPeriodModal(false);
+                                            safeHaptic('light');
                                         }}
                                     >
-                                        <Text style={styles.quickShortcutPillText}>{q.label}</Text>
+                                        <Text style={[styles.presetBtnText, periodType === p.key && styles.presetBtnTextActive]}>
+                                            {p.label}
+                                        </Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
 
-                            {/* Section C: Direct Date Input */}
-                            <Text style={styles.periodSectionHeading}>CUSTOM DATE RANGE</Text>
-                            <View style={styles.customDateInputsRow}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.customDateInputLabel}>Start Date (YYYY-MM-DD)</Text>
-                                    <TextInput
-                                        style={styles.customDateInputField}
-                                        value={customStartDateInput}
-                                        onChangeText={setCustomStartDateInput}
-                                        placeholder="2026-08-01"
-                                        placeholderTextColor="#52525B"
-                                    />
+                            {/* Month Grid */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+                                <Text style={styles.periodSectionHeading}>MONTH IN {selectedYear}</Text>
+                                <View style={styles.yearSwitcherContainer}>
+                                    <TouchableOpacity
+                                        style={styles.yearNavBtn}
+                                        onPress={() => setSelectedYear(y => y - 1)}
+                                    >
+                                        <ChevronLeft size={14} color="#FFF" />
+                                    </TouchableOpacity>
+                                    <Text style={styles.yearText}>{selectedYear}</Text>
+                                    <TouchableOpacity
+                                        style={styles.yearNavBtn}
+                                        onPress={() => setSelectedYear(y => y + 1)}
+                                    >
+                                        <ChevronRight size={14} color="#FFF" />
+                                    </TouchableOpacity>
                                 </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.customDateInputLabel}>End Date (YYYY-MM-DD)</Text>
-                                    <TextInput
-                                        style={styles.customDateInputField}
-                                        value={customEndDateInput}
-                                        onChangeText={setCustomEndDateInput}
-                                        placeholder="2026-08-17"
-                                        placeholderTextColor="#52525B"
-                                    />
-                                </View>
+                            </View>
+
+                            <View style={styles.monthGrid}>
+                                {MONTH_LABELS.map(m => (
+                                    <TouchableOpacity
+                                        key={m.key}
+                                        style={styles.monthGridItem}
+                                        onPress={() => {
+                                            const monthNum = String(m.key + 1).padStart(2, '0');
+                                            const lastDay = new Date(Date.UTC(selectedYear, m.key + 1, 0)).getUTCDate();
+                                            const start = `${selectedYear}-${monthNum}-01`;
+                                            const end = `${selectedYear}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
+                                            setCustomRange({ start, end });
+                                            setPeriodType('custom');
+                                            setShowPeriodModal(false);
+                                            safeHaptic('success');
+                                        }}
+                                    >
+                                        <Text style={styles.monthGridText}>{m.short}</Text>
+                                    </TouchableOpacity>
+                                ))}
                             </View>
                         </ScrollView>
 
-                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-                            <TouchableOpacity
-                                style={[styles.modalSecondaryBtn, { flex: 1 }]}
-                                onPress={() => setShowPeriodModal(false)}
-                            >
-                                <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.modalPrimaryBtn, { flex: 2 }]}
-                                onPress={() => handleApplyCustomRange()}
-                            >
-                                <Text style={styles.modalPrimaryBtnText}>Apply Date Range</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setShowPeriodModal(false)}>
+                            <Text style={styles.modalPrimaryBtnText}>Close</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            {/* ── MODAL 1: CALCULATION MATH BREAKDOWN ── */}
+            {/* ── MODAL 2: UNIFIED "+ ADD CASH ACTIVITY" MODAL ── */}
+            <Modal
+                visible={showAddActivityModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowAddActivityModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>+ Add Cash Activity</Text>
+                            <TouchableOpacity onPress={() => setShowAddActivityModal(false)}>
+                                <X size={20} color="#A1A1AA" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* 3-Mode Segmented Control */}
+                        <View style={styles.txTypeToggleRow}>
+                            {[
+                                { key: 'EXPENSE', label: '💸 Expense', color: '#EF4444' },
+                                { key: 'INCOME', label: '💰 Income', color: '#10B981' },
+                                { key: 'TRANSFER', label: '🔄 Transfer', color: '#818CF8' }
+                            ].map(t => (
+                                <TouchableOpacity
+                                    key={t.key}
+                                    style={[styles.txTypeBtn, addActivityMode === t.key && { backgroundColor: t.color }]}
+                                    onPress={() => {
+                                        setAddActivityMode(t.key);
+                                        safeHaptic('light');
+                                    }}
+                                >
+                                    <Text style={[styles.txTypeBtnText, addActivityMode === t.key && { color: '#FFF', fontWeight: '800' }]}>
+                                        {t.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
+                        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                            {/* Fast Amount Input */}
+                            <Text style={styles.inputLabel}>Amount (₹)</Text>
+                            <TextInput
+                                style={styles.amountInputHero}
+                                placeholder="0"
+                                placeholderTextColor="#71717A"
+                                keyboardType="numeric"
+                                value={txAmount}
+                                onChangeText={setTxAmount}
+                            />
+
+                            {/* EXPENSE FLOW */}
+                            {addActivityMode === 'EXPENSE' && (
+                                <>
+                                    <Text style={styles.inputLabel}>What was it? / Merchant</Text>
+                                    <TextInput
+                                        style={styles.formInput}
+                                        placeholder="e.g. Amazon, Swiggy, Uber, Fuel..."
+                                        placeholderTextColor="#71717A"
+                                        value={txMerchant}
+                                        onChangeText={setTxMerchant}
+                                    />
+
+                                    <Text style={styles.inputLabel}>Category</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                                        {['Food', 'Shopping', 'Travel', 'Bills', 'Entertainment', 'Rent', 'Other'].map(cat => (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                style={[styles.modalCatChip, txCategory === cat && styles.modalCatChipActive]}
+                                                onPress={() => setTxCategory(cat)}
+                                            >
+                                                <Text style={[styles.modalCatChipText, txCategory === cat && styles.modalCatChipTextActive]}>
+                                                    {cat}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+
+                                    <Text style={styles.inputLabel}>Cash Account / Card</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                                        {cashOnlyAccounts.map(acc => (
+                                            <TouchableOpacity
+                                                key={acc.id}
+                                                style={[styles.modalAccChip, txAccount === acc.name && styles.modalAccChipActive]}
+                                                onPress={() => setTxAccount(acc.name)}
+                                            >
+                                                <Text style={[styles.modalAccChipText, txAccount === acc.name && styles.modalAccChipTextActive]}>
+                                                    {acc.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </>
+                            )}
+
+                            {/* INCOME FLOW */}
+                            {addActivityMode === 'INCOME' && (
+                                <>
+                                    <Text style={styles.inputLabel}>Income Source</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                                        {['Salary', 'Bonus', 'Dividend', 'Interest', 'Rental', 'Business', 'Refund', 'Other'].map(src => (
+                                            <TouchableOpacity
+                                                key={src}
+                                                style={[styles.modalCatChip, txIncomeSource === src && styles.modalCatChipActive]}
+                                                onPress={() => setTxIncomeSource(src)}
+                                            >
+                                                <Text style={[styles.modalCatChipText, txIncomeSource === src && styles.modalCatChipTextActive]}>
+                                                    {src}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+
+                                    {txIncomeSource === 'Salary' && (
+                                        <View style={styles.recurringSalaryAlert}>
+                                            <Sparkles size={14} color="#10B981" />
+                                            <Text style={styles.recurringSalaryAlertText}>
+                                                Recurring Income intelligence: Will be mapped as monthly recurring salary.
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    <Text style={styles.inputLabel}>Deposited To Account</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginBottom: 12 }}>
+                                        {cashOnlyAccounts.map(acc => (
+                                            <TouchableOpacity
+                                                key={acc.id}
+                                                style={[styles.modalAccChip, txAccount === acc.name && styles.modalAccChipActive]}
+                                                onPress={() => setTxAccount(acc.name)}
+                                            >
+                                                <Text style={[styles.modalAccChipText, txAccount === acc.name && styles.modalAccChipTextActive]}>
+                                                    {acc.name}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                </>
+                            )}
+
+                            {/* TRANSFER FLOW */}
+                            {addActivityMode === 'TRANSFER' && (
+                                <>
+                                    <View style={styles.transferNeutralNotice}>
+                                        <Info size={14} color="#818CF8" />
+                                        <Text style={styles.transferNeutralNoticeText}>
+                                            Transfers move cash between your accounts. They do not inflate income or spending.
+                                        </Text>
+                                    </View>
+
+                                    <Text style={styles.inputLabel}>From Account</Text>
+                                    <TextInput
+                                        style={styles.formInput}
+                                        value={txAccount}
+                                        onChangeText={setTxAccount}
+                                    />
+
+                                    <Text style={styles.inputLabel}>To Account</Text>
+                                    <TextInput
+                                        style={styles.formInput}
+                                        value={txToAccount}
+                                        onChangeText={setTxToAccount}
+                                    />
+                                </>
+                            )}
+
+                            {/* Date */}
+                            <Text style={styles.inputLabel}>Date (YYYY-MM-DD)</Text>
+                            <TextInput
+                                style={styles.formInput}
+                                value={txDate}
+                                onChangeText={setTxDate}
+                            />
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.modalPrimaryBtn,
+                                { backgroundColor: addActivityMode === 'INCOME' ? '#10B981' : addActivityMode === 'TRANSFER' ? '#818CF8' : '#EF4444' }
+                            ]}
+                            onPress={handleSaveCashActivity}
+                        >
+                            <Text style={styles.modalPrimaryBtnText}>
+                                {addActivityMode === 'TRANSFER' ? 'Transfer Cash' : (addActivityMode === 'INCOME' ? 'Save Income' : 'Save Expense')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── MODAL 3: STEP-BY-STEP REVIEW WIZARD MODAL ── */}
+            <Modal
+                visible={showReviewWizardModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowReviewWizardModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <MessageSquare size={18} color="#EF4444" />
+                                <Text style={styles.modalTitle}>Needs Review</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowReviewWizardModal(false)}>
+                                <X size={20} color="#A1A1AA" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {currentReviewItem ? (
+                            <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+                                {/* Progress Header */}
+                                <View style={styles.reviewWizardProgressBar}>
+                                    <Text style={styles.reviewWizardProgressText}>
+                                        {reviewWizardIndex + 1} of {reviewQueue.length} remaining
+                                    </Text>
+                                </View>
+
+                                {/* Transaction Card */}
+                                <View style={styles.reviewCardHero}>
+                                    <Text style={styles.reviewMerchantTitle}>
+                                        {currentReviewItem.merchant || normalizeMerchant(currentReviewItem.rawDescription)}
+                                    </Text>
+                                    <Text style={styles.reviewAmountHero}>
+                                        ₹{Math.round(currentReviewItem.amount).toLocaleString()}
+                                    </Text>
+                                    <Text style={styles.reviewDateSub}>{currentReviewItem.date} • {currentReviewItem.account}</Text>
+                                </View>
+
+                                {/* Raw SMS Message Box */}
+                                {currentReviewItem.smsBody && (
+                                    <View style={styles.rawSmsBox}>
+                                        <Text style={styles.rawSmsLabel}>RAW BANK ALERT</Text>
+                                        <Text style={styles.rawSmsText}>"{currentReviewItem.smsBody}"</Text>
+                                    </View>
+                                )}
+
+                                {/* Category Classification */}
+                                <Text style={styles.inputLabel}>Suggested Category</Text>
+                                <View style={styles.categoryChipsGrid}>
+                                    {['Shopping', 'Food', 'Travel', 'Bills', 'Entertainment', 'Rent', 'Other'].map(cat => (
+                                        <TouchableOpacity
+                                            key={cat}
+                                            style={[
+                                                styles.wizardCatChip,
+                                                (currentReviewItem.category === cat || (!currentReviewItem.category && cat === 'Shopping')) && styles.wizardCatChipActive
+                                            ]}
+                                            onPress={() => handleConfirmReviewItem(cat, currentReviewItem.account)}
+                                        >
+                                            <Text style={styles.wizardCatChipText}>{cat}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+
+                                {/* Action Buttons */}
+                                <View style={{ gap: 8, marginTop: 16 }}>
+                                    <TouchableOpacity
+                                        style={styles.confirmReviewBtn}
+                                        onPress={() => handleConfirmReviewItem(currentReviewItem.category || 'Shopping', currentReviewItem.account)}
+                                    >
+                                        <Check size={16} color="#FFF" />
+                                        <Text style={styles.confirmReviewBtnText}>✓ Confirm & Add to Ledger</Text>
+                                    </TouchableOpacity>
+
+                                    {matchingSimilarReviewItems.length > 0 && (
+                                        <TouchableOpacity
+                                            style={styles.applySimilarBtn}
+                                            onPress={() => handleApplyToSimilar(currentReviewItem.category || 'Shopping', currentReviewItem.account)}
+                                        >
+                                            <Zap size={15} color="#818CF8" />
+                                            <Text style={styles.applySimilarBtnText}>
+                                                ⚡ Apply to all {matchingSimilarReviewItems.length + 1} similar
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    <TouchableOpacity
+                                        style={styles.ignoreReviewBtn}
+                                        onPress={handleIgnoreReviewItem}
+                                    >
+                                        <Text style={styles.ignoreReviewBtnText}>Ignore Message</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </ScrollView>
+                        ) : (
+                            <View style={styles.emptyReviewBox}>
+                                <CheckCircle2 size={40} color="#10B981" />
+                                <Text style={styles.emptyReviewTitle}>All Caught Up!</Text>
+                                <Text style={styles.emptyReviewSub}>All bank messages have been reviewed and classified into financial truth.</Text>
+                                <TouchableOpacity
+                                    style={styles.modalPrimaryBtn}
+                                    onPress={() => setShowReviewWizardModal(false)}
+                                >
+                                    <Text style={styles.modalPrimaryBtnText}>Close</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── MODAL 4: CALCULATION MATH MODAL ── */}
             <Modal
                 visible={showMathModal}
                 transparent={true}
@@ -1084,47 +1338,59 @@ export default function MoneyFlowView({
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>How Runway Is Calculated</Text>
+                            <Text style={styles.modalTitle}>Emergency Runway Formula</Text>
                             <TouchableOpacity onPress={() => setShowMathModal(false)}>
                                 <X size={20} color="#A1A1AA" />
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={{ maxHeight: 420 }}>
-                            <View style={styles.mathCard}>
-                                <Text style={styles.mathFormulaTitle}>AUTHORITATIVE FORMULA</Text>
-                                <Text style={styles.mathFormulaLarge}>
-                                    Runway = Designated Reserve ÷ Essential Monthly Burn
-                                </Text>
-                                <Text style={styles.mathResultRow}>
-                                    ₹1,05,000 ÷ ₹87,500 = <Text style={{ color: '#EF4444', fontWeight: '800' }}>1.20 Months</Text>
+                        <ScrollView style={{ maxHeight: 380 }}>
+                            <View style={styles.formulaBox}>
+                                <Text style={styles.formulaText}>
+                                    Emergency Runway = Designated Reserve ÷ Essential Monthly Burn
                                 </Text>
                             </View>
 
-                            <Text style={styles.breakdownSectionTitle}>Essential Monthly Burn Components</Text>
-                            {Object.entries(DEFAULT_ESSENTIAL_BURN_BREAKDOWN).map(([key, val]) => (
-                                <View key={key} style={styles.mathBreakdownRow}>
-                                    <Text style={styles.mathBreakdownLabel}>
-                                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                                    </Text>
-                                    <Text style={styles.mathBreakdownVal}>{formatCurrencyINR(val, false)}</Text>
+                            <Text style={styles.accountGroupHeader}>STEP 1: DESIGNATED CASH</Text>
+                            {reserveData.designatedAccounts.map(acc => (
+                                <View key={acc.id} style={styles.mathBreakdownRow}>
+                                    <Text style={styles.mathBreakdownLabel}>{acc.name}</Text>
+                                    <Text style={styles.mathBreakdownVal}>{formatCurrencyINR(acc.balance, false)}</Text>
                                 </View>
                             ))}
-
                             <View style={styles.mathTotalRow}>
-                                <Text style={{ color: '#FFF', fontWeight: '800' }}>Total Essential Burn</Text>
-                                <Text style={{ color: '#10B981', fontWeight: '800' }}>₹87,500 / month</Text>
+                                <Text style={styles.mathTotalLabel}>Total Designated Reserve</Text>
+                                <Text style={styles.mathTotalVal}>{reserveData.currentReserveFormatted}</Text>
+                            </View>
+
+                            <Text style={[styles.accountGroupHeader, { marginTop: 14 }]}>STEP 2: ESSENTIAL MONTHLY BURN</Text>
+                            {Object.entries(runwayMetrics.essentialBurnBreakdown).map(([k, v]) => (
+                                <View key={k} style={styles.mathBreakdownRow}>
+                                    <Text style={styles.mathBreakdownLabel}>{k.replace(/([A-Z])/g, ' $1').toLowerCase()}</Text>
+                                    <Text style={styles.mathBreakdownVal}>{formatCurrencyINR(v, false)}</Text>
+                                </View>
+                            ))}
+                            <View style={styles.mathTotalRow}>
+                                <Text style={styles.mathTotalLabel}>Essential Monthly Burn</Text>
+                                <Text style={styles.mathTotalVal}>{runwayMetrics.essentialMonthlyBurnFormatted}/mo</Text>
+                            </View>
+
+                            <Text style={[styles.accountGroupHeader, { marginTop: 14 }]}>FINAL RUNWAY RESULT</Text>
+                            <View style={styles.mathResultBanner}>
+                                <Text style={styles.mathResultText}>
+                                    {reserveData.currentReserveFormatted} ÷ {runwayMetrics.essentialMonthlyBurnFormatted} = <Text style={{ color: runwayMetrics.statusColor, fontWeight: '900' }}>{runwayMetrics.runwayMonths} months</Text>
+                                </Text>
                             </View>
                         </ScrollView>
 
                         <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setShowMathModal(false)}>
-                            <Text style={styles.modalPrimaryBtnText}>Understood</Text>
+                            <Text style={styles.modalPrimaryBtnText}>Close</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            {/* ── MODAL 2: DESIGNATE EMERGENCY ACCOUNTS ── */}
+            {/* ── MODAL 5: DESIGNATE CASH ACCOUNTS MODAL ── */}
             <Modal
                 visible={showDesignateModal}
                 transparent={true}
@@ -1134,337 +1400,40 @@ export default function MoneyFlowView({
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Designate Emergency Accounts</Text>
+                            <Text style={styles.modalTitle}>Designate Cash Accounts</Text>
                             <TouchableOpacity onPress={() => setShowDesignateModal(false)}>
                                 <X size={20} color="#A1A1AA" />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={{ color: '#A1A1AA', fontSize: 12, marginBottom: 12 }}>
-                            Only liquid accounts should be designated. Equity, Mutual Funds, Gold, and EPF/PPF are excluded.
-                        </Text>
+                        <ScrollView style={{ maxHeight: 380 }}>
+                            <Text style={styles.modalSubDesc}>
+                                Select which cash and savings accounts form your dedicated emergency reserve.
+                            </Text>
 
-                        <ScrollView style={{ maxHeight: 350 }}>
-                            <Text style={styles.accountGroupHeader}>ELIGIBLE LIQUID ACCOUNTS</Text>
-                            {accounts.filter(a => a.isEligibleReserve).map(acc => {
-                                const isChecked = designatedAccountIds.includes(acc.id);
+                            {cashOnlyAccounts.map(acc => {
+                                const isDes = designatedAccountIds.includes(acc.id);
                                 return (
                                     <TouchableOpacity
                                         key={acc.id}
-                                        style={styles.designateAccountRow}
+                                        style={[styles.designateItemRow, isDes && styles.designateItemRowActive]}
                                         onPress={() => handleToggleAccountDesignation(acc.id)}
                                     >
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                            <View style={[styles.checkbox, isChecked && styles.checkboxActive]}>
-                                                {isChecked && <Check size={14} color="#FFF" />}
-                                            </View>
-                                            <View>
-                                                <Text style={styles.accountName}>{acc.name}</Text>
-                                                <Text style={styles.accountSub}>{formatCurrencyINR(acc.balance, false)}</Text>
-                                            </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.designateItemName}>{acc.name}</Text>
+                                            <Text style={styles.designateItemBal}>{formatCurrencyINR(acc.balance, false)}</Text>
                                         </View>
-                                        <Text style={{ color: isChecked ? '#10B981' : '#71717A', fontSize: 11, fontWeight: '700' }}>
-                                            {isChecked ? 'Designated' : 'Excluded'}
-                                        </Text>
+                                        <View style={[styles.checkbox, isDes && styles.checkboxActive]}>
+                                            {isDes && <Check size={14} color="#FFF" />}
+                                        </View>
                                     </TouchableOpacity>
                                 );
                             })}
-
-                            <Text style={[styles.accountGroupHeader, { marginTop: 16 }]}>EXCLUDED NON-LIQUID ASSETS</Text>
-                            {accounts.filter(a => !a.isEligibleReserve).map(acc => (
-                                <View key={acc.id} style={[styles.designateAccountRow, { opacity: 0.5 }]}>
-                                    <View>
-                                        <Text style={styles.accountName}>{acc.name}</Text>
-                                        <Text style={styles.accountSub}>{acc.type} • {formatCurrencyINR(acc.balance, false)}</Text>
-                                    </View>
-                                    <Text style={{ color: '#71717A', fontSize: 10 }}>🔒 Excluded</Text>
-                                </View>
-                            ))}
                         </ScrollView>
 
                         <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setShowDesignateModal(false)}>
-                            <Text style={styles.modalPrimaryBtnText}>Save Designation</Text>
+                            <Text style={styles.modalPrimaryBtnText}>Done</Text>
                         </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* ── MODAL 3: AUTHORITATIVE WHAT-IF SIMULATION (C.8.6) ── */}
-            <Modal
-                visible={showWhatIfModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowWhatIfModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                <Sparkles size={16} color="#818CF8" />
-                                <Text style={styles.modalTitle}>Authoritative What-If Simulation</Text>
-                            </View>
-                            <TouchableOpacity onPress={() => setShowWhatIfModal(false)}>
-                                <X size={20} color="#A1A1AA" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <ScrollView style={{ maxHeight: 450 }}>
-                            {/* Monthly Surplus Context */}
-                            <View style={styles.surplusContextCard}>
-                                <Text style={{ color: '#A1A1AA', fontSize: 11, fontWeight: '700' }}>CURRENT MONTHLY SURPLUS</Text>
-                                <Text style={{ color: '#10B981', fontSize: 18, fontWeight: '800', marginVertical: 2 }}>
-                                    {cashFlowTruth.netCashFlowFormatted}
-                                </Text>
-                                <Text style={{ color: '#71717A', fontSize: 10 }}>Available to fund reserve without debt</Text>
-                            </View>
-
-                            {/* Simulation Allocation Selector */}
-                            <Text style={styles.scenarioSelectorTitle}>Scenario: How much surplus to allocate?</Text>
-                            <View style={styles.scenarioPillsRow}>
-                                {[30000, 50000, 100000, 150000].map(amt => (
-                                    <TouchableOpacity
-                                        key={amt}
-                                        style={[styles.scenarioPill, simulationAmount === amt && styles.scenarioPillActive]}
-                                        onPress={() => setSimulationAmount(amt)}
-                                    >
-                                        <Text style={[styles.scenarioPillText, simulationAmount === amt && styles.scenarioPillTextActive]}>
-                                            ₹{(amt / 1000).toFixed(0)}K
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            {/* Before vs After Grid */}
-                            <View style={styles.impactGrid}>
-                                <View style={styles.impactRowHeader}>
-                                    <Text style={styles.impactHeaderLabel}>METRIC</Text>
-                                    <Text style={styles.impactHeaderLabel}>BEFORE</Text>
-                                    <Text style={styles.impactHeaderLabel}>AFTER</Text>
-                                </View>
-
-                                <View style={styles.impactRow}>
-                                    <Text style={styles.impactMetricName}>Emergency Reserve</Text>
-                                    <Text style={styles.impactMetricBefore}>{simulationResult.before.reserveFormatted}</Text>
-                                    <Text style={[styles.impactMetricAfter, { color: '#10B981' }]}>{simulationResult.after.reserveFormatted}</Text>
-                                </View>
-
-                                <View style={styles.impactRow}>
-                                    <Text style={styles.impactMetricName}>Emergency Runway</Text>
-                                    <Text style={[styles.impactMetricBefore, { color: '#EF4444' }]}>{simulationResult.before.runway}</Text>
-                                    <Text style={[styles.impactMetricAfter, { color: '#10B981' }]}>{simulationResult.after.runway}</Text>
-                                </View>
-
-                                <View style={styles.impactRow}>
-                                    <Text style={styles.impactMetricName}>Health Score (C.7)</Text>
-                                    <Text style={styles.impactMetricBefore}>{simulationResult.before.healthScore} [{simulationResult.before.healthGrade}]</Text>
-                                    <Text style={[styles.impactMetricAfter, { color: '#818CF8' }]}>{simulationResult.after.healthScore} [{simulationResult.after.healthGrade}]</Text>
-                                </View>
-
-                                <View style={styles.impactRow}>
-                                    <Text style={styles.impactMetricName}>Financial Security</Text>
-                                    <Text style={[styles.impactMetricBefore, { color: '#EF4444' }]}>{simulationResult.before.financialSecurity}</Text>
-                                    <Text style={[styles.impactMetricAfter, { color: '#10B981' }]}>{simulationResult.after.financialSecurity}</Text>
-                                </View>
-                            </View>
-
-                            <Text style={styles.todoHeader}>What You Need To Do:</Text>
-                            {simulationResult.toDoChecklist.map((todo, idx) => (
-                                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 4 }}>
-                                    <CheckCircle2 size={14} color="#10B981" />
-                                    <Text style={{ color: '#D4D4D8', fontSize: 12, flex: 1 }}>{todo}</Text>
-                                </View>
-                            ))}
-                        </ScrollView>
-
-                        <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setShowWhatIfModal(false)}>
-                            <Text style={styles.modalPrimaryBtnText}>Got It</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* ── MODAL 4: ADVANCED TRANSACTION LOGGER ── */}
-            <Modal
-                visible={showLoggerModal}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setShowLoggerModal(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Log Transaction</Text>
-                            <TouchableOpacity onPress={() => setShowLoggerModal(false)}>
-                                <X size={20} color="#A1A1AA" />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Expense / Income / Transfer Toggle */}
-                        <View style={styles.txTypeToggleRow}>
-                            {[
-                                { key: 'EXPENSE', label: 'Expense', color: '#EF4444' },
-                                { key: 'INCOME', label: 'Income', color: '#10B981' },
-                                { key: 'TRANSFER', label: 'Transfer', color: '#818CF8' }
-                            ].map(t => (
-                                <TouchableOpacity
-                                    key={t.key}
-                                    style={[styles.txTypeBtn, txType === t.key && { backgroundColor: t.color }]}
-                                    onPress={() => setTxType(t.key)}
-                                >
-                                    <Text style={[styles.txTypeBtnText, txType === t.key && { color: '#FFF' }]}>
-                                        {t.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        <ScrollView style={{ maxHeight: 380 }}>
-                            <Text style={styles.inputLabel}>Description</Text>
-                            <TextInput
-                                style={styles.formInput}
-                                placeholder="e.g. Organic Groceries, Salary, HDFC to ICICI"
-                                placeholderTextColor="#71717A"
-                                value={txDesc}
-                                onChangeText={setTxDesc}
-                            />
-
-                            <View style={{ flexDirection: 'row', gap: 10 }}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.inputLabel}>Amount (₹)</Text>
-                                    <TextInput
-                                        style={styles.formInput}
-                                        placeholder="0.00"
-                                        placeholderTextColor="#71717A"
-                                        keyboardType="numeric"
-                                        value={txAmount}
-                                        onChangeText={setTxAmount}
-                                    />
-                                </View>
-
-                                {txType !== 'TRANSFER' && (
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.inputLabel}>Category</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            value={txCategory}
-                                            onChangeText={setTxCategory}
-                                        />
-                                    </View>
-                                )}
-                            </View>
-
-                            {txType === 'TRANSFER' ? (
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.inputLabel}>From Account</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            value={txAccount}
-                                            onChangeText={setTxAccount}
-                                        />
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.inputLabel}>To Account</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            value={txToAccount}
-                                            onChangeText={setTxToAccount}
-                                        />
-                                    </View>
-                                </View>
-                            ) : (
-                                <View style={{ flexDirection: 'row', gap: 10 }}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.inputLabel}>Account / Wallet</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            value={txAccount}
-                                            onChangeText={setTxAccount}
-                                        />
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.inputLabel}>Merchant</Text>
-                                        <TextInput
-                                            style={styles.formInput}
-                                            placeholder="Optional"
-                                            placeholderTextColor="#71717A"
-                                            value={txMerchant}
-                                            onChangeText={setTxMerchant}
-                                        />
-                                    </View>
-                                </View>
-                            )}
-
-                            {/* Recurring Toggle */}
-                            <TouchableOpacity
-                                style={styles.recurringToggleRow}
-                                onPress={() => setTxIsRecurring(!txIsRecurring)}
-                            >
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <Repeat size={15} color={txIsRecurring ? '#10B981' : '#71717A'} />
-                                    <Text style={{ color: '#FFF', fontSize: 12 }}>Recurring Monthly Transaction</Text>
-                                </View>
-                                <View style={[styles.toggleCheckbox, txIsRecurring && styles.toggleCheckboxActive]}>
-                                    {txIsRecurring && <Check size={12} color="#FFF" />}
-                                </View>
-                            </TouchableOpacity>
-                        </ScrollView>
-
-                        <TouchableOpacity style={styles.modalPrimaryBtn} onPress={handleAddTransaction}>
-                            <Text style={styles.modalPrimaryBtnText}>
-                                {txType === 'TRANSFER' ? 'Log Transfer' : txType === 'INCOME' ? 'Log Income' : 'Log Expense'}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
-            {/* ── MODAL 5: MERCHANT DETAIL ACTION SHEET ── */}
-            <Modal
-                visible={Boolean(selectedMerchantDetail)}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setSelectedMerchantDetail(null)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        {selectedMerchantDetail && (
-                            <>
-                                <View style={styles.modalHeader}>
-                                    <View>
-                                        <Text style={styles.modalTitle}>{selectedMerchantDetail.merchant}</Text>
-                                        <Text style={{ color: '#10B981', fontSize: 16, fontWeight: '800', marginTop: 2 }}>
-                                            {selectedMerchantDetail.amountFormatted} • {selectedMerchantDetail.transactionCount} transactions
-                                        </Text>
-                                    </View>
-                                    <TouchableOpacity onPress={() => setSelectedMerchantDetail(null)}>
-                                        <X size={20} color="#A1A1AA" />
-                                    </TouchableOpacity>
-                                </View>
-
-                                <ScrollView style={{ maxHeight: 320 }}>
-                                    <Text style={styles.accountGroupHeader}>CATEGORY BREAKDOWN FOR THIS MERCHANT</Text>
-                                    {selectedMerchantDetail.categoryDistribution.map(c => (
-                                        <View key={c.category} style={styles.mathBreakdownRow}>
-                                            <Text style={styles.mathBreakdownLabel}>{c.category}</Text>
-                                            <Text style={styles.mathBreakdownVal}>{c.amountFormatted}</Text>
-                                        </View>
-                                    ))}
-
-                                    <Text style={[styles.accountGroupHeader, { marginTop: 14 }]}>RECENT TRANSACTIONS</Text>
-                                    {selectedMerchantDetail.transactions.map(t => (
-                                        <View key={t.id} style={styles.miniTxRow}>
-                                            <Text style={{ color: '#D4D4D8', fontSize: 12 }}>{t.date} • {t.rawDescription}</Text>
-                                            <Text style={{ color: '#FFF', fontWeight: '700' }}>₹{t.amount.toLocaleString()}</Text>
-                                        </View>
-                                    ))}
-                                </ScrollView>
-
-                                <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setSelectedMerchantDetail(null)}>
-                                    <Text style={styles.modalPrimaryBtnText}>Close</Text>
-                                </TouchableOpacity>
-                            </>
-                        )}
                     </View>
                 </View>
             </Modal>
@@ -1485,7 +1454,7 @@ export default function MoneyFlowView({
                             </TouchableOpacity>
                         </View>
 
-                        <ScrollView style={{ maxHeight: 400 }}>
+                        <ScrollView style={{ maxHeight: 380 }}>
                             <View style={styles.trendSummaryGrid}>
                                 <View style={styles.trendSummaryCol}>
                                     <Text style={styles.trendSummaryLabel}>Avg. Monthly Surplus</Text>
@@ -1497,7 +1466,6 @@ export default function MoneyFlowView({
                                 </View>
                             </View>
 
-                            <Text style={styles.accountGroupHeader}>MONTH-BY-MONTH HISTORY</Text>
                             {trendData.months.map(m => (
                                 <View key={m.month} style={styles.trendMonthRow}>
                                     <Text style={{ color: '#FFF', width: 40, fontWeight: '700' }}>{m.month}</Text>
@@ -1532,7 +1500,7 @@ export default function MoneyFlowView({
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Where Is My Money Breakdown</Text>
+                            <Text style={styles.modalTitle}>Where Did My Cash Go?</Text>
                             <TouchableOpacity onPress={() => setShowBreakdownModal(false)}>
                                 <X size={20} color="#A1A1AA" />
                             </TouchableOpacity>
@@ -1544,7 +1512,9 @@ export default function MoneyFlowView({
                                 <Text style={{ color: '#EF4444', fontSize: 24, fontWeight: '900', marginVertical: 4 }}>
                                     {cashFlowTruth.totalSpendingFormatted}
                                 </Text>
-                                <Text style={{ color: '#71717A', fontSize: 11 }}>Across {cashFlowTruth.categoryBreakdown.length} categories & {cashFlowTruth.merchantBreakdown.length} merchants</Text>
+                                <Text style={{ color: '#71717A', fontSize: 11 }}>
+                                    Across {cashFlowTruth.categoryBreakdown.length} categories & {cashFlowTruth.merchantBreakdown.length} merchants
+                                </Text>
                             </View>
 
                             <Text style={styles.accountGroupHeader}>CATEGORIES</Text>
@@ -1592,7 +1562,6 @@ export default function MoneyFlowView({
 
                         {selectedTxDetail && (
                             <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
-                                {/* Amount & Merchant Hero Card */}
                                 <View style={styles.txDetailHeroCard}>
                                     <Text style={styles.txDetailMerchant}>{selectedTxDetail.merchant || selectedTxDetail.desc || 'Transaction'}</Text>
                                     <Text style={[
@@ -1601,178 +1570,61 @@ export default function MoneyFlowView({
                                     ]}>
                                         {selectedTxDetail.type === 'INCOME' ? '+' : selectedTxDetail.type === 'TRANSFER' ? '⇄ ' : '-'}₹{Math.round(selectedTxDetail.amount).toLocaleString()}
                                     </Text>
-                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                                        <View style={[styles.txDetailBadge, { backgroundColor: selectedTxDetail.type === 'INCOME' ? '#10B98120' : selectedTxDetail.type === 'TRANSFER' ? '#818CF820' : '#EF444420' }]}>
-                                            <Text style={[styles.txDetailBadgeText, { color: selectedTxDetail.type === 'INCOME' ? '#10B981' : selectedTxDetail.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }]}>
-                                                {selectedTxDetail.type}
-                                            </Text>
-                                        </View>
-                                        <View style={[styles.txDetailBadge, { backgroundColor: selectedTxDetail.needsSort ? '#EF444420' : '#10B98120' }]}>
-                                            <Text style={[styles.txDetailBadgeText, { color: selectedTxDetail.needsSort ? '#EF4444' : '#10B981' }]}>
-                                                {selectedTxDetail.needsSort ? 'Needs Sort ⚠️' : 'Sorted ✓'}
-                                            </Text>
-                                        </View>
-                                    </View>
+                                    <Text style={styles.txDetailDate}>{selectedTxDetail.date} • {selectedTxDetail.account}</Text>
                                 </View>
 
-                                {/* Key Meta Table */}
-                                <View style={styles.txMetaGrid}>
-                                    <View style={styles.txMetaRow}>
-                                        <Text style={styles.txMetaLabel}>Date</Text>
-                                        <Text style={styles.txMetaValue}>{selectedTxDetail.date}</Text>
-                                    </View>
-                                    <View style={styles.txMetaRow}>
-                                        <Text style={styles.txMetaLabel}>Category</Text>
-                                        <Text style={styles.txMetaValue}>{selectedTxDetail.category}</Text>
-                                    </View>
-                                    <View style={styles.txMetaRow}>
-                                        <Text style={styles.txMetaLabel}>Account</Text>
-                                        <Text style={styles.txMetaValue}>{selectedTxDetail.account}</Text>
-                                    </View>
-                                    <View style={styles.txMetaRow}>
-                                        <Text style={styles.txMetaLabel}>Transaction ID</Text>
-                                        <Text style={[styles.txMetaValue, { fontSize: 11, color: '#71717A' }]}>{selectedTxDetail.id}</Text>
-                                    </View>
-                                </View>
-
-                                {/* Original SMS / Bank Message Card */}
-                                <View style={styles.smsMessageCard}>
-                                    <View style={styles.smsMessageHeader}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                            <FileText size={14} color="#818CF8" />
-                                            <Text style={styles.smsMessageTitle}>Original Bank Alert / SMS</Text>
+                                {/* Raw Bank SMS Alert */}
+                                {selectedTxDetail.smsBody ? (
+                                    <View style={styles.txDetailSmsCard}>
+                                        <View style={styles.txDetailSmsHeader}>
+                                            <MessageSquare size={14} color="#818CF8" />
+                                            <Text style={styles.txDetailSmsTitle}>Original Bank Alert / SMS</Text>
                                         </View>
-                                        <Text style={styles.smsMessageSource}>
-                                            {selectedTxDetail.isMessageDeleted ? 'Message Removed' : 'Auto-Synced'}
-                                        </Text>
+                                        <Text style={styles.txDetailSmsBody}>"{selectedTxDetail.smsBody}"</Text>
+                                        <TouchableOpacity
+                                            style={styles.deleteSmsOnlyBtn}
+                                            onPress={() => {
+                                                if (onUpdateTransaction) {
+                                                    onUpdateTransaction({ ...selectedTxDetail, smsBody: undefined });
+                                                }
+                                                setSelectedTxDetail(prev => prev ? { ...prev, smsBody: undefined } : null);
+                                                safeHaptic('medium');
+                                                Alert.alert('Message Removed', 'The raw SMS has been cleared while keeping the sorted financial record intact.');
+                                            }}
+                                        >
+                                            <Trash2 size={13} color="#EF4444" />
+                                            <Text style={styles.deleteSmsOnlyBtnText}>Delete Message Only (Keep Sorted Record)</Text>
+                                        </TouchableOpacity>
                                     </View>
+                                ) : null}
 
-                                    {selectedTxDetail.isMessageDeleted || (!selectedTxDetail.smsBody && !selectedTxDetail.rawDescription) ? (
-                                        <View style={styles.deletedMsgNotice}>
-                                            <Text style={styles.deletedMsgNoticeText}>ℹ Original message removed from this device.</Text>
-                                            <Text style={styles.deletedMsgSub}>
-                                                ✓ Sorted amount ({selectedTxDetail.type === 'INCOME' ? '+' : '-'}₹{Math.round(selectedTxDetail.amount).toLocaleString()}) and category ({selectedTxDetail.category}) remain permanently preserved in your financial ledger.
-                                            </Text>
-                                        </View>
-                                    ) : (
-                                        <View>
-                                            <Text style={styles.smsMessageBody}>
-                                                {selectedTxDetail.smsBody || selectedTxDetail.rawDescription || `Alert: Your account was debited/credited by Rs.${selectedTxDetail.amount} for ${selectedTxDetail.desc || selectedTxDetail.merchant}.`}
-                                            </Text>
-                                            <TouchableOpacity
-                                                style={styles.deleteMsgOnlyBtn}
-                                                onPress={() => {
-                                                    safeHaptic('medium');
-                                                    const updatedTx = { ...selectedTxDetail, smsBody: null, rawDescription: null, isMessageDeleted: true };
-                                                    onUpdateTransaction?.(updatedTx);
-                                                    setSelectedTxDetail(updatedTx);
-                                                }}
-                                            >
-                                                <Trash2 size={13} color="#EF4444" />
-                                                <Text style={styles.deleteMsgOnlyBtnText}>Delete Message Only (Keep Sorted Record)</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
-                                </View>
-
-                                {/* Quick Re-Categorize Chips & Custom Category Editor */}
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-                                    <Text style={styles.accountGroupHeader}>CHANGE CATEGORY</Text>
-                                    <TouchableOpacity
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                        onPress={() => setIsEditingCustomCat(prev => !prev)}
-                                    >
-                                        <Edit3 size={13} color="#818CF8" />
-                                        <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>
-                                            {isEditingCustomCat ? 'Close' : '+ Custom Category'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {/* Inline Custom Category Creator */}
-                                {isEditingCustomCat && (
-                                    <View style={styles.customCatEditorBox}>
-                                        <Text style={styles.customCatEditorLabel}>Create / Edit Custom Category:</Text>
-                                        <View style={styles.customCatInputRow}>
-                                            <TextInput
-                                                style={styles.customCatInput}
-                                                placeholder="e.g. Gym, Healthcare, Pets"
-                                                placeholderTextColor="#71717A"
-                                                value={customCatInput}
-                                                onChangeText={setCustomCatInput}
-                                                autoFocus
-                                            />
-                                            <TouchableOpacity
-                                                style={styles.customCatApplyBtn}
-                                                onPress={() => {
-                                                    if (customCatInput.trim()) {
-                                                        const newCat = customCatInput.trim();
-                                                        safeHaptic('success');
-                                                        if (!customCategoriesList.includes(newCat)) {
-                                                            setCustomCategoriesList(prev => [...prev, newCat]);
-                                                        }
-                                                        onCategorizeTransaction?.(selectedTxDetail.id, newCat);
-                                                        const updatedTx = { ...selectedTxDetail, category: newCat, needsSort: false };
-                                                        onUpdateTransaction?.(updatedTx);
-                                                        setSelectedTxDetail(updatedTx);
-                                                        setCustomCatInput('');
-                                                        setIsEditingCustomCat(false);
-                                                    }
-                                                }}
-                                            >
-                                                <Check size={14} color="#FFFFFF" />
-                                                <Text style={styles.customCatApplyBtnText}>Apply</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                )}
-
-                                <View style={styles.categoryChipRow}>
-                                    {Array.from(new Set(['Salary', 'Rent', 'Food', 'Travel', 'Shopping', 'Entertainment', 'Other', ...customCategoriesList])).map(cat => {
+                                {/* Change Category */}
+                                <Text style={[styles.accountGroupHeader, { marginTop: 12 }]}>CATEGORIZE THIS ACTIVITY</Text>
+                                <View style={styles.categoryChipsGrid}>
+                                    {['Food', 'Shopping', 'Travel', 'Bills', 'Entertainment', 'Rent', 'Salary', 'Other', ...customCategoriesList].map(cat => {
                                         const isSelected = selectedTxDetail.category === cat;
                                         return (
                                             <TouchableOpacity
                                                 key={cat}
-                                                style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
+                                                style={[styles.wizardCatChip, isSelected && styles.wizardCatChipActive]}
                                                 onPress={() => {
-                                                    safeHaptic('medium');
-                                                    onCategorizeTransaction?.(selectedTxDetail.id, cat);
-                                                    const updatedTx = { ...selectedTxDetail, category: cat, needsSort: false };
-                                                    onUpdateTransaction?.(updatedTx);
-                                                    setSelectedTxDetail(updatedTx);
+                                                    const updated = { ...selectedTxDetail, category: cat, needsSort: false };
+                                                    if (onUpdateTransaction) onUpdateTransaction(updated);
+                                                    setSelectedTxDetail(updated);
+                                                    safeHaptic('light');
                                                 }}
                                             >
-                                                <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>
-                                                    {cat}
-                                                </Text>
+                                                <Text style={[styles.wizardCatChipText, isSelected && { color: '#FFF', fontWeight: '800' }]}>{cat}</Text>
                                             </TouchableOpacity>
                                         );
                                     })}
                                 </View>
-
-                                {/* Action Buttons */}
-                                <View style={{ gap: 10, marginTop: 18 }}>
-                                    <TouchableOpacity
-                                        style={styles.deleteTxBtn}
-                                        onPress={() => {
-                                            safeHaptic('medium');
-                                            onDeleteTransaction?.(selectedTxDetail.id);
-                                            setSelectedTxDetail(null);
-                                        }}
-                                    >
-                                        <Trash2 size={16} color="#EF4444" />
-                                        <Text style={styles.deleteTxBtnText}>Delete Entire Transaction From Ledger</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity
-                                        style={styles.modalPrimaryBtn}
-                                        onPress={() => setSelectedTxDetail(null)}
-                                    >
-                                        <Text style={styles.modalPrimaryBtnText}>Done</Text>
-                                    </TouchableOpacity>
-                                </View>
                             </ScrollView>
                         )}
+
+                        <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setSelectedTxDetail(null)}>
+                            <Text style={styles.modalPrimaryBtnText}>Close</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
@@ -1789,12 +1641,12 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 12
+        alignItems: 'center',
+        marginBottom: 16,
+        paddingHorizontal: 4
     },
     headerLeft: {
-        flex: 1,
-        marginRight: 10
+        flex: 1
     },
     headerTitle: {
         fontSize: 22,
@@ -1803,102 +1655,47 @@ const styles = StyleSheet.create({
         letterSpacing: -0.5
     },
     headerSubtitle: {
-        fontSize: 11,
+        fontSize: 12,
         color: '#71717A',
         marginTop: 2
+    },
+    cashOnlyBadge: {
+        backgroundColor: '#10B98120',
+        borderColor: '#10B98140',
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2
+    },
+    cashOnlyBadgeText: {
+        color: '#10B981',
+        fontSize: 9,
+        fontWeight: '800',
+        letterSpacing: 0.5
     },
     periodPill: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
         backgroundColor: '#1E1B4B',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 20,
+        borderColor: '#312E81',
         borderWidth: 1,
-        borderColor: '#4338CA'
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 7
     },
     periodPillText: {
-        color: '#A5B4FC',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    periodTabRow: {
-        flexDirection: 'row',
-        gap: 6,
-        marginBottom: 14,
-        overflow: 'hidden'
-    },
-    periodTabBtn: {
-        flex: 1,
-        paddingVertical: 6,
-        backgroundColor: '#18181B',
-        borderRadius: 8,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    periodTabBtnActive: {
-        backgroundColor: '#6366F1',
-        borderColor: '#818CF8'
-    },
-    periodTabText: {
-        color: '#71717A',
-        fontSize: 10,
-        fontWeight: '700'
-    },
-    periodTabTextActive: {
-        color: '#FFFFFF'
-    },
-    balanceSheetCard: {
-        backgroundColor: '#121215',
-        borderRadius: 14,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        marginBottom: 12
-    },
-    balanceSheetTitle: {
-        color: '#A1A1AA',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    netWorthHighlight: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '800'
-    },
-    balanceSheetGrid: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 10
-    },
-    balanceCol: {
-        flex: 1,
-        alignItems: 'center'
-    },
-    balanceDivider: {
-        width: 1,
-        height: 24,
-        backgroundColor: '#27272A'
-    },
-    balanceLabel: {
-        color: '#71717A',
-        fontSize: 9,
-        fontWeight: '700',
-        marginBottom: 2
-    },
-    balanceValue: {
+        color: '#818CF8',
         fontSize: 12,
-        fontWeight: '800'
+        fontWeight: '700'
     },
     heroCard: {
-        backgroundColor: '#18181B',
+        backgroundColor: '#111827',
+        borderColor: '#1F2937',
+        borderWidth: 1,
         borderRadius: 16,
         padding: 16,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        marginBottom: 12
+        marginBottom: 14
     },
     heroHeaderRow: {
         flexDirection: 'row',
@@ -1912,15 +1709,16 @@ const styles = StyleSheet.create({
         gap: 6
     },
     liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+        width: 7,
+        height: 7,
+        borderRadius: 4,
         backgroundColor: '#10B981'
     },
     liveText: {
-        color: '#10B981',
         fontSize: 10,
-        fontWeight: '800'
+        fontWeight: '800',
+        color: '#10B981',
+        letterSpacing: 0.5
     },
     trendTriggerBtn: {
         flexDirection: 'row',
@@ -1929,12 +1727,12 @@ const styles = StyleSheet.create({
         backgroundColor: '#1E1B4B',
         paddingHorizontal: 8,
         paddingVertical: 4,
-        borderRadius: 6
+        borderRadius: 12
     },
     trendTriggerText: {
-        color: '#A5B4FC',
-        fontSize: 10,
-        fontWeight: '800'
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '700'
     },
     heroMetricsGrid: {
         flexDirection: 'row',
@@ -1945,326 +1743,201 @@ const styles = StyleSheet.create({
         flex: 1
     },
     heroMetricLabel: {
-        color: '#71717A',
         fontSize: 10,
         fontWeight: '700',
-        marginBottom: 4
+        color: '#71717A',
+        textTransform: 'uppercase',
+        marginBottom: 2
     },
     incomeValue: {
-        color: '#10B981',
-        fontSize: 15,
-        fontWeight: '900'
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#10B981'
     },
     expenseValue: {
-        color: '#EF4444',
-        fontSize: 15,
-        fontWeight: '900'
+        fontSize: 18,
+        fontWeight: '900',
+        color: '#EF4444'
     },
     netFlowValue: {
-        fontSize: 15,
+        fontSize: 18,
         fontWeight: '900'
     },
     surplusBannerBase: {
-        padding: 8,
         borderRadius: 8,
-        borderWidth: 1,
-        alignItems: 'center'
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        marginTop: 4
     },
     surplusBannerPositive: {
         backgroundColor: '#10B98115',
-        borderColor: '#10B98130'
+        borderColor: '#10B98130',
+        borderWidth: 1
     },
     surplusBannerNegative: {
         backgroundColor: '#EF444415',
-        borderColor: '#EF444430'
+        borderColor: '#EF444430',
+        borderWidth: 1
     },
     surplusBannerNeutral: {
-        backgroundColor: '#27272A50',
-        borderColor: '#3F3F46'
+        backgroundColor: '#27272A',
+        borderColor: '#3F3F46',
+        borderWidth: 1
     },
     surplusBannerTextBase: {
         fontSize: 11,
-        fontWeight: '700'
+        fontWeight: '600',
+        textAlign: 'center'
     },
     surplusBannerTextPositive: {
-        color: '#34D399'
+        color: '#10B981'
     },
     surplusBannerTextNegative: {
-        color: '#F87171'
+        color: '#EF4444'
     },
     surplusBannerTextNeutral: {
         color: '#A1A1AA'
     },
-    emergencyCard: {
+    addActivityCard: {
         backgroundColor: '#18181B',
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
         borderColor: '#27272A',
-        marginBottom: 12
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 14
     },
-    emergencyTitle: {
+    addActivityPrimaryBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#4F46E5',
+        borderRadius: 12,
+        paddingVertical: 12,
+        marginBottom: 10
+    },
+    addActivityPrimaryText: {
         color: '#FFFFFF',
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: '800'
     },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
+    addActivityShortcutRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 10
+    },
+    shortcutBtn: {
+        flex: 1,
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderRadius: 10,
         borderWidth: 1
     },
-    statusBadgeText: {
-        fontSize: 9,
-        fontWeight: '800'
+    shortcutBtnText: {
+        fontSize: 12,
+        fontWeight: '700'
     },
-    emergencyStatsRow: {
+    quickChipsRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between'
+    },
+    quickChipItem: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 14
+    },
+    quickChipText: {
+        color: '#D4D4D8',
+        fontSize: 11,
+        fontWeight: '600'
+    },
+    reviewBannerCard: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginVertical: 12
+        backgroundColor: '#7F1D1D25',
+        borderColor: '#EF444440',
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 14
     },
-    emergencyStatItem: {
-        flex: 1,
-        alignItems: 'center'
+    reviewBannerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        flex: 1
     },
-    emergencyStatLabel: {
-        color: '#71717A',
-        fontSize: 9,
-        fontWeight: '700',
-        marginBottom: 2
+    reviewPulseDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#EF4444'
     },
-    emergencyStatVal: {
-        color: '#FFFFFF',
+    reviewBannerTitle: {
+        color: '#EF4444',
         fontSize: 13,
         fontWeight: '800'
     },
-    emergencyStatSub: {
-        color: '#52525B',
-        fontSize: 8,
-        marginTop: 2
+    reviewBannerSub: {
+        color: '#A1A1AA',
+        fontSize: 10
     },
-    mathSignCol: {
-        paddingHorizontal: 2
-    },
-    mathSignText: {
-        color: '#71717A',
-        fontSize: 14,
-        fontWeight: '800'
-    },
-    runwayProgressTrack: {
-        height: 6,
-        backgroundColor: '#27272A',
-        borderRadius: 3,
-        overflow: 'hidden',
-        marginVertical: 8
-    },
-    runwayProgressBar: {
-        height: '100%',
-        borderRadius: 3
-    },
-    shortfallRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#F59E0B15',
-        padding: 8,
-        borderRadius: 8,
-        marginBottom: 10
-    },
-    shortfallText: {
-        color: '#FBBF24',
-        fontSize: 11
-    },
-    emergencyBtnRow: {
-        flexDirection: 'row',
-        gap: 8
-    },
-    mathExplanationBtn: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        backgroundColor: '#1E1B4B',
-        paddingVertical: 8,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#4338CA'
-    },
-    mathExplanationBtnText: {
-        color: '#A5B4FC',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    designateBtn: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        backgroundColor: '#27272A',
-        paddingVertical: 8,
+    reviewBannerBtn: {
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 8
     },
-    designateBtnText: {
-        color: '#E4E4E7',
+    reviewBannerBtnText: {
+        color: '#FFFFFF',
         fontSize: 11,
-        fontWeight: '700'
-    },
-    mergedSectionDivider: {
-        height: 1,
-        backgroundColor: '#27272A',
-        marginVertical: 14
-    },
-    cfoCard: {
-        backgroundColor: '#0F0E17',
-        borderRadius: 16,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#4338CA',
-        marginBottom: 12
-    },
-    cfoHeaderRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 6
-    },
-    cfoHeaderLabel: {
-        color: '#818CF8',
-        fontSize: 10,
-        fontWeight: '800',
-        letterSpacing: 0.5
-    },
-    cfoPriorityTitle: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '800',
-        marginBottom: 4
-    },
-    cfoPriorityDesc: {
-        color: '#A1A1AA',
-        fontSize: 12,
-        lineHeight: 16,
-        marginBottom: 10
-    },
-    tagPillRow: {
-        flexDirection: 'row',
-        gap: 6,
-        marginBottom: 12
-    },
-    tagPill: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6,
-        borderWidth: 1
-    },
-    tagPillText: {
-        fontSize: 10,
-        fontWeight: '700'
-    },
-    cfoMetricsRow: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 12
-    },
-    cfoMetricBox: {
-        flex: 1,
-        backgroundColor: '#18181B',
-        padding: 10,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    cfoMetricLabel: {
-        color: '#71717A',
-        fontSize: 9,
-        fontWeight: '700'
-    },
-    cfoMetricScore: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800'
-    },
-    gradeBadge: {
-        backgroundColor: '#10B98120',
-        paddingHorizontal: 5,
-        paddingVertical: 1,
-        borderRadius: 4
-    },
-    gradeBadgeText: {
-        color: '#10B981',
-        fontSize: 9,
-        fontWeight: '800'
-    },
-    cfoMetricSub: {
-        color: '#52525B',
-        fontSize: 8,
-        marginTop: 2
-    },
-    cfoMetricImprovement: {
-        color: '#818CF8',
-        fontSize: 14,
-        fontWeight: '800',
-        marginTop: 2
-    },
-    seeImpactCTA: {
-        backgroundColor: '#6366F1',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-        borderRadius: 10
-    },
-    seeImpactCTAText: {
-        color: '#FFFFFF',
-        fontSize: 12,
         fontWeight: '800'
     },
     sectionCard: {
         backgroundColor: '#18181B',
+        borderColor: '#27272A',
+        borderWidth: 1,
         borderRadius: 16,
         padding: 16,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        marginBottom: 12
+        marginBottom: 14
+    },
+    sectionCardTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+        color: '#FFFFFF'
     },
     cardHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10
-    },
-    sectionCardTitle: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '800'
+        marginBottom: 12
     },
     triadTabRow: {
         flexDirection: 'row',
-        backgroundColor: '#121215',
-        borderRadius: 8,
-        padding: 2,
+        backgroundColor: '#27272A',
+        borderRadius: 10,
+        padding: 3,
         marginBottom: 12
     },
     triadTabBtn: {
         flex: 1,
-        paddingVertical: 6,
         alignItems: 'center',
-        borderRadius: 6
+        paddingVertical: 6,
+        borderRadius: 8
     },
     triadTabBtnActive: {
-        backgroundColor: '#27272A'
+        backgroundColor: '#3F3F46'
     },
     triadTabText: {
+        fontSize: 12,
         color: '#71717A',
-        fontSize: 11,
-        fontWeight: '700'
+        fontWeight: '600'
     },
     triadTabTextActive: {
-        color: '#FFFFFF'
+        color: '#FFFFFF',
+        fontWeight: '800'
     },
     categoryList: {
         gap: 10
@@ -2283,78 +1956,75 @@ const styles = StyleSheet.create({
         gap: 6
     },
     categoryDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3
+        width: 8,
+        height: 8,
+        borderRadius: 4
     },
     categoryName: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '700'
+        fontSize: 13,
+        color: '#E4E4E7',
+        fontWeight: '600'
     },
     categoryAmountContainer: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8
+        gap: 6
     },
     categoryPercent: {
-        color: '#71717A',
-        fontSize: 11
+        fontSize: 12,
+        color: '#71717A'
     },
     categoryAmount: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800'
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#FFFFFF'
     },
     categoryProgressTrack: {
-        height: 4,
+        height: 5,
         backgroundColor: '#27272A',
-        borderRadius: 2,
+        borderRadius: 3,
         overflow: 'hidden'
     },
     categoryProgressBar: {
         height: '100%',
-        borderRadius: 2
+        borderRadius: 3
     },
     merchantRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
+        paddingVertical: 4
     },
     merchantLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8
+        gap: 10
     },
     merchantAvatar: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         backgroundColor: '#27272A',
         alignItems: 'center',
         justifyContent: 'center'
     },
     merchantAvatarText: {
         color: '#818CF8',
-        fontSize: 12,
-        fontWeight: '800'
+        fontWeight: '800',
+        fontSize: 14
     },
     merchantName: {
         color: '#FFFFFF',
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '700'
     },
     merchantSub: {
         color: '#71717A',
-        fontSize: 10
+        fontSize: 11
     },
     merchantAmount: {
         color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800'
+        fontSize: 13,
+        fontWeight: '700'
     },
     merchantPercent: {
         color: '#71717A',
@@ -2364,23 +2034,40 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
+        paddingVertical: 6
     },
     accountName: {
         color: '#FFFFFF',
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '700'
     },
     accountSub: {
         color: '#71717A',
-        fontSize: 10
+        fontSize: 11
     },
     accountBalance: {
-        color: '#38BDF8',
-        fontSize: 12,
+        color: '#FFFFFF',
+        fontSize: 13,
         fontWeight: '800'
+    },
+    liquidTotalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderTopColor: '#27272A',
+        borderTopWidth: 1,
+        paddingTop: 10,
+        marginTop: 4
+    },
+    liquidTotalLabel: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    liquidTotalVal: {
+        color: '#10B981',
+        fontSize: 14,
+        fontWeight: '900'
     },
     viewBreakdownBtn: {
         flexDirection: 'row',
@@ -2388,91 +2075,131 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 4,
         marginTop: 12,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: '#27272A'
+        paddingTop: 10,
+        borderTopColor: '#27272A',
+        borderTopWidth: 1
     },
     viewBreakdownBtnText: {
-        color: '#71717A',
+        color: '#818CF8',
         fontSize: 11,
         fontWeight: '700'
     },
-    obligationRow: {
+    safetyCard: {
+        backgroundColor: '#0F172A',
+        borderColor: '#1E293B',
+        borderWidth: 1,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 14
+    },
+    safetyTitle: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800'
+    },
+    statusBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+        borderWidth: 1
+    },
+    statusBadgeText: {
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    safetyStatsTable: {
+        backgroundColor: '#1E293B50',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 10
+    },
+    safetyStatRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#121215',
-        padding: 8,
-        borderRadius: 8
+        paddingVertical: 5,
+        borderBottomColor: '#33415550',
+        borderBottomWidth: 1
     },
-    obligationTitle: {
+    safetyStatLabel: {
+        color: '#94A3B8',
+        fontSize: 12
+    },
+    safetyStatVal: {
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '700'
     },
-    obligationDate: {
-        color: '#71717A',
-        fontSize: 10,
-        marginTop: 1
+    shortfallRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#78350F25',
+        borderColor: '#F59E0B40',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 10
     },
-    obligationAmount: {
-        color: '#EF4444',
-        fontSize: 12,
-        fontWeight: '800'
-    },
-    obligationBadge: {
+    shortfallText: {
         color: '#F59E0B',
-        fontSize: 9,
+        fontSize: 11,
+        flex: 1
+    },
+    safetyActionRow: {
+        flexDirection: 'row',
+        gap: 8
+    },
+    safetyActionBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        backgroundColor: '#1E1B4B',
+        paddingVertical: 8,
+        borderRadius: 8
+    },
+    safetyActionBtnText: {
+        color: '#818CF8',
+        fontSize: 11,
         fontWeight: '700'
     },
-    addInstantlyText: {
-        color: '#71717A',
-        fontSize: 10
-    },
-    quickIconRow: {
+    safetyActionBtnSecondary: {
+        flex: 1,
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12
-    },
-    quickIconItem: {
         alignItems: 'center',
-        gap: 4
+        justifyContent: 'center',
+        gap: 4,
+        backgroundColor: '#334155',
+        paddingVertical: 8,
+        borderRadius: 8
     },
-    quickIconCircle: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center'
+    safetyActionBtnSecondaryText: {
+        color: '#E2E8F0',
+        fontSize: 11,
+        fontWeight: '700'
     },
-    quickIconLabel: {
+    feedCountBadge: {
+        backgroundColor: '#27272A',
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 2
+    },
+    feedCountBadgeText: {
         color: '#A1A1AA',
         fontSize: 10,
         fontWeight: '700'
     },
-    addCustomBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        backgroundColor: '#1E1B4B',
-        paddingVertical: 10,
-        borderRadius: 10,
+    needsSortBadge: {
+        backgroundColor: '#7F1D1D30',
+        borderColor: '#EF444440',
         borderWidth: 1,
-        borderColor: '#4338CA'
+        borderRadius: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2
     },
-    addCustomBtnText: {
-        color: '#A5B4FC',
-        fontSize: 11,
-        fontWeight: '800'
-    },
-    needsSortTrigger: {
-        backgroundColor: '#EF444420',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6
-    },
-    needsSortTriggerText: {
+    needsSortBadgeText: {
         color: '#EF4444',
         fontSize: 10,
         fontWeight: '800'
@@ -2481,131 +2208,123 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        backgroundColor: '#121215',
+        backgroundColor: '#27272A',
+        borderRadius: 10,
         paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 8,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#27272A'
+        marginBottom: 10
     },
     searchInput: {
         flex: 1,
         color: '#FFFFFF',
-        fontSize: 11,
+        fontSize: 12,
         padding: 0
     },
     feedFilterRow: {
         flexDirection: 'row',
-        gap: 6,
-        marginBottom: 10
+        marginBottom: 12
     },
     feedFilterPill: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        backgroundColor: '#121215',
+        backgroundColor: '#27272A',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        marginRight: 6
+        marginRight: 8
     },
     feedFilterPillActive: {
-        backgroundColor: '#6366F1',
-        borderColor: '#818CF8'
+        backgroundColor: '#4F46E5'
     },
     feedFilterText: {
         color: '#71717A',
-        fontSize: 10,
-        fontWeight: '700'
+        fontSize: 11,
+        fontWeight: '600'
     },
     feedFilterTextActive: {
-        color: '#FFFFFF'
+        color: '#FFFFFF',
+        fontWeight: '800'
+    },
+    emptyStateBox: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 30,
+        gap: 8
+    },
+    emptyStateText: {
+        color: '#71717A',
+        fontSize: 12
     },
     dateGroupContainer: {
-        marginBottom: 12
+        marginBottom: 14
     },
     dateGroupHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: 4,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A',
         marginBottom: 6
     },
     dateGroupTitle: {
-        color: '#A1A1AA',
-        fontSize: 10,
+        color: '#71717A',
+        fontSize: 11,
         fontWeight: '800',
         letterSpacing: 0.5
     },
     dateGroupCount: {
         color: '#52525B',
-        fontSize: 9
+        fontSize: 10
     },
     feedTxCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#121215',
-        padding: 8,
-        borderRadius: 8,
-        marginBottom: 4
+        backgroundColor: '#1E1E24',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 6
     },
     feedTxLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 10,
         flex: 1
     },
     feedTxAvatar: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
         justifyContent: 'center'
     },
     feedTxTitle: {
         color: '#FFFFFF',
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: '700'
     },
     feedTxSub: {
         color: '#71717A',
-        fontSize: 9
+        fontSize: 11
     },
     feedTxAmount: {
-        fontSize: 12,
-        fontWeight: '800'
+        fontSize: 14,
+        fontWeight: '900'
     },
     needsSortChip: {
-        backgroundColor: '#EF444420',
+        backgroundColor: '#7F1D1D40',
+        borderRadius: 4,
         paddingHorizontal: 4,
         paddingVertical: 1,
-        borderRadius: 4,
         marginTop: 2
     },
     needsSortChipText: {
         color: '#EF4444',
-        fontSize: 8,
+        fontSize: 9,
         fontWeight: '800'
     },
     sortedStatusText: {
         color: '#10B981',
-        fontSize: 8,
+        fontSize: 9,
+        fontWeight: '700',
         marginTop: 2
     },
-    emptyStateBox: {
-        alignItems: 'center',
-        paddingVertical: 20,
-        gap: 6
-    },
-    emptyStateText: {
-        color: '#71717A',
-        fontSize: 11
-    },
-
-    // Modal Styles
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -2615,26 +2334,24 @@ const styles = StyleSheet.create({
         backgroundColor: '#18181B',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        padding: 16,
-        maxHeight: '85%',
-        borderWidth: 1,
-        borderColor: '#27272A'
+        padding: 20,
+        maxHeight: '90%'
     },
     modalHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 14
+        marginBottom: 16
     },
     modalTitle: {
         color: '#FFFFFF',
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '800'
     },
     modalPrimaryBtn: {
-        backgroundColor: '#6366F1',
+        backgroundColor: '#4F46E5',
+        borderRadius: 12,
         paddingVertical: 12,
-        borderRadius: 10,
         alignItems: 'center',
         marginTop: 14
     },
@@ -2643,80 +2360,342 @@ const styles = StyleSheet.create({
         fontSize: 13,
         fontWeight: '800'
     },
-    mathCard: {
-        backgroundColor: '#1E1B4B',
+    txTypeToggleRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 14
+    },
+    txTypeBtn: {
+        flex: 1,
+        backgroundColor: '#27272A',
+        paddingVertical: 8,
+        borderRadius: 8,
+        alignItems: 'center'
+    },
+    txTypeBtnText: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    amountInputHero: {
+        backgroundColor: '#27272A',
+        borderRadius: 12,
         padding: 12,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#4338CA',
+        fontSize: 24,
+        fontWeight: '900',
+        color: '#FFFFFF',
+        textAlign: 'center',
         marginBottom: 12
     },
-    mathFormulaTitle: {
-        color: '#A5B4FC',
-        fontSize: 9,
-        fontWeight: '800',
-        marginBottom: 4
-    },
-    mathFormulaLarge: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '700',
-        marginBottom: 6
-    },
-    mathResultRow: {
-        color: '#A5B4FC',
-        fontSize: 13
-    },
-    breakdownSectionTitle: {
+    inputLabel: {
         color: '#A1A1AA',
         fontSize: 11,
-        fontWeight: '800',
-        marginVertical: 8
+        fontWeight: '700',
+        marginBottom: 4
     },
-    mathBreakdownRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
-    },
-    mathBreakdownLabel: {
-        color: '#D4D4D8',
-        fontSize: 11
-    },
-    mathBreakdownVal: {
+    formInput: {
+        backgroundColor: '#27272A',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
         color: '#FFFFFF',
+        fontSize: 13,
+        marginBottom: 10
+    },
+    modalCatChip: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginRight: 6
+    },
+    modalCatChipActive: {
+        backgroundColor: '#4F46E5'
+    },
+    modalCatChipText: {
+        color: '#A1A1AA',
+        fontSize: 11,
+        fontWeight: '600'
+    },
+    modalCatChipTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '800'
+    },
+    modalAccChip: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginRight: 6
+    },
+    modalAccChipActive: {
+        backgroundColor: '#10B981'
+    },
+    modalAccChipText: {
+        color: '#A1A1AA',
+        fontSize: 11,
+        fontWeight: '600'
+    },
+    modalAccChipTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '800'
+    },
+    recurringSalaryAlert: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#10B98115',
+        borderColor: '#10B98130',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 10
+    },
+    recurringSalaryAlertText: {
+        color: '#10B981',
+        fontSize: 11,
+        flex: 1
+    },
+    transferNeutralNotice: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#1E1B4B',
+        borderColor: '#312E81',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 8,
+        marginBottom: 10
+    },
+    transferNeutralNoticeText: {
+        color: '#818CF8',
+        fontSize: 11,
+        flex: 1
+    },
+    reviewWizardProgressBar: {
+        backgroundColor: '#27272A',
+        borderRadius: 6,
+        paddingVertical: 4,
+        alignItems: 'center',
+        marginBottom: 12
+    },
+    reviewWizardProgressText: {
+        color: '#A1A1AA',
         fontSize: 11,
         fontWeight: '700'
     },
-    mathTotalRow: {
+    reviewCardHero: {
+        backgroundColor: '#27272A',
+        borderRadius: 12,
+        padding: 14,
+        alignItems: 'center',
+        marginBottom: 10
+    },
+    reviewMerchantTitle: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '800',
+        marginBottom: 4
+    },
+    reviewAmountHero: {
+        fontSize: 26,
+        fontWeight: '900',
+        color: '#EF4444',
+        marginBottom: 4
+    },
+    reviewDateSub: {
+        color: '#71717A',
+        fontSize: 11
+    },
+    rawSmsBox: {
+        backgroundColor: '#1F1F23',
+        borderColor: '#333338',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12
+    },
+    rawSmsLabel: {
+        color: '#71717A',
+        fontSize: 9,
+        fontWeight: '800',
+        marginBottom: 2
+    },
+    rawSmsText: {
+        color: '#D4D4D8',
+        fontSize: 11,
+        fontFamily: 'monospace'
+    },
+    categoryChipsGrid: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: '#3F3F46',
-        marginTop: 6
+        flexWrap: 'wrap',
+        gap: 6
+    },
+    wizardCatChip: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 8
+    },
+    wizardCatChipActive: {
+        backgroundColor: '#4F46E5'
+    },
+    wizardCatChipText: {
+        color: '#D4D4D8',
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    confirmReviewBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#10B981',
+        borderRadius: 10,
+        paddingVertical: 10
+    },
+    confirmReviewBtnText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800'
+    },
+    applySimilarBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#1E1B4B',
+        borderColor: '#818CF8',
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingVertical: 10
+    },
+    applySimilarBtnText: {
+        color: '#818CF8',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    ignoreReviewBtn: {
+        alignItems: 'center',
+        paddingVertical: 8
+    },
+    ignoreReviewBtnText: {
+        color: '#71717A',
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    emptyReviewBox: {
+        alignItems: 'center',
+        paddingVertical: 30,
+        gap: 8
+    },
+    emptyReviewTitle: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '800'
+    },
+    emptyReviewSub: {
+        color: '#71717A',
+        fontSize: 12,
+        textAlign: 'center',
+        paddingHorizontal: 20
+    },
+    formulaBox: {
+        backgroundColor: '#1E1B4B',
+        borderColor: '#312E81',
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 12
+    },
+    formulaText: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '700',
+        textAlign: 'center'
     },
     accountGroupHeader: {
         color: '#71717A',
         fontSize: 10,
         fontWeight: '800',
-        marginBottom: 8
+        letterSpacing: 0.5,
+        marginBottom: 6
     },
-    designateAccountRow: {
+    mathBreakdownRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        paddingVertical: 4
+    },
+    mathBreakdownLabel: {
+        color: '#D4D4D8',
+        fontSize: 12
+    },
+    mathBreakdownVal: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    mathTotalRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        borderTopColor: '#27272A',
+        borderTopWidth: 1,
+        paddingTop: 4,
+        marginTop: 4
+    },
+    mathTotalLabel: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    mathTotalVal: {
+        color: '#10B981',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    mathResultBanner: {
+        backgroundColor: '#27272A',
+        borderRadius: 8,
+        padding: 10,
+        alignItems: 'center'
+    },
+    mathResultText: {
+        color: '#FFFFFF',
+        fontSize: 13
+    },
+    modalSubDesc: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        marginBottom: 12
+    },
+    designateItemRow: {
+        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
+        justifyContent: 'space-between',
+        backgroundColor: '#27272A',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 6
+    },
+    designateItemRowActive: {
+        borderColor: '#10B981',
+        borderWidth: 1
+    },
+    designateItemName: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    designateItemBal: {
+        color: '#71717A',
+        fontSize: 11
     },
     checkbox: {
-        width: 18,
-        height: 18,
+        width: 20,
+        height: 20,
         borderRadius: 4,
-        borderWidth: 1,
         borderColor: '#52525B',
+        borderWidth: 2,
         alignItems: 'center',
         justifyContent: 'center'
     },
@@ -2724,184 +2703,33 @@ const styles = StyleSheet.create({
         backgroundColor: '#10B981',
         borderColor: '#10B981'
     },
-    surplusContextCard: {
-        backgroundColor: '#121215',
-        padding: 10,
-        borderRadius: 8,
-        marginBottom: 12
-    },
-    scenarioSelectorTitle: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '800',
-        marginBottom: 8
-    },
-    scenarioPillsRow: {
+    trendSummaryGrid: {
         flexDirection: 'row',
         gap: 8,
         marginBottom: 14
     },
-    scenarioPill: {
-        flex: 1,
-        paddingVertical: 8,
-        backgroundColor: '#27272A',
-        borderRadius: 8,
-        alignItems: 'center'
-    },
-    scenarioPillActive: {
-        backgroundColor: '#6366F1'
-    },
-    scenarioPillText: {
-        color: '#A1A1AA',
-        fontSize: 12,
-        fontWeight: '800'
-    },
-    scenarioPillTextActive: {
-        color: '#FFFFFF'
-    },
-    impactGrid: {
-        backgroundColor: '#121215',
-        borderRadius: 10,
-        padding: 10,
-        marginBottom: 12
-    },
-    impactRowHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingBottom: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
-    },
-    impactHeaderLabel: {
-        color: '#71717A',
-        fontSize: 9,
-        fontWeight: '800',
-        flex: 1,
-        textAlign: 'center'
-    },
-    impactRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
-    },
-    impactMetricName: {
-        color: '#D4D4D8',
-        fontSize: 11,
-        flex: 1.2
-    },
-    impactMetricBefore: {
-        color: '#A1A1AA',
-        fontSize: 11,
-        flex: 1,
-        textAlign: 'center'
-    },
-    impactMetricAfter: {
-        fontSize: 11,
-        fontWeight: '800',
-        flex: 1,
-        textAlign: 'center'
-    },
-    todoHeader: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '800',
-        marginTop: 6,
-        marginBottom: 4
-    },
-    txTypeToggleRow: {
-        flexDirection: 'row',
-        backgroundColor: '#121215',
-        borderRadius: 8,
-        padding: 2,
-        marginBottom: 12
-    },
-    txTypeBtn: {
-        flex: 1,
-        paddingVertical: 8,
-        alignItems: 'center',
-        borderRadius: 6
-    },
-    txTypeBtnText: {
-        color: '#71717A',
-        fontSize: 11,
-        fontWeight: '800'
-    },
-    inputLabel: {
-        color: '#71717A',
-        fontSize: 10,
-        fontWeight: '700',
-        marginBottom: 4,
-        marginTop: 8
-    },
-    formInput: {
-        backgroundColor: '#121215',
-        borderWidth: 1,
-        borderColor: '#27272A',
-        borderRadius: 8,
-        color: '#FFFFFF',
-        fontSize: 12,
-        paddingHorizontal: 10,
-        paddingVertical: 8
-    },
-    recurringToggleRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#121215',
-        padding: 10,
-        borderRadius: 8,
-        marginTop: 12
-    },
-    toggleCheckbox: {
-        width: 18,
-        height: 18,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: '#52525B',
-        alignItems: 'center',
-        justifyContent: 'center'
-    },
-    toggleCheckboxActive: {
-        backgroundColor: '#10B981',
-        borderColor: '#10B981'
-    },
-    miniTxRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
-    },
-    trendSummaryGrid: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 12
-    },
     trendSummaryCol: {
         flex: 1,
-        backgroundColor: '#121215',
+        backgroundColor: '#27272A',
+        borderRadius: 8,
         padding: 10,
-        borderRadius: 8
+        alignItems: 'center'
     },
     trendSummaryLabel: {
         color: '#71717A',
-        fontSize: 9,
-        fontWeight: '700'
+        fontSize: 10,
+        fontWeight: '700',
+        marginBottom: 2
     },
     trendSummaryVal: {
-        fontSize: 14,
-        fontWeight: '800',
-        marginTop: 2
+        fontSize: 15,
+        fontWeight: '900'
     },
     trendMonthRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#27272A'
+        marginBottom: 10
     },
     trendBarTrack: {
         height: 4,
@@ -2911,403 +2739,151 @@ const styles = StyleSheet.create({
     },
     trendBarFill: {
         height: '100%',
-        backgroundColor: '#10B981',
+        backgroundColor: '#818CF8',
         borderRadius: 2
     },
     donutPlaceholderCard: {
-        backgroundColor: '#121215',
+        backgroundColor: '#27272A',
+        borderRadius: 12,
         padding: 14,
-        borderRadius: 10,
         alignItems: 'center',
         marginBottom: 12
     },
-    periodPreviewBanner: {
-        backgroundColor: '#1E1B4B',
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 14,
-        borderWidth: 1,
-        borderColor: '#4338CA'
+    txDetailHeroCard: {
+        backgroundColor: '#27272A',
+        borderRadius: 12,
+        padding: 14,
+        alignItems: 'center',
+        marginBottom: 12
     },
-    periodPreviewLabel: {
-        color: '#818CF8',
-        fontSize: 9,
-        fontWeight: '800',
-        letterSpacing: 0.5
-    },
-    periodPreviewDates: {
+    txDetailMerchant: {
         color: '#FFFFFF',
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: '800',
-        marginTop: 3
+        marginBottom: 4
+    },
+    txDetailAmount: {
+        fontSize: 24,
+        fontWeight: '900',
+        marginBottom: 4
+    },
+    txDetailDate: {
+        color: '#71717A',
+        fontSize: 11
+    },
+    txDetailSmsCard: {
+        backgroundColor: '#1F1F23',
+        borderColor: '#333338',
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 12
+    },
+    txDetailSmsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4
+    },
+    txDetailSmsTitle: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    txDetailSmsBody: {
+        color: '#D4D4D8',
+        fontSize: 11,
+        fontFamily: 'monospace',
+        marginBottom: 8
+    },
+    deleteSmsOnlyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingTop: 6,
+        borderTopColor: '#27272A',
+        borderTopWidth: 1
+    },
+    deleteSmsOnlyBtnText: {
+        color: '#EF4444',
+        fontSize: 11,
+        fontWeight: '700'
     },
     periodSectionHeading: {
         color: '#71717A',
         fontSize: 10,
         fontWeight: '800',
         letterSpacing: 0.5,
-        marginBottom: 8,
-        marginTop: 6
-    },
-    periodPresetsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        marginBottom: 14
-    },
-    presetOptionCard: {
-        width: '48%',
-        backgroundColor: '#18181B',
-        padding: 10,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    presetOptionCardActive: {
-        backgroundColor: '#312E81',
-        borderColor: '#6366F1'
-    },
-    presetOptionTitle: {
-        color: '#D4D4D8',
-        fontSize: 12,
-        fontWeight: '700'
-    },
-    presetOptionTitleActive: {
-        color: '#A5B4FC'
-    },
-    presetOptionDesc: {
-        color: '#71717A',
-        fontSize: 9,
-        marginTop: 2
-    },
-    quickShortcutsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-        marginBottom: 14
-    },
-    quickShortcutPill: {
-        backgroundColor: '#18181B',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    quickShortcutPillText: {
-        color: '#A1A1AA',
-        fontSize: 10,
-        fontWeight: '700'
-    },
-    customDateInputsRow: {
-        flexDirection: 'row',
-        gap: 10,
         marginBottom: 8
     },
-    customDateInputLabel: {
-        color: '#A1A1AA',
-        fontSize: 10,
-        fontWeight: '700',
-        marginBottom: 4
+    presetGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8
     },
-    customDateInputField: {
-        backgroundColor: '#18181B',
-        borderWidth: 1,
-        borderColor: '#27272A',
-        borderRadius: 8,
-        paddingHorizontal: 10,
+    presetBtn: {
+        backgroundColor: '#27272A',
+        paddingHorizontal: 12,
         paddingVertical: 8,
-        color: '#FFFFFF',
+        borderRadius: 8
+    },
+    presetBtnActive: {
+        backgroundColor: '#4F46E5'
+    },
+    presetBtnText: {
+        color: '#A1A1AA',
         fontSize: 12,
         fontWeight: '600'
+    },
+    presetBtnTextActive: {
+        color: '#FFFFFF',
+        fontWeight: '800'
     },
     yearSwitcherContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#18181B',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 6,
-        borderWidth: 1,
-        borderColor: '#27272A'
+        gap: 8
     },
     yearNavBtn: {
+        backgroundColor: '#27272A',
         padding: 4,
-        alignItems: 'center',
-        justifyContent: 'center'
+        borderRadius: 4
     },
-    yearSwitcherText: {
+    yearText: {
         color: '#FFFFFF',
         fontSize: 12,
-        fontWeight: '800',
-        paddingHorizontal: 4
+        fontWeight: '700'
     },
-    monthsGrid: {
+    monthGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 6,
-        marginBottom: 14
+        gap: 8
     },
-    monthGridCard: {
-        width: '23%',
-        backgroundColor: '#18181B',
-        paddingVertical: 8,
-        borderRadius: 8,
+    monthGridItem: {
+        width: (width - 88) / 4,
+        backgroundColor: '#27272A',
+        paddingVertical: 10,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#27272A'
+        borderRadius: 8
     },
-    monthGridCardActive: {
-        backgroundColor: '#312E81',
-        borderColor: '#6366F1'
-    },
-    monthGridShort: {
+    monthGridText: {
         color: '#D4D4D8',
         fontSize: 12,
-        fontWeight: '800'
-    },
-    monthGridShortActive: {
-        color: '#A5B4FC'
-    },
-    monthGridYear: {
-        color: '#71717A',
-        fontSize: 8,
-        marginTop: 2
+        fontWeight: '700'
     },
     emptyBreakdownCard: {
-        backgroundColor: '#121215',
-        borderRadius: 10,
-        padding: 16,
         alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: 6,
-        borderWidth: 1,
-        borderColor: '#27272A',
+        paddingVertical: 20,
         gap: 4
     },
     emptyBreakdownTitle: {
         color: '#A1A1AA',
         fontSize: 12,
-        fontWeight: '700',
-        marginTop: 4
+        fontWeight: '700'
     },
     emptyBreakdownSub: {
-        color: '#52525B',
-        fontSize: 10,
-        textAlign: 'center',
-        paddingHorizontal: 12
-    },
-    txDetailHeroCard: {
-        backgroundColor: '#18181B',
-        borderRadius: 12,
-        padding: 16,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#27272A',
-        marginBottom: 14
-    },
-    txDetailMerchant: {
-        color: '#A1A1AA',
-        fontSize: 13,
-        fontWeight: '700'
-    },
-    txDetailAmount: {
-        fontSize: 28,
-        fontWeight: '900',
-        marginVertical: 4
-    },
-    txDetailBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 6
-    },
-    txDetailBadgeText: {
-        fontSize: 10,
-        fontWeight: '800'
-    },
-    txMetaGrid: {
-        backgroundColor: '#18181B',
-        borderRadius: 10,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        gap: 8,
-        marginBottom: 12
-    },
-    txMetaRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-    },
-    txMetaLabel: {
         color: '#71717A',
-        fontSize: 12,
-        fontWeight: '600'
-    },
-    txMetaValue: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '700'
-    },
-    smsMessageCard: {
-        backgroundColor: '#121215',
-        borderRadius: 10,
-        padding: 12,
-        borderWidth: 1,
-        borderColor: '#312E8140',
-        marginBottom: 12
-    },
-    smsMessageHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 6
-    },
-    smsMessageTitle: {
-        color: '#818CF8',
-        fontSize: 11,
-        fontWeight: '800'
-    },
-    smsMessageSource: {
-        color: '#6366F1',
-        fontSize: 9,
-        fontWeight: '700'
-    },
-    smsMessageBody: {
-        color: '#E4E4E7',
-        fontSize: 12,
-        lineHeight: 18,
-        fontFamily: 'monospace'
-    },
-    categoryChipRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-        marginTop: 8,
-        marginBottom: 8
-    },
-    categoryChip: {
-        backgroundColor: '#18181B',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    categoryChipActive: {
-        backgroundColor: '#312E81',
-        borderColor: '#6366F1'
-    },
-    categoryChipText: {
-        color: '#A1A1AA',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    categoryChipTextActive: {
-        color: '#A5B4FC'
-    },
-    deleteTxBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        backgroundColor: '#EF444415',
-        borderWidth: 1,
-        borderColor: '#EF444430',
-        borderRadius: 10,
-        paddingVertical: 10
-    },
-    deleteTxBtnText: {
-        color: '#EF4444',
-        fontSize: 12,
-        fontWeight: '700'
-    },
-    deleteMsgOnlyBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 8,
-        paddingVertical: 4,
-        alignSelf: 'flex-start'
-    },
-    deleteMsgOnlyBtnText: {
-        color: '#EF4444',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    deletedMsgNotice: {
-        backgroundColor: '#1E1B4B40',
-        borderRadius: 8,
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#6366F130'
-    },
-    deletedMsgNoticeText: {
-        color: '#A5B4FC',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    deletedMsgSub: {
-        color: '#10B981',
         fontSize: 10,
-        fontWeight: '600',
-        marginTop: 4,
-        lineHeight: 14
-    },
-    customCatEditorBox: {
-        backgroundColor: '#18181B',
-        borderRadius: 10,
-        padding: 10,
-        borderWidth: 1,
-        borderColor: '#6366F160',
-        marginVertical: 8
-    },
-    customCatEditorLabel: {
-        color: '#A1A1AA',
-        fontSize: 11,
-        fontWeight: '700',
-        marginBottom: 6
-    },
-    customCatInputRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8
-    },
-    customCatInput: {
-        flex: 1,
-        backgroundColor: '#121215',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#27272A',
-        color: '#FFFFFF',
-        fontSize: 12,
-        paddingHorizontal: 10,
-        paddingVertical: 6
-    },
-    customCatApplyBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: '#6366F1',
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 8
-    },
-    customCatApplyBtnText: {
-        color: '#FFFFFF',
-        fontSize: 11,
-        fontWeight: '800'
-    },
-    feedCountBadge: {
-        backgroundColor: '#27272A',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10
-    },
-    feedCountBadgeText: {
-        color: '#A1A1AA',
-        fontSize: 10,
-        fontWeight: '800'
+        textAlign: 'center'
     }
 });
