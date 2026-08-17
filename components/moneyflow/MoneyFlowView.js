@@ -75,7 +75,8 @@ import {
     computePeriodCashFlowTruth,
     getUpcomingOutflows,
     getHistoricalCashFlowTrend,
-    normalizeMerchant
+    normalizeMerchant,
+    runAuthoritativeWhatIfSimulation
 } from './moneyFlowPresentationAdapter';
 
 import { formatCurrencyINR, formatCompactCurrencyINR } from '../../components/investments/decisionPresentationAdapter';
@@ -165,6 +166,9 @@ export default function MoneyFlowView({
     const [txDate, setTxDate] = useState('2026-08-17');
     const [txIsRecurring, setTxIsRecurring] = useState(false);
 
+    const [showSimulationModal, setShowSimulationModal] = useState(false);
+    const [simAllocationAmount, setSimAllocationAmount] = useState(30000);
+
     // ── 2. COMPUTED FINANCIAL VIEWMODELS ─────────────────────────────────────
     const periodBounds = useMemo(() => {
         return getPeriodBounds(periodType, referenceDate, customRange.start, customRange.end);
@@ -177,6 +181,15 @@ export default function MoneyFlowView({
     const runwayMetrics = useMemo(() => {
         return computeEmergencyRunwayMetrics(reserveData.currentReserve, DEFAULT_ESSENTIAL_BURN_BREAKDOWN);
     }, [reserveData.currentReserve]);
+
+    const simulationResult = useMemo(() => {
+        return runAuthoritativeWhatIfSimulation({
+            allocationAmount: simAllocationAmount,
+            currentReserve: reserveData.currentReserve,
+            essentialMonthlyBurn: runwayMetrics.essentialMonthlyBurn,
+            asOfDate: referenceDate
+        });
+    }, [simAllocationAmount, reserveData.currentReserve, runwayMetrics.essentialMonthlyBurn, referenceDate]);
 
     const cashFlowTruth = useMemo(() => {
         return computePeriodCashFlowTruth(transactions, periodBounds);
@@ -726,12 +739,12 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* ── 6. CASH SAFETY & RUNWAY (CASH ONLY) ── */}
+            {/* ── 6. EMERGENCY RESERVE & RUNWAY (COMBINED EQUATION LAYOUT) ── */}
             <View style={styles.safetyCard}>
                 <View style={styles.cardHeaderRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Shield size={16} color="#10B981" />
-                        <Text style={styles.safetyTitle}>🛡 Cash Safety & Runway</Text>
+                        <Shield size={16} color="#818CF8" />
+                        <Text style={styles.safetyTitle}>🛡 Emergency Reserve & Runway</Text>
                     </View>
                     <View style={[styles.statusBadge, { backgroundColor: `${runwayMetrics.statusColor}20`, borderColor: runwayMetrics.statusColor }]}>
                         <Text style={[styles.statusBadgeText, { color: runwayMetrics.statusColor }]}>
@@ -740,25 +753,26 @@ export default function MoneyFlowView({
                     </View>
                 </View>
 
-                {/* Point-in-Time Metrics Table */}
-                <View style={styles.safetyStatsTable}>
-                    <View style={styles.safetyStatRow}>
-                        <Text style={styles.safetyStatLabel}>Liquid Cash</Text>
-                        <Text style={styles.safetyStatVal}>{reserveData.totalLiquidCashFormatted}</Text>
+                {/* Horizontal Equation Block: Designated Reserve ÷ Essential Monthly Burn = Emergency Runway */}
+                <View style={styles.equationRow}>
+                    <View style={styles.equationCol}>
+                        <Text style={styles.equationLabel}>Designated Reserve</Text>
+                        <Text style={styles.equationVal}>{reserveData.currentReserveFormatted}</Text>
+                        <Text style={styles.equationSub}>{designatedAccountIds.length} accounts</Text>
                     </View>
-                    <View style={styles.safetyStatRow}>
-                        <Text style={styles.safetyStatLabel}>Designated Emergency Cash</Text>
-                        <Text style={[styles.safetyStatVal, { color: '#10B981' }]}>{reserveData.currentReserveFormatted}</Text>
+                    <Text style={styles.equationOp}>÷</Text>
+                    <View style={styles.equationCol}>
+                        <Text style={styles.equationLabel}>Essential Monthly Burn</Text>
+                        <Text style={styles.equationVal}>{runwayMetrics.essentialMonthlyBurnFormatted}</Text>
+                        <Text style={styles.equationSub}>Rent, EMIs, Food</Text>
                     </View>
-                    <View style={styles.safetyStatRow}>
-                        <Text style={styles.safetyStatLabel}>Essential Monthly Burn</Text>
-                        <Text style={styles.safetyStatVal}>{runwayMetrics.essentialMonthlyBurnFormatted}/mo</Text>
-                    </View>
-                    <View style={[styles.safetyStatRow, { borderBottomWidth: 0 }]}>
-                        <Text style={styles.safetyStatLabel}>Emergency Runway</Text>
-                        <Text style={[styles.safetyStatVal, { color: runwayMetrics.statusColor, fontWeight: '800' }]}>
-                            {runwayMetrics.runwayMonths} months ⚠️
+                    <Text style={styles.equationOp}>=</Text>
+                    <View style={styles.equationCol}>
+                        <Text style={styles.equationLabel}>Emergency Runway</Text>
+                        <Text style={[styles.equationVal, { color: runwayMetrics.statusColor }]}>
+                            {runwayMetrics.runwayMonths} mo
                         </Text>
+                        <Text style={styles.equationSub}>Target: 3–6 mo</Text>
                     </View>
                 </View>
 
@@ -779,7 +793,7 @@ export default function MoneyFlowView({
                         onPress={() => setShowMathModal(true)}
                     >
                         <Info size={13} color="#818CF8" />
-                        <Text style={styles.safetyActionBtnText}>How is this calculated?</Text>
+                        <Text style={styles.safetyActionBtnText}>See Calculation Math</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -787,9 +801,86 @@ export default function MoneyFlowView({
                         onPress={() => setShowDesignateModal(true)}
                     >
                         <Building2 size={13} color="#A1A1AA" />
-                        <Text style={styles.safetyActionBtnSecondaryText}>Designate Cash</Text>
+                        <Text style={styles.safetyActionBtnSecondaryText}>Designate Accounts</Text>
                     </TouchableOpacity>
                 </View>
+            </View>
+
+            {/* ── 6B. PERSONAL CFO INTELLIGENCE CARD (ACTIONABLE STREAM) ── */}
+            <View style={styles.cfoIntelligenceCard}>
+                <View style={styles.cfoHeaderRow}>
+                    <Sparkles size={14} color="#818CF8" />
+                    <Text style={styles.cfoHeaderTitle}>PERSONAL CFO INTELLIGENCE</Text>
+                </View>
+
+                <View style={styles.cfoPriorityRow}>
+                    <Text style={styles.cfoPriorityMedal}>🥇</Text>
+                    <Text style={styles.cfoPriorityTitle}>Your #1 Priority Right Now</Text>
+                </View>
+
+                <Text style={styles.cfoPriorityDesc}>
+                    Increase emergency reserve to achieve 3-month peace of mind and lower liquidity stress.
+                </Text>
+
+                {/* 3 Tag Chips */}
+                <View style={styles.cfoTagRow}>
+                    <View style={styles.cfoTagAmber}>
+                        <Text style={styles.cfoTagAmberText}>High Impact</Text>
+                    </View>
+                    <View style={styles.cfoTagCyan}>
+                        <Text style={styles.cfoTagCyanText}>Liquidity</Text>
+                    </View>
+                    <View style={styles.cfoTagGreen}>
+                        <Text style={styles.cfoTagGreenText}>Low Effort</Text>
+                    </View>
+                </View>
+
+                {/* 2-Column Metrics Box */}
+                <View style={styles.cfoMetricsRow}>
+                    <View style={styles.cfoMetricBox}>
+                        <Text style={styles.cfoMetricLabel}>Health Score</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <Text style={styles.cfoMetricVal}>{simulationResult.before.healthScore} / 100</Text>
+                            <View style={styles.cfoGradeBadge}>
+                                <Text style={styles.cfoGradeBadgeText}>{simulationResult.before.healthGrade}</Text>
+                            </View>
+                        </View>
+                        <Text style={styles.cfoMetricEngineSub}>Authoritative C.7 Engine</Text>
+                    </View>
+
+                    <View style={styles.cfoMetricBox}>
+                        <Text style={styles.cfoMetricLabel}>Potential improvement</Text>
+                        <Text style={[styles.cfoMetricVal, { color: '#818CF8', marginTop: 4 }]}>
+                            +{simulationResult.deltas.healthScoreDelta > 0 ? `+${simulationResult.deltas.healthScoreDelta}` : simulationResult.deltas.healthScoreDelta} pts
+                        </Text>
+                        <Text style={styles.cfoMetricEngineSub}>Simulated via C.8.6</Text>
+                    </View>
+                </View>
+
+                {/* CTA Button: See Authoritative What-If Simulation */}
+                <TouchableOpacity
+                    style={styles.cfoSimulationBtn}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                        safeHaptic('medium');
+                        setShowSimulationModal(true);
+                    }}
+                >
+                    <Text style={styles.cfoSimulationBtnText}>See Authoritative What-If Simulation</Text>
+                    <ArrowUpRight size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                {/* Sub-action: View All Recommendations */}
+                <TouchableOpacity
+                    style={styles.cfoSubActionBtn}
+                    onPress={() => {
+                        safeHaptic('light');
+                        router.push('/(tabs)/investments');
+                    }}
+                >
+                    <Text style={styles.cfoSubActionText}>View All Recommendations</Text>
+                    <ChevronRight size={14} color="#818CF8" />
+                </TouchableOpacity>
             </View>
 
             {/* ── 7. CASH ACTIVITY FEED (SMART COLLAPSIBLE FEED) ── */}
@@ -1628,6 +1719,93 @@ export default function MoneyFlowView({
                     </View>
                 </View>
             </Modal>
+
+            {/* ── MODAL 9: AUTHORITATIVE WHAT-IF SIMULATION MODAL ── */}
+            <Modal
+                visible={showSimulationModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowSimulationModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Sparkles size={18} color="#818CF8" />
+                                <Text style={styles.modalTitle}>Authoritative What-If Simulation</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowSimulationModal(false)}>
+                                <X size={20} color="#A1A1AA" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: 420 }}>
+                            <Text style={styles.cfoPriorityDesc}>
+                                Simulate allocating additional liquid cash toward your emergency reserve and inspect the impact on health score and runway.
+                            </Text>
+
+                            {/* Preset Allocation Buttons */}
+                            <Text style={styles.accountGroupHeader}>CHOOSE ALLOCATION AMOUNT</Text>
+                            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+                                {[20000, 30000, 50000, 100000].map(amt => (
+                                    <TouchableOpacity
+                                        key={amt}
+                                        style={[
+                                            styles.quickChipItem,
+                                            simAllocationAmount === amt && { backgroundColor: '#4F46E5', borderColor: '#818CF8' }
+                                        ]}
+                                        onPress={() => {
+                                            setSimAllocationAmount(amt);
+                                            safeHaptic('light');
+                                        }}
+                                    >
+                                        <Text style={[styles.quickChipText, simAllocationAmount === amt && { color: '#FFF', fontWeight: '800' }]}>
+                                            ₹{(amt / 1000).toFixed(0)}K
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Comparative Simulation Grid */}
+                            <View style={styles.simulationCompareCard}>
+                                <View style={styles.simulationCol}>
+                                    <Text style={styles.simulationColHeader}>CURRENT</Text>
+                                    <Text style={styles.simulationMetricLabel}>Reserve</Text>
+                                    <Text style={styles.simulationMetricVal}>{simulationResult.before.reserveFormatted}</Text>
+                                    <Text style={styles.simulationMetricLabel}>Runway</Text>
+                                    <Text style={[styles.simulationMetricVal, { color: '#EF4444' }]}>{simulationResult.before.runway}</Text>
+                                    <Text style={styles.simulationMetricLabel}>Health Score</Text>
+                                    <Text style={styles.simulationMetricVal}>{simulationResult.before.healthScore} ({simulationResult.before.healthGrade})</Text>
+                                </View>
+
+                                <View style={styles.simulationColDivider} />
+
+                                <View style={styles.simulationCol}>
+                                    <Text style={[styles.simulationColHeader, { color: '#10B981' }]}>PROJECTED (+₹{(simAllocationAmount / 1000).toFixed(0)}K)</Text>
+                                    <Text style={styles.simulationMetricLabel}>Reserve</Text>
+                                    <Text style={[styles.simulationMetricVal, { color: '#10B981' }]}>{simulationResult.after.reserveFormatted}</Text>
+                                    <Text style={styles.simulationMetricLabel}>Runway</Text>
+                                    <Text style={[styles.simulationMetricVal, { color: '#10B981' }]}>{simulationResult.after.runway}</Text>
+                                    <Text style={styles.simulationMetricLabel}>Health Score</Text>
+                                    <Text style={[styles.simulationMetricVal, { color: '#818CF8' }]}>
+                                        {simulationResult.after.healthScore} (+{simulationResult.deltas.healthScoreDelta} pts)
+                                    </Text>
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.modalPrimaryBtn, { marginTop: 12 }]}
+                            onPress={() => {
+                                setShowSimulationModal(false);
+                                router.push('/(tabs)/investments');
+                            }}
+                        >
+                            <Text style={styles.modalPrimaryBtnText}>Go to Decision Center ➔</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -2106,6 +2284,231 @@ const styles = StyleSheet.create({
     statusBadgeText: {
         fontSize: 10,
         fontWeight: '800'
+    },
+    equationRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#1E293B40',
+        borderColor: '#33415540',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10,
+        marginTop: 10,
+        marginBottom: 12
+    },
+    equationCol: {
+        flex: 1,
+        alignItems: 'center'
+    },
+    equationLabel: {
+        color: '#94A3B8',
+        fontSize: 10,
+        fontWeight: '700',
+        textAlign: 'center',
+        marginBottom: 2
+    },
+    equationVal: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '900',
+        textAlign: 'center'
+    },
+    equationSub: {
+        color: '#64748B',
+        fontSize: 9,
+        marginTop: 2,
+        textAlign: 'center'
+    },
+    equationOp: {
+        color: '#94A3B8',
+        fontSize: 15,
+        fontWeight: '900',
+        paddingHorizontal: 2
+    },
+    cfoIntelligenceCard: {
+        backgroundColor: '#0C0D24',
+        borderColor: '#3730A3',
+        borderWidth: 1.5,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 14
+    },
+    cfoHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 10
+    },
+    cfoHeaderTitle: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '900',
+        letterSpacing: 0.8
+    },
+    cfoPriorityRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 6
+    },
+    cfoPriorityMedal: {
+        fontSize: 16
+    },
+    cfoPriorityTitle: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '800'
+    },
+    cfoPriorityDesc: {
+        color: '#A1A1AA',
+        fontSize: 12,
+        lineHeight: 17,
+        marginBottom: 12
+    },
+    cfoTagRow: {
+        flexDirection: 'row',
+        gap: 6,
+        marginBottom: 14
+    },
+    cfoTagAmber: {
+        backgroundColor: '#78350F30',
+        borderColor: '#F59E0B50',
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3
+    },
+    cfoTagAmberText: {
+        color: '#F59E0B',
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    cfoTagCyan: {
+        backgroundColor: '#0E749030',
+        borderColor: '#06B6D450',
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3
+    },
+    cfoTagCyanText: {
+        color: '#06B6D4',
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    cfoTagGreen: {
+        backgroundColor: '#065F4630',
+        borderColor: '#10B98150',
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3
+    },
+    cfoTagGreenText: {
+        color: '#10B981',
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    cfoMetricsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 14
+    },
+    cfoMetricBox: {
+        flex: 1,
+        backgroundColor: '#151638',
+        borderColor: '#2D2B69',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 10
+    },
+    cfoMetricLabel: {
+        color: '#94A3B8',
+        fontSize: 10,
+        fontWeight: '700'
+    },
+    cfoMetricVal: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '900'
+    },
+    cfoGradeBadge: {
+        backgroundColor: '#065F46',
+        borderRadius: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 1
+    },
+    cfoGradeBadgeText: {
+        color: '#34D399',
+        fontSize: 10,
+        fontWeight: '900'
+    },
+    cfoMetricEngineSub: {
+        color: '#64748B',
+        fontSize: 9,
+        marginTop: 4
+    },
+    cfoSimulationBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#4F46E5',
+        borderRadius: 12,
+        paddingVertical: 12,
+        marginBottom: 10
+    },
+    cfoSimulationBtnText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    cfoSubActionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        paddingVertical: 4
+    },
+    cfoSubActionText: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    simulationCompareCard: {
+        flexDirection: 'row',
+        backgroundColor: '#151638',
+        borderColor: '#2D2B69',
+        borderWidth: 1,
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 14
+    },
+    simulationCol: {
+        flex: 1
+    },
+    simulationColHeader: {
+        color: '#94A3B8',
+        fontSize: 10,
+        fontWeight: '800',
+        marginBottom: 8,
+        letterSpacing: 0.5
+    },
+    simulationMetricLabel: {
+        color: '#71717A',
+        fontSize: 10,
+        marginTop: 6
+    },
+    simulationMetricVal: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800'
+    },
+    simulationColDivider: {
+        width: 1,
+        backgroundColor: '#2D2B69',
+        marginHorizontal: 10
     },
     safetyStatsTable: {
         backgroundColor: '#1E293B50',
