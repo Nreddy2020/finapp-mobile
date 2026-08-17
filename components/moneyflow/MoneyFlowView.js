@@ -336,32 +336,6 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* Quick Period Selector Tabs */}
-            <View style={styles.periodTabRow}>
-                {[
-                    { key: 'today', label: 'Today' },
-                    { key: 'week', label: 'This Week' },
-                    { key: 'month', label: 'This Month' },
-                    { key: 'quarter', label: 'Quarter' },
-                    { key: 'year', label: 'Year' },
-                    { key: 'custom', label: 'Custom' }
-                ].map(tab => (
-                    <TouchableOpacity
-                        key={tab.key}
-                        style={[styles.periodTabBtn, periodType === tab.key && styles.periodTabBtnActive]}
-                        onPress={() => {
-                            setPeriodType(tab.key);
-                            if (tab.key === 'custom') setShowPeriodModal(true);
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        }}
-                    >
-                        <Text style={[styles.periodTabText, periodType === tab.key && styles.periodTabTextActive]}>
-                            {tab.label}
-                        </Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
             {/* ── 1. AS-OF-DATE BALANCE SHEET VS PERIOD CASH FLOW ── */}
             <View style={styles.balanceSheetCard}>
                 <View style={styles.cardHeaderRow}>
