@@ -55,7 +55,8 @@ import {
     FileText,
     Trash2,
     Tag,
-    MessageSquare
+    MessageSquare,
+    Edit3
 } from 'lucide-react-native';
 
 import {
@@ -80,6 +81,7 @@ export default function MoneyFlowView({
     onAddTransaction,
     onCategorizeTransaction,
     onDeleteTransaction,
+    onUpdateTransaction,
     asOfDate = '2026-08-17T00:00:00.000Z'
 }) {
     const router = useRouter();
@@ -140,6 +142,9 @@ export default function MoneyFlowView({
     const [showNeedsSortInbox, setShowNeedsSortInbox] = useState(false);
     const [showTrendModal, setShowTrendModal] = useState(false);
     const [selectedTxDetail, setSelectedTxDetail] = useState(null);
+    const [customCatInput, setCustomCatInput] = useState('');
+    const [isEditingCustomCat, setIsEditingCustomCat] = useState(false);
+    const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education']);
 
     // Simulation Slider State
     const [simulationAmount, setSimulationAmount] = useState(30000);
@@ -1608,17 +1613,93 @@ export default function MoneyFlowView({
                                             <FileText size={14} color="#818CF8" />
                                             <Text style={styles.smsMessageTitle}>Original Bank Alert / SMS</Text>
                                         </View>
-                                        <Text style={styles.smsMessageSource}>Auto-Synced</Text>
+                                        <Text style={styles.smsMessageSource}>
+                                            {selectedTxDetail.isMessageDeleted ? 'Message Removed' : 'Auto-Synced'}
+                                        </Text>
                                     </View>
-                                    <Text style={styles.smsMessageBody}>
-                                        {selectedTxDetail.smsBody || selectedTxDetail.rawDescription || `Alert: Your account was debited/credited by Rs.${selectedTxDetail.amount} for ${selectedTxDetail.desc || selectedTxDetail.merchant}.`}
-                                    </Text>
+
+                                    {selectedTxDetail.isMessageDeleted || (!selectedTxDetail.smsBody && !selectedTxDetail.rawDescription) ? (
+                                        <View style={styles.deletedMsgNotice}>
+                                            <Text style={styles.deletedMsgNoticeText}>ℹ Original message removed from this device.</Text>
+                                            <Text style={styles.deletedMsgSub}>
+                                                ✓ Sorted amount ({selectedTxDetail.type === 'INCOME' ? '+' : '-'}₹{Math.round(selectedTxDetail.amount).toLocaleString()}) and category ({selectedTxDetail.category}) remain permanently preserved in your financial ledger.
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View>
+                                            <Text style={styles.smsMessageBody}>
+                                                {selectedTxDetail.smsBody || selectedTxDetail.rawDescription || `Alert: Your account was debited/credited by Rs.${selectedTxDetail.amount} for ${selectedTxDetail.desc || selectedTxDetail.merchant}.`}
+                                            </Text>
+                                            <TouchableOpacity
+                                                style={styles.deleteMsgOnlyBtn}
+                                                onPress={() => {
+                                                    safeHaptic('medium');
+                                                    const updatedTx = { ...selectedTxDetail, smsBody: null, rawDescription: null, isMessageDeleted: true };
+                                                    onUpdateTransaction?.(updatedTx);
+                                                    setSelectedTxDetail(updatedTx);
+                                                }}
+                                            >
+                                                <Trash2 size={13} color="#EF4444" />
+                                                <Text style={styles.deleteMsgOnlyBtnText}>Delete Message Only (Keep Sorted Record)</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
                                 </View>
 
-                                {/* Quick Re-Categorize Chips */}
-                                <Text style={[styles.accountGroupHeader, { marginTop: 14 }]}>CHANGE CATEGORY</Text>
+                                {/* Quick Re-Categorize Chips & Custom Category Editor */}
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+                                    <Text style={styles.accountGroupHeader}>CHANGE CATEGORY</Text>
+                                    <TouchableOpacity
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                        onPress={() => setIsEditingCustomCat(prev => !prev)}
+                                    >
+                                        <Edit3 size={13} color="#818CF8" />
+                                        <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>
+                                            {isEditingCustomCat ? 'Close' : '+ Custom Category'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                {/* Inline Custom Category Creator */}
+                                {isEditingCustomCat && (
+                                    <View style={styles.customCatEditorBox}>
+                                        <Text style={styles.customCatEditorLabel}>Create / Edit Custom Category:</Text>
+                                        <View style={styles.customCatInputRow}>
+                                            <TextInput
+                                                style={styles.customCatInput}
+                                                placeholder="e.g. Gym, Healthcare, Pets"
+                                                placeholderTextColor="#71717A"
+                                                value={customCatInput}
+                                                onChangeText={setCustomCatInput}
+                                                autoFocus
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.customCatApplyBtn}
+                                                onPress={() => {
+                                                    if (customCatInput.trim()) {
+                                                        const newCat = customCatInput.trim();
+                                                        safeHaptic('success');
+                                                        if (!customCategoriesList.includes(newCat)) {
+                                                            setCustomCategoriesList(prev => [...prev, newCat]);
+                                                        }
+                                                        onCategorizeTransaction?.(selectedTxDetail.id, newCat);
+                                                        const updatedTx = { ...selectedTxDetail, category: newCat, needsSort: false };
+                                                        onUpdateTransaction?.(updatedTx);
+                                                        setSelectedTxDetail(updatedTx);
+                                                        setCustomCatInput('');
+                                                        setIsEditingCustomCat(false);
+                                                    }
+                                                }}
+                                            >
+                                                <Check size={14} color="#FFFFFF" />
+                                                <Text style={styles.customCatApplyBtnText}>Apply</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                )}
+
                                 <View style={styles.categoryChipRow}>
-                                    {['Salary', 'Rent', 'Food', 'Travel', 'Shopping', 'Entertainment', 'Other'].map(cat => {
+                                    {Array.from(new Set(['Salary', 'Rent', 'Food', 'Travel', 'Shopping', 'Entertainment', 'Other', ...customCategoriesList])).map(cat => {
                                         const isSelected = selectedTxDetail.category === cat;
                                         return (
                                             <TouchableOpacity
@@ -1627,7 +1708,9 @@ export default function MoneyFlowView({
                                                 onPress={() => {
                                                     safeHaptic('medium');
                                                     onCategorizeTransaction?.(selectedTxDetail.id, cat);
-                                                    setSelectedTxDetail(prev => ({ ...prev, category: cat, needsSort: false }));
+                                                    const updatedTx = { ...selectedTxDetail, category: cat, needsSort: false };
+                                                    onUpdateTransaction?.(updatedTx);
+                                                    setSelectedTxDetail(updatedTx);
                                                 }}
                                             >
                                                 <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>
@@ -1649,7 +1732,7 @@ export default function MoneyFlowView({
                                         }}
                                     >
                                         <Trash2 size={16} color="#EF4444" />
-                                        <Text style={styles.deleteTxBtnText}>Delete Transaction</Text>
+                                        <Text style={styles.deleteTxBtnText}>Delete Entire Transaction From Ledger</Text>
                                     </TouchableOpacity>
 
                                     <TouchableOpacity
@@ -3110,5 +3193,81 @@ const styles = StyleSheet.create({
         color: '#EF4444',
         fontSize: 12,
         fontWeight: '700'
+    },
+    deleteMsgOnlyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 8,
+        paddingVertical: 4,
+        alignSelf: 'flex-start'
+    },
+    deleteMsgOnlyBtnText: {
+        color: '#EF4444',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    deletedMsgNotice: {
+        backgroundColor: '#1E1B4B40',
+        borderRadius: 8,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#6366F130'
+    },
+    deletedMsgNoticeText: {
+        color: '#A5B4FC',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    deletedMsgSub: {
+        color: '#10B981',
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 4,
+        lineHeight: 14
+    },
+    customCatEditorBox: {
+        backgroundColor: '#18181B',
+        borderRadius: 10,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: '#6366F160',
+        marginVertical: 8
+    },
+    customCatEditorLabel: {
+        color: '#A1A1AA',
+        fontSize: 11,
+        fontWeight: '700',
+        marginBottom: 6
+    },
+    customCatInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8
+    },
+    customCatInput: {
+        flex: 1,
+        backgroundColor: '#121215',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#27272A',
+        color: '#FFFFFF',
+        fontSize: 12,
+        paddingHorizontal: 10,
+        paddingVertical: 6
+    },
+    customCatApplyBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        backgroundColor: '#6366F1',
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 8
+    },
+    customCatApplyBtnText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '800'
     }
 });

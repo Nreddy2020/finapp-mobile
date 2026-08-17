@@ -2334,6 +2334,9 @@ export default function SelfScreen() {
                             setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
                         }}
                         onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
+                        onUpdateTransaction={(updatedTx) => {
+                            setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+                        }}
                         asOfDate={new Date().toISOString()}
                     />
                 )}
