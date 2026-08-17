@@ -378,14 +378,52 @@ export default function MoneyFlowView({
                     </View>
                 </View>
 
-                {/* Dynamic Surplus Banner */}
-                <View style={styles.surplusBanner}>
-                    <Text style={styles.surplusBannerText}>
-                        {cashFlowTruth.netCashFlow >= 0
-                            ? `Surplus is healthy! ${cashFlowTruth.savingsRate}% savings rate this period.`
-                            : `Deficit detected this period. Review discretionary spending.`}
-                    </Text>
-                </View>
+                {/* Dynamic Surplus / Cash Flow Status Banner */}
+                {(() => {
+                    const isZeroActivity = cashFlowTruth.totalIncome === 0 && cashFlowTruth.totalSpending === 0;
+                    const isPureExpense = cashFlowTruth.totalIncome === 0 && cashFlowTruth.totalSpending > 0;
+                    const isPureIncome = cashFlowTruth.totalIncome > 0 && cashFlowTruth.totalSpending === 0;
+                    const isSurplus = cashFlowTruth.netCashFlow > 0;
+                    const isDeficit = cashFlowTruth.netCashFlow < 0;
+
+                    let bannerText = 'No cash activity recorded for this period.';
+                    let bannerStyle = styles.surplusBannerNeutral;
+                    let textStyle = styles.surplusBannerTextNeutral;
+
+                    if (isZeroActivity) {
+                        bannerText = 'No cash transactions recorded for this period yet.';
+                        bannerStyle = styles.surplusBannerNeutral;
+                        textStyle = styles.surplusBannerTextNeutral;
+                    } else if (isPureIncome) {
+                        bannerText = `100% savings rate! ${cashFlowTruth.totalIncomeFormatted} income preserved as surplus.`;
+                        bannerStyle = styles.surplusBannerPositive;
+                        textStyle = styles.surplusBannerTextPositive;
+                    } else if (isPureExpense) {
+                        bannerText = `Net deficit of ${cashFlowTruth.totalSpendingFormatted} (No income logged this period).`;
+                        bannerStyle = styles.surplusBannerNegative;
+                        textStyle = styles.surplusBannerTextNegative;
+                    } else if (isSurplus) {
+                        bannerText = `Surplus is healthy! ${cashFlowTruth.savingsRate}% savings rate this period.`;
+                        bannerStyle = styles.surplusBannerPositive;
+                        textStyle = styles.surplusBannerTextPositive;
+                    } else if (isDeficit) {
+                        bannerText = `Deficit detected this period. Spending exceeded income.`;
+                        bannerStyle = styles.surplusBannerNegative;
+                        textStyle = styles.surplusBannerTextNegative;
+                    } else {
+                        bannerText = 'Broke even: Income exactly matches spending this period.';
+                        bannerStyle = styles.surplusBannerNeutral;
+                        textStyle = styles.surplusBannerTextNeutral;
+                    }
+
+                    return (
+                        <View style={[styles.surplusBannerBase, bannerStyle]}>
+                            <Text style={[styles.surplusBannerTextBase, textStyle]}>
+                                {bannerText}
+                            </Text>
+                        </View>
+                    );
+                })()}
             </View>
 
             {/* ── 3. TRANSPARENT EMERGENCY RESERVE CARD ── */}
@@ -1683,18 +1721,36 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '900'
     },
-    surplusBanner: {
-        backgroundColor: '#10B98115',
+    surplusBannerBase: {
         padding: 8,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#10B98130',
         alignItems: 'center'
     },
-    surplusBannerText: {
-        color: '#34D399',
+    surplusBannerPositive: {
+        backgroundColor: '#10B98115',
+        borderColor: '#10B98130'
+    },
+    surplusBannerNegative: {
+        backgroundColor: '#EF444415',
+        borderColor: '#EF444430'
+    },
+    surplusBannerNeutral: {
+        backgroundColor: '#27272A50',
+        borderColor: '#3F3F46'
+    },
+    surplusBannerTextBase: {
         fontSize: 11,
         fontWeight: '700'
+    },
+    surplusBannerTextPositive: {
+        color: '#34D399'
+    },
+    surplusBannerTextNegative: {
+        color: '#F87171'
+    },
+    surplusBannerTextNeutral: {
+        color: '#A1A1AA'
     },
     emergencyCard: {
         backgroundColor: '#18181B',
