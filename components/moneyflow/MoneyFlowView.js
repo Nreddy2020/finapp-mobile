@@ -80,6 +80,19 @@ export default function MoneyFlowView({
     asOfDate = '2026-08-17T00:00:00.000Z'
 }) {
     const router = useRouter();
+
+    const safeHaptic = (type = 'light') => {
+        try {
+            if (type === 'success') {
+                Haptics.notificationAsync?.(Haptics.NotificationFeedbackType.Success)?.catch(() => {});
+            } else if (type === 'medium') {
+                Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Medium)?.catch(() => {});
+            } else {
+                Haptics.impactAsync?.(Haptics.ImpactFeedbackStyle.Light)?.catch(() => {});
+            }
+        } catch (e) {}
+    };
+
     // ── 1. ACTIVE STATE ──────────────────────────────────────────────────────
     const [periodType, setPeriodType] = useState('month'); // 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
     const [referenceDate, setReferenceDate] = useState(asOfDate);
@@ -217,7 +230,7 @@ export default function MoneyFlowView({
         setTxDesc('');
         setTxAmount('');
         setTxMerchant('');
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safeHaptic('success');
         Alert.alert('Transaction Logged', `${txType === 'TRANSFER' ? 'Transfer' : txType === 'INCOME' ? 'Income' : 'Expense'} of ₹${amt.toLocaleString()} recorded successfully.`);
     };
 
@@ -233,7 +246,7 @@ export default function MoneyFlowView({
                 return [...prev, accId];
             }
         });
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        safeHaptic('light');
     };
 
     const handleApplyCategoryToAllSimilar = (merchantName, categoryName) => {
@@ -244,7 +257,7 @@ export default function MoneyFlowView({
                 }
             });
         }
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        safeHaptic('success');
         Alert.alert('Bulk Categorization', `Assigned "${categoryName}" to all transactions from ${merchantName}.`);
     };
 
