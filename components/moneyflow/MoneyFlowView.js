@@ -842,14 +842,14 @@ export default function MoneyFlowView({
                                     <View style={styles.feedTxLeft}>
                                         <View style={[
                                             styles.feedTxAvatar,
-                                            { backgroundColor: tx.type === 'INCOME' ? '#10B98120' : tx.type === 'TRANSFER' ? '#818CF820' : '#27272A' }
+                                            { backgroundColor: tx.type === 'INCOME' ? '#10B98120' : tx.type === 'TRANSFER' ? '#818CF820' : '#EF444420' }
                                         ]}>
                                             {tx.type === 'TRANSFER' ? (
                                                 <ArrowLeftRight size={16} color="#818CF8" />
                                             ) : tx.type === 'INCOME' ? (
                                                 <TrendingUp size={16} color="#10B981" />
                                             ) : (
-                                                <Building2 size={16} color="#A1A1AA" />
+                                                <TrendingDown size={16} color="#EF4444" />
                                             )}
                                         </View>
                                         <View style={{ flex: 1 }}>
@@ -863,7 +863,7 @@ export default function MoneyFlowView({
                                     <View style={{ alignItems: 'flex-end' }}>
                                         <Text style={[
                                             styles.feedTxAmount,
-                                            { color: tx.type === 'INCOME' ? '#10B981' : tx.type === 'TRANSFER' ? '#818CF8' : '#FFF' }
+                                            { color: tx.type === 'INCOME' ? '#10B981' : tx.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }
                                         ]}>
                                             {tx.type === 'INCOME' ? '+' : tx.type === 'TRANSFER' ? '⇄ ' : '-'}₹{Math.round(tx.amount).toLocaleString()}
                                         </Text>
