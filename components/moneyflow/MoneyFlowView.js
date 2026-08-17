@@ -52,7 +52,10 @@ import {
     DollarSign,
     Layers,
     ArrowLeftRight,
-    FileText
+    FileText,
+    Trash2,
+    Tag,
+    MessageSquare
 } from 'lucide-react-native';
 
 import {
@@ -136,6 +139,7 @@ export default function MoneyFlowView({
     const [showBreakdownModal, setShowBreakdownModal] = useState(false);
     const [showNeedsSortInbox, setShowNeedsSortInbox] = useState(false);
     const [showTrendModal, setShowTrendModal] = useState(false);
+    const [selectedTxDetail, setSelectedTxDetail] = useState(null);
 
     // Simulation Slider State
     const [simulationAmount, setSimulationAmount] = useState(30000);
@@ -821,7 +825,15 @@ export default function MoneyFlowView({
                             </View>
 
                             {group.txList.map(tx => (
-                                <View key={tx.id} style={styles.feedTxCard}>
+                                <TouchableOpacity
+                                    key={tx.id}
+                                    style={styles.feedTxCard}
+                                    activeOpacity={0.7}
+                                    onPress={() => {
+                                        safeHaptic('light');
+                                        setSelectedTxDetail(tx);
+                                    }}
+                                >
                                     <View style={styles.feedTxLeft}>
                                         <View style={[
                                             styles.feedTxAvatar,
@@ -858,7 +870,7 @@ export default function MoneyFlowView({
                                             <Text style={styles.sortedStatusText}>Sorted ✓</Text>
                                         )}
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </View>
                     ))
@@ -1521,6 +1533,134 @@ export default function MoneyFlowView({
                         <TouchableOpacity style={styles.modalPrimaryBtn} onPress={() => setShowBreakdownModal(false)}>
                             <Text style={styles.modalPrimaryBtnText}>Close</Text>
                         </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── MODAL 8: TRANSACTION & MESSAGE DETAILS MODAL SHEET ── */}
+            <Modal
+                visible={selectedTxDetail !== null}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setSelectedTxDetail(null)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <MessageSquare size={18} color="#818CF8" />
+                                <Text style={styles.modalTitle}>Transaction & Message Details</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setSelectedTxDetail(null)}>
+                                <X size={20} color="#A1A1AA" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {selectedTxDetail && (
+                            <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+                                {/* Amount & Merchant Hero Card */}
+                                <View style={styles.txDetailHeroCard}>
+                                    <Text style={styles.txDetailMerchant}>{selectedTxDetail.merchant || selectedTxDetail.desc || 'Transaction'}</Text>
+                                    <Text style={[
+                                        styles.txDetailAmount,
+                                        { color: selectedTxDetail.type === 'INCOME' ? '#10B981' : selectedTxDetail.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }
+                                    ]}>
+                                        {selectedTxDetail.type === 'INCOME' ? '+' : selectedTxDetail.type === 'TRANSFER' ? '⇄ ' : '-'}₹{Math.round(selectedTxDetail.amount).toLocaleString()}
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        <View style={[styles.txDetailBadge, { backgroundColor: selectedTxDetail.type === 'INCOME' ? '#10B98120' : selectedTxDetail.type === 'TRANSFER' ? '#818CF820' : '#EF444420' }]}>
+                                            <Text style={[styles.txDetailBadgeText, { color: selectedTxDetail.type === 'INCOME' ? '#10B981' : selectedTxDetail.type === 'TRANSFER' ? '#818CF8' : '#EF4444' }]}>
+                                                {selectedTxDetail.type}
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.txDetailBadge, { backgroundColor: selectedTxDetail.needsSort ? '#EF444420' : '#10B98120' }]}>
+                                            <Text style={[styles.txDetailBadgeText, { color: selectedTxDetail.needsSort ? '#EF4444' : '#10B981' }]}>
+                                                {selectedTxDetail.needsSort ? 'Needs Sort ⚠️' : 'Sorted ✓'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {/* Key Meta Table */}
+                                <View style={styles.txMetaGrid}>
+                                    <View style={styles.txMetaRow}>
+                                        <Text style={styles.txMetaLabel}>Date</Text>
+                                        <Text style={styles.txMetaValue}>{selectedTxDetail.date}</Text>
+                                    </View>
+                                    <View style={styles.txMetaRow}>
+                                        <Text style={styles.txMetaLabel}>Category</Text>
+                                        <Text style={styles.txMetaValue}>{selectedTxDetail.category}</Text>
+                                    </View>
+                                    <View style={styles.txMetaRow}>
+                                        <Text style={styles.txMetaLabel}>Account</Text>
+                                        <Text style={styles.txMetaValue}>{selectedTxDetail.account}</Text>
+                                    </View>
+                                    <View style={styles.txMetaRow}>
+                                        <Text style={styles.txMetaLabel}>Transaction ID</Text>
+                                        <Text style={[styles.txMetaValue, { fontSize: 11, color: '#71717A' }]}>{selectedTxDetail.id}</Text>
+                                    </View>
+                                </View>
+
+                                {/* Original SMS / Bank Message Card */}
+                                <View style={styles.smsMessageCard}>
+                                    <View style={styles.smsMessageHeader}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                            <FileText size={14} color="#818CF8" />
+                                            <Text style={styles.smsMessageTitle}>Original Bank Alert / SMS</Text>
+                                        </View>
+                                        <Text style={styles.smsMessageSource}>Auto-Synced</Text>
+                                    </View>
+                                    <Text style={styles.smsMessageBody}>
+                                        {selectedTxDetail.smsBody || selectedTxDetail.rawDescription || `Alert: Your account was debited/credited by Rs.${selectedTxDetail.amount} for ${selectedTxDetail.desc || selectedTxDetail.merchant}.`}
+                                    </Text>
+                                </View>
+
+                                {/* Quick Re-Categorize Chips */}
+                                <Text style={[styles.accountGroupHeader, { marginTop: 14 }]}>CHANGE CATEGORY</Text>
+                                <View style={styles.categoryChipRow}>
+                                    {['Salary', 'Rent', 'Food', 'Travel', 'Shopping', 'Entertainment', 'Other'].map(cat => {
+                                        const isSelected = selectedTxDetail.category === cat;
+                                        return (
+                                            <TouchableOpacity
+                                                key={cat}
+                                                style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
+                                                onPress={() => {
+                                                    safeHaptic('medium');
+                                                    onCategorizeTransaction?.(selectedTxDetail.id, cat);
+                                                    setSelectedTxDetail(prev => ({ ...prev, category: cat, needsSort: false }));
+                                                }}
+                                            >
+                                                <Text style={[styles.categoryChipText, isSelected && styles.categoryChipTextActive]}>
+                                                    {cat}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+
+                                {/* Action Buttons */}
+                                <View style={{ gap: 10, marginTop: 18 }}>
+                                    <TouchableOpacity
+                                        style={styles.deleteTxBtn}
+                                        onPress={() => {
+                                            safeHaptic('medium');
+                                            onDeleteTransaction?.(selectedTxDetail.id);
+                                            setSelectedTxDetail(null);
+                                        }}
+                                    >
+                                        <Trash2 size={16} color="#EF4444" />
+                                        <Text style={styles.deleteTxBtnText}>Delete Transaction</Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        style={styles.modalPrimaryBtn}
+                                        onPress={() => setSelectedTxDetail(null)}
+                                    >
+                                        <Text style={styles.modalPrimaryBtnText}>Done</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </ScrollView>
+                        )}
                     </View>
                 </View>
             </Modal>
@@ -2845,5 +2985,130 @@ const styles = StyleSheet.create({
         fontSize: 10,
         textAlign: 'center',
         paddingHorizontal: 12
+    },
+    txDetailHeroCard: {
+        backgroundColor: '#18181B',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A',
+        marginBottom: 14
+    },
+    txDetailMerchant: {
+        color: '#A1A1AA',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    txDetailAmount: {
+        fontSize: 28,
+        fontWeight: '900',
+        marginVertical: 4
+    },
+    txDetailBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 6
+    },
+    txDetailBadgeText: {
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    txMetaGrid: {
+        backgroundColor: '#18181B',
+        borderRadius: 10,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#27272A',
+        gap: 8,
+        marginBottom: 12
+    },
+    txMetaRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+    },
+    txMetaLabel: {
+        color: '#71717A',
+        fontSize: 12,
+        fontWeight: '600'
+    },
+    txMetaValue: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    smsMessageCard: {
+        backgroundColor: '#121215',
+        borderRadius: 10,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#312E8140',
+        marginBottom: 12
+    },
+    smsMessageHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 6
+    },
+    smsMessageTitle: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '800'
+    },
+    smsMessageSource: {
+        color: '#6366F1',
+        fontSize: 9,
+        fontWeight: '700'
+    },
+    smsMessageBody: {
+        color: '#E4E4E7',
+        fontSize: 12,
+        lineHeight: 18,
+        fontFamily: 'monospace'
+    },
+    categoryChipRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginTop: 8,
+        marginBottom: 8
+    },
+    categoryChip: {
+        backgroundColor: '#18181B',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    categoryChipActive: {
+        backgroundColor: '#312E81',
+        borderColor: '#6366F1'
+    },
+    categoryChipText: {
+        color: '#A1A1AA',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    categoryChipTextActive: {
+        color: '#A5B4FC'
+    },
+    deleteTxBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        backgroundColor: '#EF444415',
+        borderWidth: 1,
+        borderColor: '#EF444430',
+        borderRadius: 10,
+        paddingVertical: 10
+    },
+    deleteTxBtnText: {
+        color: '#EF4444',
+        fontSize: 12,
+        fontWeight: '700'
     }
 });
