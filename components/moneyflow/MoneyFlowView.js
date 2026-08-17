@@ -336,34 +336,6 @@ export default function MoneyFlowView({
                 </TouchableOpacity>
             </View>
 
-            {/* ── 1. AS-OF-DATE BALANCE SHEET VS PERIOD CASH FLOW ── */}
-            <View style={styles.balanceSheetCard}>
-                <View style={styles.cardHeaderRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Landmark size={14} color="#A1A1AA" />
-                        <Text style={styles.balanceSheetTitle}>Current Position (As of Today)</Text>
-                    </View>
-                    <Text style={styles.netWorthHighlight}>Net Worth: {reserveData.totalNetWorthFormatted}</Text>
-                </View>
-
-                <View style={styles.balanceSheetGrid}>
-                    <View style={styles.balanceCol}>
-                        <Text style={styles.balanceLabel}>Liquid Cash</Text>
-                        <Text style={[styles.balanceValue, { color: '#38BDF8' }]}>{reserveData.totalLiquidCashFormatted}</Text>
-                    </View>
-                    <View style={styles.balanceDivider} />
-                    <View style={styles.balanceCol}>
-                        <Text style={styles.balanceLabel}>Emergency Reserve</Text>
-                        <Text style={[styles.balanceValue, { color: '#10B981' }]}>{reserveData.currentReserveFormatted}</Text>
-                    </View>
-                    <View style={styles.balanceDivider} />
-                    <View style={styles.balanceCol}>
-                        <Text style={styles.balanceLabel}>Invested Assets</Text>
-                        <Text style={[styles.balanceValue, { color: '#818CF8' }]}>{reserveData.totalInvestedAssetsFormatted}</Text>
-                    </View>
-                </View>
-            </View>
-
             {/* ── 2. PERIOD CASH FLOW HERO CARD ── */}
             <View style={styles.heroCard}>
                 <View style={styles.heroHeaderRow}>
