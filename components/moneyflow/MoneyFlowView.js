@@ -150,7 +150,7 @@ export default function MoneyFlowView({
     const [selectedTxDetail, setSelectedTxDetail] = useState(null);
     const [customCatInput, setCustomCatInput] = useState('');
     const [isEditingCustomCat, setIsEditingCustomCat] = useState(false);
-    const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education', 'Bills']);
+    const [customCategoriesList, setCustomCategoriesList] = useState(['Gym', 'Healthcare', 'Subscriptions', 'Education']);
     const [isFeedExpanded, setIsFeedExpanded] = useState(true);
 
     // Unified Add Activity State
@@ -1601,7 +1601,7 @@ export default function MoneyFlowView({
                                 {/* Change Category */}
                                 <Text style={[styles.accountGroupHeader, { marginTop: 12 }]}>CATEGORIZE THIS ACTIVITY</Text>
                                 <View style={styles.categoryChipsGrid}>
-                                    {['Food', 'Shopping', 'Travel', 'Bills', 'Entertainment', 'Rent', 'Salary', 'Other', ...customCategoriesList].map(cat => {
+                                    {Array.from(new Set(['Food', 'Shopping', 'Travel', 'Bills', 'Entertainment', 'Rent', 'Salary', 'Other', ...customCategoriesList])).map(cat => {
                                         const isSelected = selectedTxDetail.category === cat;
                                         return (
                                             <TouchableOpacity

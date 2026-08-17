@@ -823,7 +823,7 @@ export default function SelfScreen() {
     // Persistent SMS archive — synced data stays even if original SMS is deleted from device
     const [syncedSmsArchive, setSyncedSmsArchive] = useState([]);
     // Known categories that can be auto-matched
-    const knownCategories = ['Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Other', 'Income', 'Salary', 'Business', ...customCategories];
+    const knownCategories = Array.from(new Set(['Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Other', 'Income', 'Salary', 'Business', ...customCategories]));
     const getDateRangeFlow = (fromDate, toDate) => {
         let totalIncome = 0;
         let totalExpense = 0;
@@ -2392,7 +2392,7 @@ export default function SelfScreen() {
                                                     <View style={{ marginTop: 10 }}>
                                                         <Text style={{ color: '#A1A1AA', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>Select Matching Category</Text>
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', gap: 6, paddingVertical: 4 }}>
-                                                            {['Custom', 'Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', ...customCategories].map(c => (
+                                                            {Array.from(new Set(['Custom', 'Food', 'Travel', 'Entertainment', 'Rent', 'Shopping', 'Bills', 'Income', ...customCategories])).map(c => (
                                                                 <TouchableOpacity
                                                                     key={c}
                                                                     onPress={() => {
