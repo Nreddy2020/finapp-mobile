@@ -35,8 +35,6 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
 
     const moneySubTabs = [
         { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/self?tab=flow' },
-        { id: 'expenses', name: 'Expenses', icon: PieChart, route: '/transactions' },
-        { id: 'income', name: 'Income', icon: TrendingUp, route: '/income' },
         { id: 'budgets', name: 'Budget', icon: PieChart, route: '/budgets' },
         { id: 'recurring', name: 'Recurring', icon: Calendar, route: '/recurring' },
         { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/cashbooks' },

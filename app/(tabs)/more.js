@@ -25,8 +25,7 @@ export default function MoreScreen() {
         {
             category: 'Quick Access',
             items: [
-                { name: 'Expenses', route: '/transactions', icon: Wallet, color: '#EF4444' },
-                { name: 'Income', route: '/income', icon: TrendingUp, color: '#10B981' },
+                { name: 'Money Flow', route: '/(tabs)/self?tab=flow', icon: Wallet, color: '#4F46E5' },
                 { name: 'Income Tracker', route: '/income-calendar', icon: Calendar, color: '#10B981' },
                 { name: 'Budgets', route: '/budgets', icon: PieChart, color: '#F59E0B' },
                 { name: 'Financial Health', route: '/financial-health', icon: Brain, color: '#10B981' },
