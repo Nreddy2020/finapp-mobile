@@ -427,7 +427,9 @@ export default function MoneyFlowView({
             </View>
 
             {/* ── 3. TRANSPARENT EMERGENCY RESERVE CARD ── */}
-            <View style={styles.emergencyCard}>
+            {/* ── 3. UNIFIED EMERGENCY RUNWAY & PERSONAL CFO INTELLIGENCE CARD ── */}
+            <View style={styles.cfoCard}>
+                {/* Header Row: Emergency Reserve & Runway + Status Badge */}
                 <View style={styles.cardHeaderRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                         <Shield size={16} color="#818CF8" />
@@ -511,10 +513,11 @@ export default function MoneyFlowView({
                         <Text style={styles.designateBtnText}>Designate Accounts</Text>
                     </TouchableOpacity>
                 </View>
-            </View>
 
-            {/* ── 4. PERSONAL CFO INTELLIGENCE & WHAT-IF ── */}
-            <View style={styles.cfoCard}>
+                {/* Embedded Divider */}
+                <View style={styles.mergedSectionDivider} />
+
+                {/* Personal CFO Intelligence Sub-section */}
                 <View style={styles.cfoHeaderRow}>
                     <Sparkles size={14} color="#818CF8" />
                     <Text style={styles.cfoHeaderLabel}>PERSONAL CFO INTELLIGENCE</Text>
@@ -1868,6 +1871,11 @@ const styles = StyleSheet.create({
         color: '#E4E4E7',
         fontSize: 11,
         fontWeight: '700'
+    },
+    mergedSectionDivider: {
+        height: 1,
+        backgroundColor: '#27272A',
+        marginVertical: 14
     },
     cfoCard: {
         backgroundColor: '#0F0E17',
