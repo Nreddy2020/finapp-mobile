@@ -66,7 +66,13 @@ export const STORAGE_KEYS = {
     INCOME_SOURCES: 'user_income_sources',
     ACCOUNTS: 'user_bank_accounts',
     METALS_HISTORY: 'metals_price_history_v1',
-    FINLIFE_SCHEMA: 'finlife_schema_version'
+    FINLIFE_SCHEMA: 'finlife_schema_version',
+    P2P_LOANS: 'finlife_p2p_loans_v1',
+    P2P_PERSONS: 'finlife_p2p_persons_v1',
+    P2P_JOURNAL: 'finlife_p2p_journal_v1',
+    P2P_ADVANCES: 'finlife_p2p_advances_v1',
+    P2P_REPAYMENTS: 'finlife_p2p_repayments_v1',
+    P2P_SETTINGS: 'finlife_p2p_settings_v1'
 };
 
 /**

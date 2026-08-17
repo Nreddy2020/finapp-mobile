@@ -9,6 +9,7 @@ import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScor
 import { aggregateFinancialOpportunities } from '../../services/financialOpportunityAggregator';
 import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
 import MoneyFlowView from '../../components/moneyflow/MoneyFlowView';
+import P2PMainView from '../../components/p2p/P2PMainView';
 const { width } = Dimensions.get('window');
 
 const AGENTS_20 = [
@@ -2327,18 +2328,38 @@ export default function SelfScreen() {
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* 1. World-Class Personal Financial Decision Assistant */}
                 {activeTab === 'flow' && (
-                    <MoneyFlowView
-                        transactions={transactions}
-                        onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
-                        onCategorizeTransaction={(txId, cat) => {
-                            setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
-                        }}
-                        onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
-                        onUpdateTransaction={(updatedTx) => {
-                            setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
-                        }}
-                        asOfDate={new Date().toISOString()}
-                    />
+                    <View style={{ gap: 14 }}>
+                        {/* PERSONAL CFO INTELLIGENCE BANNER */}
+                        <TouchableOpacity
+                            onPress={() => router.push('/investments')}
+                            style={{ backgroundColor: '#1E1B4B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#4338CA', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+                        >
+                            <View style={{ gap: 4 }}>
+                                <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '800' }}>PERSONAL CFO INTELLIGENCE</Text>
+                                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>
+                                    Portfolio Health Score: {cfoHealthScore || '84.5'}/100 ({cfoHealthGrade || 'A'})
+                                </Text>
+                                {cfoTopAction && (
+                                    <Text style={{ color: '#A5B4FC', fontSize: 11 }}>{cfoTopAction.title || 'Optimal cash deployment recommended'}</Text>
+                                )}
+                            </View>
+                            <Text style={{ color: '#818CF8', fontSize: 12, fontWeight: '800' }}>Command Center ›</Text>
+                        </TouchableOpacity>
+
+                        {/* Personal Spending Table & Cash Truth */}
+                        <MoneyFlowView
+                            transactions={transactions}
+                            onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
+                            onCategorizeTransaction={(txId, cat) => {
+                                setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
+                            }}
+                            onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
+                            onUpdateTransaction={(updatedTx) => {
+                                setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+                            }}
+                            asOfDate={new Date().toISOString()}
+                        />
+                    </View>
                 )}
 
                 {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
@@ -2501,36 +2522,15 @@ export default function SelfScreen() {
                         </View>
                     )}
                 {/* ───────────────────────────────────────────────────────────── */}
-                {/* ── 🤝 COMPLETE P2P LOANS MODULE (13 SCREENS SYSTEM) ────── */}
+                {/* ── 🤝 COMPLETE P2P LOANS MODULE (AUTHORITATIVE) ─────────── */}
                 {/* ───────────────────────────────────────────────────────────── */}
                 {activeTab === 'p2p' && (
+                    <P2PMainView
+                        onNavigateMoneyFlow={() => setActiveTab('flow')}
+                    />
+                )}
+                {false && activeTab === 'p2p' && (
                     <View style={{ gap: 16 }}>
-                        {/* P2P Module Sub-View Switcher Bar */}
-                        <View style={{ flexDirection: 'row', backgroundColor: '#18181B', borderRadius: 12, padding: 4, borderWidth: 1, borderColor: '#27272A' }}>
-                            {[
-                                { key: 'dashboard', label: '📊 Overview' },
-                                { key: 'list', label: '📋 Loans List' },
-                                { key: 'entity', label: '🧑 Borrower View' }
-                            ].map(v => (
-                                <TouchableOpacity
-                                    key={v.key}
-                                    onPress={() => setActiveP2PView(v.key)}
-                                    style={{
-                                        flex: 1,
-                                        paddingVertical: 8,
-                                        alignItems: 'center',
-                                        borderRadius: 8,
-                                        backgroundColor: activeP2PView === v.key ? '#6366F1' : 'transparent'
-                                    }}
-                                >
-                                    <Text style={{ color: activeP2PView === v.key ? '#FFF' : '#A1A1AA', fontSize: 11, fontWeight: '750' }}>{v.label}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        {/* ── P2P SUB-VIEW 1: GLOBAL DASHBOARD ('dashboard') ── */}
-                        {activeP2PView === 'dashboard' && (
-                            <View style={{ gap: 16 }}>
                                 {/* Top Receivable Card Header */}
                                 <View style={{ backgroundColor: '#18181B', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#27272A', gap: 12 }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -3011,16 +3011,6 @@ export default function SelfScreen() {
                                             </View>
                                         </View>
 
-                                        {/* Reminders & WhatsApp Trigger */}
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Payment of ₹53,518.89 is due in 1 month, 7 days</Text>
-                                            <TouchableOpacity 
-                                                onPress={() => Linking.openURL('https://wa.me/?text=Reminder:%20Payment%20of%20Rs.53518.89%20for%20ICICI%20Personal%20Loan%20is%20due.')}
-                                                style={{ backgroundColor: '#25D36620', paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#25D36640' }}
-                                            >
-                                                <Text style={{ color: '#25D366', fontSize: 12, fontWeight: '800' }}>Remind now via WhatsApp / SMS ›</Text>
-                                            </TouchableOpacity>
-                                        </View>
                                     </View>
                                 )}
                             </View>
@@ -3099,7 +3089,6 @@ export default function SelfScreen() {
                                 </View>
                             </View>
                         )}
-                    </View>
                 )}
 
                 {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
