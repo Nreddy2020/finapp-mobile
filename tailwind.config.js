@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+    darkMode: 'class',
     // NativeWind v4 — must set preset
     presets: [require('nativewind/preset')],
     content: [
