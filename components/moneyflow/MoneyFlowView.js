@@ -97,6 +97,8 @@ export default function MoneyFlowView({
     const [periodType, setPeriodType] = useState('month'); // 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
     const [referenceDate, setReferenceDate] = useState(asOfDate);
     const [customRange, setCustomRange] = useState({ start: '2026-08-01', end: '2026-08-17' });
+    const [customStartDateInput, setCustomStartDateInput] = useState('2026-08-01');
+    const [customEndDateInput, setCustomEndDateInput] = useState('2026-08-17');
 
     const [designatedAccountIds, setDesignatedAccountIds] = useState(['acc_hdfc_sb', 'acc_sbi_sb']);
     const [accounts, setAccounts] = useState(DEFAULT_AUTHORITATIVE_ACCOUNTS);
@@ -259,6 +261,29 @@ export default function MoneyFlowView({
         }
         safeHaptic('success');
         Alert.alert('Bulk Categorization', `Assigned "${categoryName}" to all transactions from ${merchantName}.`);
+    };
+
+    const handleApplyCustomRange = (start = customStartDateInput, end = customEndDateInput) => {
+        const s = start.trim() || '2026-08-01';
+        const e = end.trim() || '2026-08-17';
+        setCustomRange({ start: s, end: e });
+        setPeriodType('custom');
+        setShowPeriodModal(false);
+        safeHaptic('success');
+        Alert.alert('Timeframe Updated', `Displaying cash flow from ${s} to ${e}.`);
+    };
+
+    const handleSelectPeriodPreset = (type, customDates = null) => {
+        if (type === 'custom' && customDates) {
+            setCustomStartDateInput(customDates.start);
+            setCustomEndDateInput(customDates.end);
+            setCustomRange(customDates);
+            setPeriodType('custom');
+        } else {
+            setPeriodType(type);
+        }
+        setShowPeriodModal(false);
+        safeHaptic('light');
     };
 
     return (
@@ -834,6 +859,123 @@ export default function MoneyFlowView({
                     ))
                 )}
             </View>
+
+            {/* ── MODAL 0: PERIOD & CUSTOM DATE RANGE PICKER ── */}
+            <Modal
+                visible={showPeriodModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowPeriodModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Calendar size={18} color="#818CF8" />
+                                <Text style={styles.modalTitle}>Select Financial Period</Text>
+                            </View>
+                            <TouchableOpacity onPress={() => setShowPeriodModal(false)}>
+                                <X size={20} color="#A1A1AA" />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={{ maxHeight: 460 }} showsVerticalScrollIndicator={false}>
+                            {/* Current Active Span Preview */}
+                            <View style={styles.periodPreviewBanner}>
+                                <Text style={styles.periodPreviewLabel}>ACTIVE TIMEFRAME</Text>
+                                <Text style={styles.periodPreviewDates}>{periodBounds.periodSubtitle}</Text>
+                            </View>
+
+                            {/* Section A: Standard Presets */}
+                            <Text style={styles.periodSectionHeading}>STANDARD PRESETS</Text>
+                            <View style={styles.periodPresetsGrid}>
+                                {[
+                                    { key: 'today', label: 'Today', desc: 'Current 24-hr day' },
+                                    { key: 'week', label: 'This Week', desc: 'Mon – Sun' },
+                                    { key: 'month', label: 'This Month', desc: 'Aug 1 – Aug 31' },
+                                    { key: 'quarter', label: 'This Quarter', desc: 'Jul 1 – Sep 30' },
+                                    { key: 'year', label: 'This Year', desc: 'Jan 1 – Dec 31' }
+                                ].map(p => (
+                                    <TouchableOpacity
+                                        key={p.key}
+                                        style={[styles.presetOptionCard, periodType === p.key && styles.presetOptionCardActive]}
+                                        onPress={() => handleSelectPeriodPreset(p.key)}
+                                    >
+                                        <Text style={[styles.presetOptionTitle, periodType === p.key && styles.presetOptionTitleActive]}>
+                                            {p.label}
+                                        </Text>
+                                        <Text style={styles.presetOptionDesc}>{p.desc}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Section B: Quick Custom Range Shortcuts */}
+                            <Text style={styles.periodSectionHeading}>CUSTOM DATE SHORTCUTS</Text>
+                            <View style={styles.quickShortcutsRow}>
+                                {[
+                                    { label: 'Last 7D', start: '2026-08-10', end: '2026-08-17' },
+                                    { label: 'Last 30D', start: '2026-07-18', end: '2026-08-17' },
+                                    { label: 'Last 90D', start: '2026-05-19', end: '2026-08-17' },
+                                    { label: 'July 2026', start: '2026-07-01', end: '2026-07-31' },
+                                    { label: 'Year to Date', start: '2026-01-01', end: '2026-08-17' }
+                                ].map((q, idx) => (
+                                    <TouchableOpacity
+                                        key={idx}
+                                        style={styles.quickShortcutPill}
+                                        onPress={() => {
+                                            setCustomStartDateInput(q.start);
+                                            setCustomEndDateInput(q.end);
+                                            handleApplyCustomRange(q.start, q.end);
+                                        }}
+                                    >
+                                        <Text style={styles.quickShortcutPillText}>{q.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Section C: Direct Date Input */}
+                            <Text style={styles.periodSectionHeading}>CUSTOM DATE RANGE</Text>
+                            <View style={styles.customDateInputsRow}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.customDateInputLabel}>Start Date (YYYY-MM-DD)</Text>
+                                    <TextInput
+                                        style={styles.customDateInputField}
+                                        value={customStartDateInput}
+                                        onChangeText={setCustomStartDateInput}
+                                        placeholder="2026-08-01"
+                                        placeholderTextColor="#52525B"
+                                    />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.customDateInputLabel}>End Date (YYYY-MM-DD)</Text>
+                                    <TextInput
+                                        style={styles.customDateInputField}
+                                        value={customEndDateInput}
+                                        onChangeText={setCustomEndDateInput}
+                                        placeholder="2026-08-17"
+                                        placeholderTextColor="#52525B"
+                                    />
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+                            <TouchableOpacity
+                                style={[styles.modalSecondaryBtn, { flex: 1 }]}
+                                onPress={() => setShowPeriodModal(false)}
+                            >
+                                <Text style={styles.modalSecondaryBtnText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalPrimaryBtn, { flex: 2 }]}
+                                onPress={() => handleApplyCustomRange()}
+                            >
+                                <Text style={styles.modalPrimaryBtnText}>Apply Date Range</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             {/* ── MODAL 1: CALCULATION MATH BREAKDOWN ── */}
             <Modal
@@ -2452,5 +2594,105 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: 'center',
         marginBottom: 12
+    },
+    periodPreviewBanner: {
+        backgroundColor: '#1E1B4B',
+        padding: 12,
+        borderRadius: 10,
+        marginBottom: 14,
+        borderWidth: 1,
+        borderColor: '#4338CA'
+    },
+    periodPreviewLabel: {
+        color: '#818CF8',
+        fontSize: 9,
+        fontWeight: '800',
+        letterSpacing: 0.5
+    },
+    periodPreviewDates: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '800',
+        marginTop: 3
+    },
+    periodSectionHeading: {
+        color: '#71717A',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+        marginBottom: 8,
+        marginTop: 6
+    },
+    periodPresetsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 14
+    },
+    presetOptionCard: {
+        width: '48%',
+        backgroundColor: '#18181B',
+        padding: 10,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    presetOptionCardActive: {
+        backgroundColor: '#312E81',
+        borderColor: '#6366F1'
+    },
+    presetOptionTitle: {
+        color: '#D4D4D8',
+        fontSize: 12,
+        fontWeight: '700'
+    },
+    presetOptionTitleActive: {
+        color: '#A5B4FC'
+    },
+    presetOptionDesc: {
+        color: '#71717A',
+        fontSize: 9,
+        marginTop: 2
+    },
+    quickShortcutsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginBottom: 14
+    },
+    quickShortcutPill: {
+        backgroundColor: '#18181B',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    quickShortcutPillText: {
+        color: '#A1A1AA',
+        fontSize: 10,
+        fontWeight: '700'
+    },
+    customDateInputsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 8
+    },
+    customDateInputLabel: {
+        color: '#A1A1AA',
+        fontSize: 10,
+        fontWeight: '700',
+        marginBottom: 4
+    },
+    customDateInputField: {
+        backgroundColor: '#18181B',
+        borderWidth: 1,
+        borderColor: '#27272A',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '600'
     }
 });
