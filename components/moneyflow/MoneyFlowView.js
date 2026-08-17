@@ -99,6 +99,22 @@ export default function MoneyFlowView({
     const [customRange, setCustomRange] = useState({ start: '2026-08-01', end: '2026-08-17' });
     const [customStartDateInput, setCustomStartDateInput] = useState('2026-08-01');
     const [customEndDateInput, setCustomEndDateInput] = useState('2026-08-17');
+    const [selectedYear, setSelectedYear] = useState(2026);
+
+    const MONTH_LABELS = [
+        { key: 0, short: 'Jan', name: 'January' },
+        { key: 1, short: 'Feb', name: 'February' },
+        { key: 2, short: 'Mar', name: 'March' },
+        { key: 3, short: 'Apr', name: 'April' },
+        { key: 4, short: 'May', name: 'May' },
+        { key: 5, short: 'Jun', name: 'June' },
+        { key: 6, short: 'Jul', name: 'July' },
+        { key: 7, short: 'Aug', name: 'August' },
+        { key: 8, short: 'Sep', name: 'September' },
+        { key: 9, short: 'Oct', name: 'October' },
+        { key: 10, short: 'Nov', name: 'November' },
+        { key: 11, short: 'Dec', name: 'December' }
+    ];
 
     const [designatedAccountIds, setDesignatedAccountIds] = useState(['acc_hdfc_sb', 'acc_sbi_sb']);
     const [accounts, setAccounts] = useState(DEFAULT_AUTHORITATIVE_ACCOUNTS);
@@ -284,6 +300,20 @@ export default function MoneyFlowView({
         }
         setShowPeriodModal(false);
         safeHaptic('light');
+    };
+
+    const handleSelectSpecificMonth = (monthIndex, year = selectedYear) => {
+        const monthNum = String(monthIndex + 1).padStart(2, '0');
+        const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+        const start = `${year}-${monthNum}-01`;
+        const end = `${year}-${monthNum}-${String(lastDay).padStart(2, '0')}`;
+        setCustomStartDateInput(start);
+        setCustomEndDateInput(end);
+        setCustomRange({ start, end });
+        setPeriodType('custom');
+        setShowPeriodModal(false);
+        safeHaptic('success');
+        Alert.alert('Month Selected', `Displaying cash flow for ${MONTH_LABELS[monthIndex].name} ${year}.`);
     };
 
     return (
@@ -886,7 +916,53 @@ export default function MoneyFlowView({
                                 <Text style={styles.periodPreviewDates}>{periodBounds.periodSubtitle}</Text>
                             </View>
 
-                            {/* Section A: Standard Presets */}
+                            {/* Section 1: Month-by-Month Selection Grid */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 8 }}>
+                                <Text style={styles.periodSectionHeading}>SELECT MONTH</Text>
+                                <View style={styles.yearSwitcherContainer}>
+                                    <TouchableOpacity
+                                        style={styles.yearNavBtn}
+                                        onPress={() => {
+                                            setSelectedYear(y => y - 1);
+                                            safeHaptic('light');
+                                        }}
+                                    >
+                                        <ChevronLeft size={14} color="#A5B4FC" />
+                                    </TouchableOpacity>
+                                    <Text style={styles.yearSwitcherText}>{selectedYear}</Text>
+                                    <TouchableOpacity
+                                        style={styles.yearNavBtn}
+                                        onPress={() => {
+                                            setSelectedYear(y => y + 1);
+                                            safeHaptic('light');
+                                        }}
+                                    >
+                                        <ChevronRight size={14} color="#A5B4FC" />
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+
+                            {/* 12-Month Interactive Grid */}
+                            <View style={styles.monthsGrid}>
+                                {MONTH_LABELS.map(m => {
+                                    const monthNum = String(m.key + 1).padStart(2, '0');
+                                    const isMonthActive = periodType === 'custom' && customRange.start.startsWith(`${selectedYear}-${monthNum}`);
+                                    return (
+                                        <TouchableOpacity
+                                            key={m.key}
+                                            style={[styles.monthGridCard, isMonthActive && styles.monthGridCardActive]}
+                                            onPress={() => handleSelectSpecificMonth(m.key, selectedYear)}
+                                        >
+                                            <Text style={[styles.monthGridShort, isMonthActive && styles.monthGridShortActive]}>
+                                                {m.short}
+                                            </Text>
+                                            <Text style={styles.monthGridYear}>{selectedYear}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+
+                            {/* Section 2: Standard Presets */}
                             <Text style={styles.periodSectionHeading}>STANDARD PRESETS</Text>
                             <View style={styles.periodPresetsGrid}>
                                 {[
@@ -2694,5 +2770,59 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 12,
         fontWeight: '600'
+    },
+    yearSwitcherContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        backgroundColor: '#18181B',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    yearNavBtn: {
+        padding: 4,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    yearSwitcherText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '800',
+        paddingHorizontal: 4
+    },
+    monthsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+        marginBottom: 14
+    },
+    monthGridCard: {
+        width: '23%',
+        backgroundColor: '#18181B',
+        paddingVertical: 8,
+        borderRadius: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    monthGridCardActive: {
+        backgroundColor: '#312E81',
+        borderColor: '#6366F1'
+    },
+    monthGridShort: {
+        color: '#D4D4D8',
+        fontSize: 12,
+        fontWeight: '800'
+    },
+    monthGridShortActive: {
+        color: '#A5B4FC'
+    },
+    monthGridYear: {
+        color: '#71717A',
+        fontSize: 8,
+        marginTop: 2
     }
 });
