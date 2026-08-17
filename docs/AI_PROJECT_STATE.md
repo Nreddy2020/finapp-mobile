@@ -124,20 +124,32 @@ Core Invariants:
 
 ## 5. RECENT WORK & VERIFICATION
 
-1. **Transformed Money Flow Experience**:
-   - Replaced legacy personal spending table with [`components/moneyflow/MoneyFlowView.js`](file:///e:/fintech-mobile/components/moneyflow/MoneyFlowView.js).
-   - Delivered the 5 interconnected sections:
-     1. Live Cash Flow Hero Card (`🟢 LIVE`, Cash Flow Trend, Income, Spending, Net Cash Flow, Surplus Insight, Emergency Runway gauge).
-     2. Personal CFO Decision Intelligence Card (`✦ PERSONAL CFO INTELLIGENCE`, `#1 Priority Right Now`, Impact Tags, Health Score `72.8 [B]`, Potential Improvement `+5.6 pts`, `[ See Impact ↗ ]` button).
-     3. Where Is My Money Card (Proportional category bars, `View Full Breakdown ›`).
-     4. Quick Transaction Logger (Instant category shortcuts + `+ Add Custom Transaction` button).
-     5. Smart Transaction Feed (Filter pills `[ All ] [ Needs Sort 🔴 ] [ Sorted ✓ ]` with inline source classification).
-   - Built 4 interactive modals:
-     1. What-If Action Impact Simulation modal (Before vs After grid, checklist, disclaimer, `Got It` button).
-     2. Quick Transaction Logger modal (Expense / Income toggle, Category, Amount, Date, Payment Mode).
-     3. Where Is My Money Full Breakdown modal (Donut display, Category & Merchant tabs).
-     4. Inline Categorization Action Sheet.
+1. **World-Class Money Flow Decision Assistant V2 (Full Product Completeness)**:
+   - Built [`components/moneyflow/moneyFlowPresentationAdapter.js`](file:///e:/fintech-mobile/components/moneyflow/moneyFlowPresentationAdapter.js) enforcing frozen C.4–C.8 boundaries.
+   - Built [`components/moneyflow/MoneyFlowView.js`](file:///e:/fintech-mobile/components/moneyflow/MoneyFlowView.js):
+     1. Financial Period Control (`[ Today ] [ This Week ] [ This Month ] [ Quarter ] [ Year ] [ Custom ]` + previous/next navigation).
+     2. Balance Sheet vs Period Cash Flow distinction (Current Net Worth ₹1.82 Cr, Liquid Cash ₹1.60L, Designated Reserve ₹1.05L, Invested Assets ₹1.35 Cr).
+     3. Transparent Emergency Reserve Card (`Designated Reserve ₹1,05,000 ÷ Essential Burn ₹87,500 = 1.20 mo`), Shortfall indicator (₹1,57,500), and `[ See Calculation Math ]` modal.
+     4. Account Designation modal (`☑ HDFC Savings`, `☑ SBI Savings`, `☐ Equity (Excluded)`, `☐ Gold (Excluded)`, `☐ EPF (Locked)`).
+     5. Authoritative C.8.6 What-If Simulation modal with dynamic scenario surplus allocation (₹30K, ₹50K, ₹100K, ₹150K) and Before vs After deltas.
+     6. "Where Is My Money?" Triad (**By Category**, **By Merchant** with normalization, **By Account**) + Merchant Detail Action Sheet.
+     7. Upcoming Obligations & Committed Outflows (Next 30 Days: EMIs, School Fees, Insurance, expected outflow total).
+     8. Advanced Quick Logger supporting **Transfer** (Account A → Account B, zero cash flow distortion), Account selector, Merchant autocomplete, and Recurring monthly toggle.
+     9. Scalable Smart Transaction Feed with search bar, multi-dimensional filter pills, and date-grouped headers.
+     10. 6-Month Cash Flow Trend modal with historical bars, average surplus, and savings rate.
 
 2. **Live E2E Verification & Visual Proof**:
-   - Captured full-screen and modal screenshots with Puppeteer (`tests/e2e/screenshots/`).
-   - Verified zero console errors and 100% responsive dark-mode styling.
+   - Executed `tests/e2e/capture_all_money_flow_v2.js` with Puppeteer on Metro Web.
+   - Captured 9 verified screenshots in `tests/e2e/screenshots/`:
+     - `01_period_and_balance_sheet.png`
+     - `02_modal_runway_math.png`
+     - `03_modal_designate_accounts.png`
+     - `04_modal_authoritative_what_if.png`
+     - `05_where_is_my_money_merchant.png`
+     - `06_where_is_my_money_account.png`
+     - `07_modal_transfer_logger.png`
+     - `08_upcoming_and_grouped_feed.png`
+     - `09_modal_cash_flow_trend.png`
+
+3. **Master Comprehensive Regression**:
+   - Executed `node ./tests/run_master_regression.mjs`: **38 / 38 SUITES PASSED (100%)**.
