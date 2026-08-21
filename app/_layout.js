@@ -27,6 +27,10 @@ import { AuthProvider } from "../components/context/AuthContext";
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 200);
+    return () => clearTimeout(timer);
   }, []);
 
   return (

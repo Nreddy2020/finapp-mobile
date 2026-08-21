@@ -27,7 +27,7 @@ import {
     Dimensions,
     ActivityIndicator
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, SplashScreen } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -205,6 +205,7 @@ export default function Dashboard() {
         } catch (err) {
             console.error('Failed to load live Personal CFO state:', err);
         } finally {
+            SplashScreen.hideAsync().catch(() => {});
             if (requestIdRef.current === currentReqId) {
                 setLoading(false);
                 setRefreshing(false);
