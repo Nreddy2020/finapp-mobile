@@ -57,7 +57,7 @@ export const TranslationProvider = ({ children }) => {
     const [locale, setLocale] = useState('en');
 
     const t = (key) => {
-        return TRANSLATIONS[locale][key] || key;
+        return (TRANSLATIONS[locale] && TRANSLATIONS[locale][key]) || (TRANSLATIONS.en && TRANSLATIONS.en[key]) || key;
     };
 
     return (
