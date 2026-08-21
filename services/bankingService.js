@@ -318,7 +318,8 @@ export const BankingService = {
 
     resetToDemoFixture: async () => {
         const fixture = getHDFCBankDemoFixture();
-        await saveData(STORAGE_KEYS.BANKING_BANKS, [fixture.bank]);
+        const banks = fixture.banks || [fixture.bank];
+        await saveData(STORAGE_KEYS.BANKING_BANKS, banks);
         await saveData(STORAGE_KEYS.BANKING_ACCOUNTS, fixture.accounts);
         await saveData(STORAGE_KEYS.BANKING_LOANS, fixture.loans);
 
@@ -326,13 +327,21 @@ export const BankingService = {
         await saveData(STORAGE_KEYS.BANKING_SCHEDULES, { [fixture.loans[0].id]: initialSchedule });
 
         // Seed initial opening balance and disbursement journals
-        const openAccEntry = createDoubleEntryBankingJournalForEvent({
+        const openHdfcAccEntry = createDoubleEntryBankingJournalForEvent({
             eventType: BANKING_JOURNAL_EVENT_TYPES.BANK_ACCOUNT_OPENED,
-            bankId: fixture.bank.id,
+            bankId: fixture.accounts[0].bankId,
             bankAccountId: fixture.accounts[0].id,
             amountPaise: fixture.accounts[0].openingBalancePaise,
             date: '2026-04-01'
         });
+
+        const openIciciAccEntry = fixture.accounts[1] ? createDoubleEntryBankingJournalForEvent({
+            eventType: BANKING_JOURNAL_EVENT_TYPES.BANK_ACCOUNT_OPENED,
+            bankId: fixture.accounts[1].bankId,
+            bankAccountId: fixture.accounts[1].id,
+            amountPaise: fixture.accounts[1].openingBalancePaise,
+            date: '2026-04-01'
+        }) : null;
 
         const disbLoanEntry = createDoubleEntryBankingJournalForEvent({
             eventType: BANKING_JOURNAL_EVENT_TYPES.BANK_LOAN_DISBURSED,
@@ -343,7 +352,8 @@ export const BankingService = {
             date: '2026-05-01'
         });
 
-        await saveData(STORAGE_KEYS.BANKING_JOURNAL, [openAccEntry, disbLoanEntry]);
+        const journalEntries = [openHdfcAccEntry, ...(openIciciAccEntry ? [openIciciAccEntry] : []), disbLoanEntry];
+        await saveData(STORAGE_KEYS.BANKING_JOURNAL, journalEntries);
         await saveData(STORAGE_KEYS.BANKING_DOCUMENTS, []);
         await saveData(STORAGE_KEYS.BANKING_OPERATIONS, []);
 

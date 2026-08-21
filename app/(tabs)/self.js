@@ -2326,7 +2326,12 @@ export default function SelfScreen() {
                 </Text>
                 <View style={{ width: 40 }} />
             </View>
-            <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {activeTab === 'banking' ? (
+                <View style={{ flex: 1 }}>
+                    <BankingMainView />
+                </View>
+            ) : (
+                <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 {/* 1. World-Class Personal Financial Decision Assistant */}
                 {activeTab === 'flow' && (
                     <View style={{ gap: 14 }}>
@@ -3090,11 +3095,6 @@ export default function SelfScreen() {
                                 </View>
                             </View>
                         )}
-                )}
-
-                {/* ── 🏦 COMPLETE BANKING RELATIONSHIP INTELLIGENCE (AUTHORITATIVE) ── */}
-                {activeTab === 'banking' && (
-                    <BankingMainView />
                 )}
 
                 {/* ── Financial Hub (SMS / Legacy Hub) ── */}

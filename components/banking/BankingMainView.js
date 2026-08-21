@@ -1,15 +1,20 @@
 /**
  * FinLife Banking Relationship Intelligence — Main View (Calm Architecture)
  * 
- * Rebuilt as a calm, typography-led, relationship-first experience.
- * Primary Navigation: Relationships (Default) | Accounts | Loans | Calendar | Insights.
+ * Single source of truth & navigation: Relationships (Default) | Calendar | Insights.
+ * Under each Bank Relationship:
+ * - Bank Header (Name, Type/Badge, Health Score)
+ * - 3-Column Position (Cash held | Total debt | Net position)
+ * - Embedded Accounts (Balances, Available, Number)
+ * - Embedded Loans (Outstanding, Rate, EMI, Months left)
+ * - Next EMI obligation & direct relationship drilldown
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal } from 'react-native';
-import { Landmark, CreditCard, Calendar, TrendingUp, AlertTriangle, Plus, ChevronRight, CheckCircle2, DollarSign, ShieldAlert, ArrowUpRight, ArrowDownLeft, Activity, Info } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { Landmark, CreditCard, Calendar, TrendingUp, Plus, ChevronRight, Activity, Bell, FileText, Wallet, ArrowUpRight } from 'lucide-react-native';
 import { BankingService } from '../../services/bankingService';
-import { formatPaise, computeBankingOverviewMetrics, computeBankRelationshipScorecard } from './bankingPresentationAdapter';
+import { formatPaise, computeBankingOverviewMetrics } from './bankingPresentationAdapter';
 import BankDetailView from './BankDetailView';
 import BankLoanDetailView from './BankLoanDetailView';
 import EMICalendarView from './EMICalendarView';
@@ -19,7 +24,7 @@ import AddBankAccountModal from './modals/AddBankAccountModal';
 import AddBankLoanModal from './modals/AddBankLoanModal';
 
 export default function BankingMainView({ onBack = null }) {
-    const [activeTab, setActiveTab] = useState('RELATIONSHIPS'); // 'RELATIONSHIPS' (Default) | 'ACCOUNTS' | 'LOANS' | 'CALENDAR' | 'INSIGHTS'
+    const [activeTab, setActiveTab] = useState('RELATIONSHIPS'); // 'RELATIONSHIPS' (Default) | 'CALENDAR' | 'INSIGHTS'
     const [bankingData, setBankingData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -110,13 +115,11 @@ export default function BankingMainView({ onBack = null }) {
             showsVerticalScrollIndicator={false}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#818CF8" />}
         >
-            {/* Top Navigation Tabs: Relationships (Default) | Accounts | Loans | Calendar | Insights */}
+            {/* Top Navigation Tabs: Relationships (Default) | Calendar | Insights */}
             <View style={styles.navBar}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <View style={styles.tabPillContainer}>
                     {[
                         { id: 'RELATIONSHIPS', label: 'Relationships' },
-                        { id: 'ACCOUNTS', label: `Accounts (${bankingData.accounts.length})` },
-                        { id: 'LOANS', label: `Loans (${overview.activeLoansCount})` },
                         { id: 'CALENDAR', label: 'Calendar' },
                         { id: 'INSIGHTS', label: 'Insights' }
                     ].map(tab => (
@@ -124,110 +127,235 @@ export default function BankingMainView({ onBack = null }) {
                             key={tab.id}
                             style={[styles.navPill, activeTab === tab.id && styles.navPillActive]}
                             onPress={() => setActiveTab(tab.id)}
+                            activeOpacity={0.8}
                         >
                             <Text style={[styles.navPillText, activeTab === tab.id && styles.navPillTextActive]}>
                                 {tab.label}
                             </Text>
                         </TouchableOpacity>
                     ))}
-                </ScrollView>
+                </View>
             </View>
 
-            {/* ── 1. RELATIONSHIPS VIEW (DEFAULT) ── */}
+            {/* ── 1. RELATIONSHIPS VIEW (DEFAULT & SINGLE SOURCE OF TRUTH) ── */}
             {activeTab === 'RELATIONSHIPS' && (
                 <View style={styles.contentContainer}>
-                    {/* Your Banking Position (Calm Typography Summary) */}
+                    {/* YOUR BANKING POSITION (Calm 3-Column Summary) */}
                     <View style={styles.positionSection}>
                         <Text style={styles.sectionLabel}>YOUR BANKING POSITION</Text>
                         
                         <View style={styles.positionGrid}>
                             <View style={styles.positionCol}>
-                                <Text style={styles.positionNum}>{overview.totalCashFormatted}</Text>
                                 <Text style={styles.positionDesc}>Cash across banks</Text>
+                                <Text style={styles.positionNum}>{overview.totalCashFormatted}</Text>
+                                <View style={styles.iconCircleMini}>
+                                    <Landmark size={13} color="#818CF8" />
+                                </View>
                             </View>
                             <View style={styles.positionCol}>
-                                <Text style={[styles.positionNum, { color: '#F87171' }]}>{overview.totalDebtFormatted}</Text>
                                 <Text style={styles.positionDesc}>Bank debt</Text>
+                                <Text style={[styles.positionNum, { color: '#F87171' }]}>{overview.totalDebtFormatted}</Text>
+                                <View style={styles.iconCircleMini}>
+                                    <FileText size={13} color="#F87171" />
+                                </View>
                             </View>
                             <View style={styles.positionCol}>
+                                <Text style={styles.positionDesc}>Net position</Text>
                                 <Text style={[styles.positionNum, { color: overview.isNetPositive ? '#10B981' : '#F59E0B' }]}>
                                     {overview.isNetPositive ? '+' : '-'}{overview.netPositionFormatted}
                                 </Text>
-                                <Text style={styles.positionDesc}>Net position</Text>
+                                <View style={styles.iconCircleMini}>
+                                    <TrendingUp size={13} color={overview.isNetPositive ? '#10B981' : '#F59E0B'} />
+                                </View>
                             </View>
                         </View>
                     </View>
 
-                    {/* Next Obligation */}
+                    {/* NEXT OBLIGATION */}
                     {overview.nextImmediateObligation && (
-                        <View style={styles.calmSection}>
+                        <View style={styles.obligationSection}>
                             <Text style={styles.sectionLabel}>NEXT OBLIGATION</Text>
-                            <View style={styles.obligationRow}>
-                                <View>
+                            <TouchableOpacity
+                                style={styles.obligationCard}
+                                onPress={() => {
+                                    const l = bankingData.loans.find(loan => loan.id === overview.nextImmediateObligation.loanId);
+                                    if (l) setSelectedLoan(l);
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <View style={styles.obligationLeft}>
                                     <Text style={styles.obligationAmount}>{overview.nextImmediateObligation.expectedTotalFormatted}</Text>
-                                    <Text style={styles.obligationDesc}>
-                                        {overview.nextImmediateObligation.loanName} ({overview.nextImmediateObligation.bankName})
-                                    </Text>
+                                    <View style={styles.obligationDescRow}>
+                                        <Text style={styles.obligationDesc}>{overview.nextImmediateObligation.loanName}</Text>
+                                        <View style={styles.emiTag}>
+                                            <Text style={styles.emiTagText}>EMI</Text>
+                                        </View>
+                                    </View>
                                 </View>
-                                <View style={{ alignItems: 'flex-end' }}>
+                                <View style={styles.obligationRight}>
                                     <Text style={styles.obligationDue}>Due {overview.nextImmediateObligation.dueDate}</Text>
                                     <Text style={styles.obligationDays}>{overview.nextImmediateObligation.daysRemaining} days remaining</Text>
+                                    <ChevronRight size={16} color="#71717A" style={{ alignSelf: 'flex-end', marginTop: 2 }} />
                                 </View>
-                            </View>
+                            </TouchableOpacity>
                         </View>
                     )}
 
-                    {/* Your Banks (Primary Interactive Navigation Objects) */}
+                    {/* YOUR BANK RELATIONSHIPS (The Central Container) */}
                     <View style={styles.calmSection}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                            <Text style={styles.sectionLabel}>YOUR BANKS</Text>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionLabel}>YOUR BANK RELATIONSHIPS</Text>
                             <TouchableOpacity style={styles.addLink} onPress={() => setAddBankVisible(true)}>
                                 <Plus size={13} color="#818CF8" />
                                 <Text style={styles.addLinkText}>Add Bank</Text>
                             </TouchableOpacity>
                         </View>
 
-                        <View style={{ gap: 10 }}>
-                            {overview.bankRelationships.map(b => (
-                                <TouchableOpacity
-                                    key={b.bankId}
-                                    style={styles.relationshipCard}
-                                    onPress={() => setSelectedBank(bankingData.banks.find(bank => bank.id === b.bankId))}
-                                    activeOpacity={0.7}
-                                >
-                                    <View style={styles.relCardHeader}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                            <Landmark size={18} color="#818CF8" />
-                                            <Text style={styles.relBankName}>{b.bankName}</Text>
+                        <View style={{ gap: 14 }}>
+                            {overview.bankRelationships.map(b => {
+                                const bankObj = bankingData.banks.find(bank => bank.id === b.bankId);
+                                const bankAccounts = bankingData.accounts.filter(a => a.bankId === b.bankId);
+                                const bankLoans = bankingData.loans.filter(l => l.bankId === b.bankId);
+
+                                return (
+                                    <View key={b.bankId} style={styles.relationshipMasterCard}>
+                                        {/* Bank Header */}
+                                        <TouchableOpacity
+                                            style={styles.relCardHeader}
+                                            onPress={() => setSelectedBank(bankObj)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <View style={styles.relBankInfo}>
+                                                <View style={styles.bankAvatar}>
+                                                    <Landmark size={20} color="#818CF8" />
+                                                </View>
+                                                <View>
+                                                    <Text style={styles.relBankName}>{b.bankName}</Text>
+                                                    <Text style={styles.relBankSub}>Primary Bank</Text>
+                                                </View>
+                                            </View>
+                                            <View style={styles.relHeaderRight}>
+                                                {b.health && (
+                                                    <View style={styles.healthPill}>
+                                                        <Text style={styles.healthPillText}>Health: {b.health.score}/100</Text>
+                                                    </View>
+                                                )}
+                                                <ChevronRight size={18} color="#71717A" />
+                                            </View>
+                                        </TouchableOpacity>
+
+                                        {/* 3-Column Metrics */}
+                                        <View style={styles.relMetricsRow}>
+                                            <View style={styles.relMetricCol}>
+                                                <Text style={[styles.relMetricVal, { color: '#10B981' }]}>{b.totalCashFormatted}</Text>
+                                                <Text style={styles.relMetricLabel}>Cash held</Text>
+                                            </View>
+                                            <View style={styles.relMetricCol}>
+                                                <Text style={[styles.relMetricVal, { color: '#F87171' }]}>{b.totalDebtFormatted}</Text>
+                                                <Text style={styles.relMetricLabel}>Total debt</Text>
+                                            </View>
+                                            <View style={styles.relMetricCol}>
+                                                <Text style={[styles.relMetricVal, { color: b.isNetPositive ? '#10B981' : '#F59E0B' }]}>
+                                                    {b.isNetPositive ? '+' : '-'}{b.netPositionFormatted}
+                                                </Text>
+                                                <Text style={styles.relMetricLabel}>Net position</Text>
+                                            </View>
                                         </View>
-                                        <ChevronRight size={18} color="#71717A" />
-                                    </View>
 
-                                    <View style={styles.relNumbersRow}>
-                                        <Text style={styles.relNumbersText}>
-                                            <Text style={{ color: '#10B981', fontWeight: '700' }}>{b.totalCashFormatted} cash</Text> • <Text style={{ color: '#F87171', fontWeight: '700' }}>{b.totalDebtFormatted} debt</Text>
-                                        </Text>
-                                        <Text style={[styles.relNetText, { color: b.isNetPositive ? '#10B981' : '#F59E0B' }]}>
-                                            Net {b.isNetPositive ? '+' : '-'}{b.netPositionFormatted}
-                                        </Text>
-                                    </View>
+                                        {/* Nested ACCOUNTS Section */}
+                                        {bankAccounts.length > 0 && (
+                                            <View style={styles.nestedSection}>
+                                                <Text style={styles.nestedSectionTitle}>ACCOUNTS ({bankAccounts.length})</Text>
+                                                <View style={{ gap: 8 }}>
+                                                    {bankAccounts.map(acc => {
+                                                        const proj = bankingData.projection?.accounts[acc.id] || {};
+                                                        const bal = proj.ledgerBalancePaise !== undefined ? proj.ledgerBalancePaise : acc.openingBalancePaise;
+                                                        const mask = acc.maskedAccountNumber || acc.accountNumberMasked || '•••• 4821';
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={acc.id}
+                                                                style={styles.nestedItemRow}
+                                                                onPress={() => setSelectedBank(bankObj)}
+                                                                activeOpacity={0.7}
+                                                            >
+                                                                <View style={styles.nestedItemLeft}>
+                                                                    <View style={styles.accountIconContainer}>
+                                                                        <CreditCard size={16} color="#818CF8" />
+                                                                    </View>
+                                                                    <View>
+                                                                        <Text style={styles.nestedItemName}>{acc.accountName}</Text>
+                                                                        <Text style={styles.nestedItemSub}>{acc.accountType || 'Savings'} ••••• {mask.replace(/[^0-9]/g, '') || '4821'}</Text>
+                                                                    </View>
+                                                                </View>
+                                                                <View style={styles.nestedItemRight}>
+                                                                    <Text style={styles.nestedItemVal}>{formatPaise(bal)}</Text>
+                                                                    <Text style={styles.nestedItemSubVal}>Available: {formatPaise(bal)}</Text>
+                                                                </View>
+                                                                <ChevronRight size={16} color="#52525B" />
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </View>
+                                        )}
 
-                                    {b.nextEMI && (
+                                        {/* Nested LOANS Section */}
+                                        {bankLoans.length > 0 && (
+                                            <View style={styles.nestedSection}>
+                                                <Text style={styles.nestedSectionTitle}>LOANS ({bankLoans.length})</Text>
+                                                <View style={{ gap: 8 }}>
+                                                    {bankLoans.map(loan => {
+                                                        const proj = bankingData.projection?.loans[loan.id] || {};
+                                                        const outP = proj.outstandingPrincipalPaise !== undefined ? proj.outstandingPrincipalPaise : loan.originalPrincipalPaise;
+                                                        const emiVal = b.nextEMI ? b.nextEMI.amountFormatted : formatPaise(5310531);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={loan.id}
+                                                                style={styles.nestedItemRow}
+                                                                onPress={() => setSelectedLoan(loan)}
+                                                                activeOpacity={0.7}
+                                                            >
+                                                                <View style={styles.nestedItemLeft}>
+                                                                    <View style={styles.loanIconContainer}>
+                                                                        <FileText size={16} color="#F87171" />
+                                                                    </View>
+                                                                    <View>
+                                                                        <Text style={styles.nestedItemName}>{loan.loanName}</Text>
+                                                                        <Text style={styles.nestedItemSub}>{loan.interestRate}% p.a. • EMI {emiVal}</Text>
+                                                                    </View>
+                                                                </View>
+                                                                <View style={styles.nestedItemRight}>
+                                                                    <Text style={styles.nestedItemVal}>{formatPaise(outP)}</Text>
+                                                                    <Text style={styles.nestedItemSubVal}>{loan.tenureMonths || 60} months left</Text>
+                                                                </View>
+                                                                <ChevronRight size={16} color="#52525B" />
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                            </View>
+                                        )}
+
+                                        {/* Card Footer */}
                                         <View style={styles.relFooterRow}>
                                             <Text style={styles.relFooterText}>
-                                                Next EMI: <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>{b.nextEMI.amountFormatted}</Text> ({b.nextEMI.daysRemaining} days)
+                                                {b.nextEMI ? (
+                                                    <>Next EMI: <Text style={{ color: '#E5E7EB', fontWeight: '700' }}>{b.nextEMI.amountFormatted}</Text> ({b.nextEMI.daysRemaining} days)</>
+                                                ) : (
+                                                    <Text style={{ color: '#71717A' }}>No active obligations</Text>
+                                                )}
                                             </Text>
-                                            {b.health && (
-                                                <Text style={styles.healthBadge}>Health: {b.health.score}/100</Text>
-                                            )}
+                                            <TouchableOpacity onPress={() => setSelectedBank(bankObj)}>
+                                                <Text style={styles.viewRelLink}>View Relationship</Text>
+                                            </TouchableOpacity>
                                         </View>
-                                    )}
-                                </TouchableOpacity>
-                            ))}
+                                    </View>
+                                );
+                            })}
                         </View>
                     </View>
 
-                    {/* Decision / Prepayment Opportunity (Dynamic from Engine) */}
+                    {/* Decision / Prepayment Opportunity */}
                     {overview.dynamicPrepaymentOpportunity && (
                         <View style={styles.decisionSection}>
                             <Text style={styles.decisionLabel}>DECISION INTELLIGENCE</Text>
@@ -247,70 +375,7 @@ export default function BankingMainView({ onBack = null }) {
                 </View>
             )}
 
-            {/* ── 2. ACCOUNTS VIEW ── */}
-            {activeTab === 'ACCOUNTS' && (
-                <View style={styles.contentContainer}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                        <Text style={styles.sectionLabel}>BANK ACCOUNTS</Text>
-                        <TouchableOpacity style={styles.addLink} onPress={() => setAddAccountVisible(true)}>
-                            <Plus size={13} color="#818CF8" />
-                            <Text style={styles.addLinkText}>Add Account</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={{ gap: 8 }}>
-                        {bankingData.accounts.map(acc => {
-                            const proj = bankingData.projection?.accounts[acc.id] || {};
-                            const bal = proj.ledgerBalancePaise !== undefined ? proj.ledgerBalancePaise : acc.openingBalancePaise;
-                            const bank = bankingData.banks.find(b => b.id === acc.bankId);
-                            return (
-                                <View key={acc.id} style={styles.itemRow}>
-                                    <View>
-                                        <Text style={styles.itemName}>{acc.accountName}</Text>
-                                        <Text style={styles.itemSub}>{bank?.name || 'Bank'} • {acc.accountType} • {acc.maskedAccountNumber}</Text>
-                                    </View>
-                                    <Text style={[styles.itemVal, { color: '#10B981' }]}>{formatPaise(bal)}</Text>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
-            )}
-
-            {/* ── 3. LOANS VIEW ── */}
-            {activeTab === 'LOANS' && (
-                <View style={styles.contentContainer}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                        <Text style={styles.sectionLabel}>FORMAL BANK LOANS</Text>
-                        <TouchableOpacity style={styles.addLink} onPress={() => setAddLoanVisible(true)}>
-                            <Plus size={13} color="#818CF8" />
-                            <Text style={styles.addLinkText}>Add Loan</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={{ gap: 8 }}>
-                        {bankingData.loans.map(loan => {
-                            const proj = bankingData.projection?.loans[loan.id] || {};
-                            const outP = proj.outstandingPrincipalPaise !== undefined ? proj.outstandingPrincipalPaise : loan.originalPrincipalPaise;
-                            const bank = bankingData.banks.find(b => b.id === loan.bankId);
-                            return (
-                                <TouchableOpacity key={loan.id} style={styles.itemRow} onPress={() => setSelectedLoan(loan)}>
-                                    <View>
-                                        <Text style={styles.itemName}>{loan.loanName}</Text>
-                                        <Text style={styles.itemSub}>{bank?.name || 'Bank'} • {loan.interestRate}% p.a. • {loan.tenureMonths} Mo</Text>
-                                    </View>
-                                    <View style={{ alignItems: 'flex-end' }}>
-                                        <Text style={[styles.itemVal, { color: '#F87171' }]}>{formatPaise(outP)}</Text>
-                                        <Text style={styles.itemLink}>{'View Details →'}</Text>
-                                    </View>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                </View>
-            )}
-
-            {/* ── 4. CALENDAR VIEW ── */}
+            {/* ── 2. CALENDAR VIEW (CROSS-BANK OBLIGATIONS) ── */}
             {activeTab === 'CALENDAR' && (
                 <EMICalendarView
                     schedules={bankingData.projection?.schedules || bankingData.schedules}
@@ -320,7 +385,7 @@ export default function BankingMainView({ onBack = null }) {
                 />
             )}
 
-            {/* ── 5. INSIGHTS (CFO BRAIN) VIEW ── */}
+            {/* ── 3. INSIGHTS VIEW (CFO BRAIN) ── */}
             {activeTab === 'INSIGHTS' && (
                 <BankingInsightsView
                     banks={bankingData.banks}
@@ -344,13 +409,13 @@ export default function BankingMainView({ onBack = null }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#090A14'
+        backgroundColor: '#070810'
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#090A14',
+        backgroundColor: '#070810',
         padding: 24,
         gap: 12
     },
@@ -361,25 +426,30 @@ const styles = StyleSheet.create({
     },
     navBar: {
         paddingHorizontal: 16,
-        paddingVertical: 10,
+        paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#1A1C30'
+        borderBottomColor: '#121424'
+    },
+    tabPillContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#101222',
+        borderRadius: 22,
+        padding: 4,
+        gap: 4
     },
     navPill: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
-        borderRadius: 16,
-        backgroundColor: '#121324',
-        borderWidth: 1,
-        borderColor: '#1E2038'
+        flex: 1,
+        paddingVertical: 8,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center'
     },
     navPillActive: {
-        backgroundColor: '#3730A3',
-        borderColor: '#6366F1'
+        backgroundColor: '#3730A3'
     },
     navPillText: {
         color: '#94A3B8',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '700'
     },
     navPillTextActive: {
@@ -387,20 +457,26 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         padding: 16,
-        gap: 18
+        gap: 16
     },
     sectionLabel: {
         color: '#71717A',
         fontSize: 10,
         fontWeight: '800',
-        letterSpacing: 0.5,
+        letterSpacing: 0.8,
+        marginBottom: 8
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 8
     },
     positionSection: {
-        backgroundColor: '#0F1022',
-        borderColor: '#1E2038',
+        backgroundColor: '#0C0E1E',
+        borderColor: '#181B34',
         borderWidth: 1,
-        borderRadius: 14,
+        borderRadius: 16,
         padding: 16
     },
     positionGrid: {
@@ -408,41 +484,74 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between'
     },
     positionCol: {
-        flex: 1
-    },
-    positionNum: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: '900',
-        marginBottom: 2
+        flex: 1,
+        alignItems: 'center'
     },
     positionDesc: {
         color: '#71717A',
         fontSize: 10,
-        fontWeight: '600'
+        fontWeight: '600',
+        marginBottom: 4
     },
-    calmSection: {
+    positionNum: {
+        color: '#FFFFFF',
+        fontSize: 22,
+        fontWeight: '900',
+        marginBottom: 6
+    },
+    iconCircleMini: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#14172E',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    obligationSection: {
         gap: 4
     },
-    obligationRow: {
+    obligationCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#121324',
-        borderColor: '#1E2038',
+        backgroundColor: '#0C0E1E',
+        borderColor: '#181B34',
         borderWidth: 1,
-        borderRadius: 12,
-        padding: 14
+        borderRadius: 16,
+        padding: 16
+    },
+    obligationLeft: {
+        gap: 4
     },
     obligationAmount: {
         color: '#F59E0B',
-        fontSize: 17,
-        fontWeight: '800'
+        fontSize: 22,
+        fontWeight: '900'
+    },
+    obligationDescRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6
     },
     obligationDesc: {
         color: '#94A3B8',
         fontSize: 11,
-        marginTop: 2
+        fontWeight: '600'
+    },
+    emiTag: {
+        backgroundColor: '#2E1065',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6
+    },
+    emiTagText: {
+        color: '#C084FC',
+        fontSize: 9,
+        fontWeight: '800'
+    },
+    obligationRight: {
+        alignItems: 'flex-end',
+        gap: 2
     },
     obligationDue: {
         color: '#FFFFFF',
@@ -451,55 +560,174 @@ const styles = StyleSheet.create({
     },
     obligationDays: {
         color: '#71717A',
-        fontSize: 10,
-        marginTop: 2
+        fontSize: 10
     },
-    relationshipCard: {
-        backgroundColor: '#121324',
-        borderColor: '#1E2038',
+    calmSection: {
+        gap: 4
+    },
+    addLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4
+    },
+    addLinkText: {
+        color: '#818CF8',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    relationshipMasterCard: {
+        backgroundColor: '#0C0E1E',
+        borderColor: '#181B34',
         borderWidth: 1,
-        borderRadius: 14,
-        padding: 14,
-        gap: 8
+        borderRadius: 18,
+        padding: 16,
+        gap: 14
     },
     relCardHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center'
     },
+    relBankInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12
+    },
+    bankAvatar: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#1E1B4B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderColor: '#3730A3',
+        borderWidth: 1
+    },
     relBankName: {
         color: '#FFFFFF',
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '800'
     },
-    relNumbersRow: {
+    relBankSub: {
+        color: '#71717A',
+        fontSize: 11,
+        marginTop: 1
+    },
+    relHeaderRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8
+    },
+    healthPill: {
+        backgroundColor: '#064E3B',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12
+    },
+    healthPillText: {
+        color: '#34D399',
+        fontSize: 10,
+        fontWeight: '800'
+    },
+    relMetricsRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        backgroundColor: '#11142A',
+        borderRadius: 12,
+        paddingVertical: 10,
+        paddingHorizontal: 12
+    },
+    relMetricCol: {
+        flex: 1,
         alignItems: 'center'
     },
-    relNumbersText: {
-        color: '#94A3B8',
-        fontSize: 12
+    relMetricVal: {
+        fontSize: 16,
+        fontWeight: '900',
+        marginBottom: 2
     },
-    relNetText: {
-        fontSize: 12,
+    relMetricLabel: {
+        color: '#71717A',
+        fontSize: 10,
+        fontWeight: '600'
+    },
+    nestedSection: {
+        gap: 8
+    },
+    nestedSectionTitle: {
+        color: '#71717A',
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.5
+    },
+    nestedItemRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#11142A',
+        borderRadius: 12,
+        padding: 12,
+        gap: 10
+    },
+    nestedItemLeft: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10
+    },
+    accountIconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#2E1065',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    loanIconContainer: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#450A0A',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    nestedItemName: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700'
+    },
+    nestedItemSub: {
+        color: '#71717A',
+        fontSize: 10,
+        marginTop: 2
+    },
+    nestedItemRight: {
+        alignItems: 'flex-end'
+    },
+    nestedItemVal: {
+        color: '#FFFFFF',
+        fontSize: 13,
         fontWeight: '800'
+    },
+    nestedItemSubVal: {
+        color: '#71717A',
+        fontSize: 9,
+        marginTop: 2
     },
     relFooterRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: 6,
+        paddingTop: 8,
         borderTopWidth: 1,
-        borderTopColor: '#1A1C30'
+        borderTopColor: '#181B34'
     },
     relFooterText: {
         color: '#71717A',
-        fontSize: 10
+        fontSize: 11
     },
-    healthBadge: {
+    viewRelLink: {
         color: '#818CF8',
-        fontSize: 10,
+        fontSize: 11,
         fontWeight: '700'
     },
     decisionSection: {
@@ -515,7 +743,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#1C1917',
         borderColor: '#78350F',
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 14,
         padding: 14,
         gap: 4
     },
@@ -533,46 +761,6 @@ const styles = StyleSheet.create({
         color: '#A8A29E',
         fontSize: 10,
         fontStyle: 'italic',
-        marginTop: 2
-    },
-    addLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4
-    },
-    addLinkText: {
-        color: '#818CF8',
-        fontSize: 11,
-        fontWeight: '700'
-    },
-    itemRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#121324',
-        borderColor: '#1E2038',
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: 14
-    },
-    itemName: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '700'
-    },
-    itemSub: {
-        color: '#71717A',
-        fontSize: 10,
-        marginTop: 2
-    },
-    itemVal: {
-        fontSize: 14,
-        fontWeight: '800'
-    },
-    itemLink: {
-        color: '#818CF8',
-        fontSize: 10,
-        fontWeight: '700',
         marginTop: 2
     }
 });

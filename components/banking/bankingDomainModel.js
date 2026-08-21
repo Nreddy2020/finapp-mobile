@@ -570,14 +570,33 @@ export function getHDFCBankDemoFixture() {
         primaryContact: '+91 22 6160 6161'
     });
 
+    const iciciBank = createBank({
+        id: 'bank_icici',
+        name: 'ICICI Bank',
+        shortName: 'ICICI',
+        type: BANK_TYPE.PRIVATE,
+        relationshipStatus: BANK_RELATIONSHIP_STATUS.ACTIVE,
+        primaryContact: '+91 22 3366 7777'
+    });
+
     const hdfcSavings = createBankAccount({
         id: 'bacc_hdfc_savings',
         bankId: 'bank_hdfc',
         accountType: BANK_ACCOUNT_TYPE.SAVINGS,
-        accountName: 'HDFC Salary Advantage',
+        accountName: 'HDFC Salary Account',
         maskedAccountNumber: '•••• 4821',
-        openingBalancePaise: 50000000, // ₹5,00,000.00
+        openingBalancePaise: 100000000, // ₹10,00,000.00
         isPrimary: true
+    });
+
+    const iciciSavings = createBankAccount({
+        id: 'bacc_icici_savings',
+        bankId: 'bank_icici',
+        accountType: BANK_ACCOUNT_TYPE.SAVINGS,
+        accountName: 'ICICI Privilege Savings',
+        maskedAccountNumber: '•••• 1109',
+        openingBalancePaise: 120000000, // ₹12,00,000.00
+        isPrimary: false
     });
 
     const hdfcPersonalLoan = createBankLoan({
@@ -597,7 +616,8 @@ export function getHDFCBankDemoFixture() {
 
     return {
         bank: hdfcBank,
-        accounts: [hdfcSavings],
+        banks: [hdfcBank, iciciBank],
+        accounts: [hdfcSavings, iciciSavings],
         loans: [hdfcPersonalLoan]
     };
 }
