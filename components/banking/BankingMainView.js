@@ -278,16 +278,16 @@ export default function BankingMainView({ onBack = null }) {
                                                                 onPress={() => setSelectedBank(bankObj)}
                                                                 activeOpacity={0.7}
                                                             >
-                                                                <View style={styles.nestedItemLeft}>
+                                                                <View style={[styles.nestedItemLeft, { maxWidth: '56%' }]}>
                                                                     <View style={styles.accountIconContainer}>
                                                                         <CreditCard size={16} color="#818CF8" />
                                                                     </View>
-                                                                    <View>
-                                                                        <Text style={styles.nestedItemName}>{acc.accountName}</Text>
-                                                                        <Text style={styles.nestedItemSub}>{acc.accountType || 'Savings'} ••••• {mask.replace(/[^0-9]/g, '') || '4821'}</Text>
+                                                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                                                        <Text style={styles.nestedItemName} numberOfLines={1} ellipsizeMode="tail">{acc.accountName}</Text>
+                                                                        <Text style={styles.nestedItemSub} numberOfLines={1}>{acc.accountType || 'Savings'} ••••• {mask.replace(/[^0-9]/g, '') || '4821'}</Text>
                                                                     </View>
                                                                 </View>
-                                                                <View style={styles.nestedItemRight}>
+                                                                <View style={[styles.nestedItemRight, { marginLeft: 'auto', paddingLeft: 8 }]}>
                                                                     <Text style={styles.nestedItemVal}>{formatPaise(bal)}</Text>
                                                                     <Text style={styles.nestedItemSubVal}>Available: {formatPaise(bal)}</Text>
                                                                 </View>
@@ -315,16 +315,16 @@ export default function BankingMainView({ onBack = null }) {
                                                                 onPress={() => setSelectedLoan(loan)}
                                                                 activeOpacity={0.7}
                                                             >
-                                                                <View style={styles.nestedItemLeft}>
+                                                                <View style={[styles.nestedItemLeft, { maxWidth: '56%' }]}>
                                                                     <View style={styles.loanIconContainer}>
                                                                         <FileText size={16} color="#F87171" />
                                                                     </View>
-                                                                    <View>
-                                                                        <Text style={styles.nestedItemName}>{loan.loanName}</Text>
-                                                                        <Text style={styles.nestedItemSub}>{loan.interestRate}% p.a. • EMI {emiVal}</Text>
+                                                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                                                        <Text style={styles.nestedItemName} numberOfLines={1} ellipsizeMode="tail">{loan.loanName}</Text>
+                                                                        <Text style={styles.nestedItemSub} numberOfLines={1}>{loan.interestRate}% p.a. • EMI {emiVal}</Text>
                                                                     </View>
                                                                 </View>
-                                                                <View style={styles.nestedItemRight}>
+                                                                <View style={[styles.nestedItemRight, { marginLeft: 'auto', paddingLeft: 8 }]}>
                                                                     <Text style={styles.nestedItemVal}>{formatPaise(outP)}</Text>
                                                                     <Text style={styles.nestedItemSubVal}>{loan.tenureMonths || 60} months left</Text>
                                                                 </View>
@@ -663,6 +663,7 @@ const styles = StyleSheet.create({
     nestedItemRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         backgroundColor: '#11142A',
         borderRadius: 12,
         padding: 12,
@@ -670,9 +671,11 @@ const styles = StyleSheet.create({
     },
     nestedItemLeft: {
         flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10
+        gap: 10,
+        marginRight: 8,
     },
     accountIconContainer: {
         width: 32,
@@ -680,7 +683,8 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         backgroundColor: '#2E1065',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        flexShrink: 0,
     },
     loanIconContainer: {
         width: 32,
@@ -688,20 +692,22 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         backgroundColor: '#450A0A',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        flexShrink: 0,
     },
     nestedItemName: {
         color: '#FFFFFF',
         fontSize: 13,
-        fontWeight: '700'
+        fontWeight: '700',
     },
     nestedItemSub: {
         color: '#71717A',
         fontSize: 10,
-        marginTop: 2
+        marginTop: 2,
     },
     nestedItemRight: {
-        alignItems: 'flex-end'
+        alignItems: 'flex-end',
+        flexShrink: 0,
     },
     nestedItemVal: {
         color: '#FFFFFF',

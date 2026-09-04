@@ -705,21 +705,29 @@ export default function SelfScreen() {
     // ==========================================
     // FUNCTION 1: Money Flow
     // ==========================================
-    const [transactions, setTransactions] = useState([
-        // August 2026 (Current Active Month)
-        { id: '1', desc: 'Salary Credit', amount: 120000, type: 'INCOME', category: 'Salary', date: '2026-08-01', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'HDFC Bank', account: 'HDFC Savings Account' },
-        { id: '2', desc: 'Business Dividend', amount: 45000, type: 'INCOME', category: 'Business', date: '2026-08-04', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Zerodha Broking', account: 'ICICI Current Account' },
-        { id: '3', desc: 'Home Rent Outflow', amount: 28000, type: 'EXPENSE', category: 'Rent', date: '2026-08-02', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
-        { id: '4', desc: 'Organic Groceries', amount: 6500, type: 'EXPENSE', category: 'Food', date: '2026-08-03', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' },
-        { id: '5', desc: 'Fuel Refill', amount: 4200, type: 'EXPENSE', category: 'Travel', date: '2026-08-05', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Shell Fuel', account: 'SBI Savings Account' },
-        { id: '6', desc: 'Entertainment Subscription', amount: 999, type: 'EXPENSE', category: 'Entertainment', date: '2026-08-06', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Netflix', account: 'HDFC Savings Account' },
-        { id: '7', desc: 'Swiggy Dinner Order', amount: 1450, type: 'EXPENSE', category: 'Food', date: '2026-08-10', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Swiggy', account: 'HDFC Savings Account' },
-        { id: '8', desc: 'Amazon Household Items', amount: 2250, type: 'EXPENSE', category: 'Shopping', date: '2026-08-14', syncedFromSms: true, smsBody: 'UPI: A/c XX8810 debited by Rs.2,250.00 to Amazon', isLogged: true, merchant: 'Amazon', account: 'HDFC Savings Account', smsId: 's8' },
-        // July 2026 (Previous Month)
-        { id: '9', desc: 'Salary Credit - Jul', amount: 120000, type: 'INCOME', category: 'Salary', date: '2026-07-01', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'HDFC Bank', account: 'HDFC Savings Account' },
-        { id: '10', desc: 'Home Rent - Jul', amount: 28000, type: 'EXPENSE', category: 'Rent', date: '2026-07-02', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
-        { id: '11', desc: 'Groceries - Jul', amount: 6500, type: 'EXPENSE', category: 'Food', date: '2026-07-03', syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' }
-    ]);
+    const [transactions, setTransactions] = useState(() => {
+        const now = new Date();
+        const curY = now.getFullYear();
+        const curM = String(now.getMonth() + 1).padStart(2, '0');
+        const prevM = String(now.getMonth() === 0 ? 12 : now.getMonth()).padStart(2, '0');
+        const prevY = now.getMonth() === 0 ? curY - 1 : curY;
+
+        return [
+            // Current Active Month
+            { id: '1', desc: 'Salary Credit', amount: 120000, type: 'INCOME', category: 'Salary / Income', date: `${curY}-${curM}-01`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Tech Corp Salary', account: 'HDFC Savings Account' },
+            { id: '2', desc: 'Business Dividend', amount: 45000, type: 'INCOME', category: 'Salary / Income', date: `${curY}-${curM}-02`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Consulting Retainer', account: 'ICICI Current Account' },
+            { id: '3', desc: 'Home Rent Outflow', amount: 28000, type: 'EXPENSE', category: 'Rent & Housing', date: `${curY}-${curM}-02`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
+            { id: '4', desc: 'Organic Groceries', amount: 6500, type: 'EXPENSE', category: 'Groceries & Food', date: `${curY}-${curM}-03`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' },
+            { id: '5', desc: 'Fuel Refill', amount: 4200, type: 'EXPENSE', category: 'Transportation', date: `${curY}-${curM}-03`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Shell Fuel', account: 'SBI Savings Account' },
+            { id: '6', desc: 'Entertainment Subscription', amount: 999, type: 'EXPENSE', category: 'Entertainment', date: `${curY}-${curM}-04`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Netflix', account: 'HDFC Savings Account' },
+            { id: '7', desc: 'Swiggy Dinner Order', amount: 1450, type: 'EXPENSE', category: 'Groceries & Food', date: `${curY}-${curM}-04`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Swiggy', account: 'HDFC Savings Account' },
+            { id: '8', desc: 'Amazon Household Items', amount: 2250, type: 'EXPENSE', category: 'Shopping', date: `${curY}-${curM}-04`, syncedFromSms: true, smsBody: 'UPI: A/c XX8810 debited by Rs.2,250.00 to Amazon', isLogged: true, merchant: 'Amazon', account: 'HDFC Savings Account', smsId: 's8' },
+            // Previous Month
+            { id: '9', desc: 'Salary Credit - Prev', amount: 120000, type: 'INCOME', category: 'Salary / Income', date: `${prevY}-${prevM}-01`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Tech Corp Salary', account: 'HDFC Savings Account' },
+            { id: '10', desc: 'Home Rent - Prev', amount: 28000, type: 'EXPENSE', category: 'Rent & Housing', date: `${prevY}-${prevM}-02`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'Prestige Society', account: 'HDFC Savings Account' },
+            { id: '11', desc: 'Groceries - Prev', amount: 6500, type: 'EXPENSE', category: 'Groceries & Food', date: `${prevY}-${prevM}-03`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' }
+        ];
+    });
     const [newTxDesc, setNewTxDesc] = useState('');
     const [newTxAmt, setNewTxAmt] = useState('');
     const [newTxType, setNewTxType] = useState('EXPENSE');
@@ -2301,6 +2309,28 @@ export default function SelfScreen() {
     };
 
     const interestData = calculateInterestReport();
+    if (activeTab === 'flow') {
+        return (
+            <View style={styles.container}>
+                <View style={styles.statusBarSpacer} />
+                <MoneyFlowView
+                    transactions={transactions}
+                    onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
+                    onCategorizeTransaction={(txId, cat) => {
+                        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
+                    }}
+                    onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
+                    onUpdateTransaction={(updatedTx) => {
+                        setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+                    }}
+                    onOpenDrawer={() => setIsDrawerOpen(true)}
+                    hideHeader={false}
+                    asOfDate={new Date().toISOString()}
+                />
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
             <View style={styles.statusBarSpacer} />
@@ -2310,7 +2340,6 @@ export default function SelfScreen() {
                     <Menu size={24} color="#FFF" />
                 </Pressable>
                 <Text style={styles.headerTitle} numberOfLines={1}>
-                    {activeTab === 'flow' && 'Personal Money Flow'}
                     {(activeTab === 'financial_hub' || activeTab === 'sms' || activeTab === 'hub') && 'Financial Hub'}
                     {activeTab === 'banking' && 'Banking & Loans'}
                     {activeTab === 'p2p' && 'P2P Loans'}
@@ -2327,41 +2356,6 @@ export default function SelfScreen() {
                 <View style={{ width: 40 }} />
             </View>
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                {/* 1. World-Class Personal Financial Decision Assistant */}
-                {activeTab === 'flow' && (
-                    <View style={{ gap: 14 }}>
-                        {/* PERSONAL CFO INTELLIGENCE BANNER */}
-                        <TouchableOpacity
-                            onPress={() => router.push('/investments')}
-                            style={{ backgroundColor: '#1E1B4B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#4338CA', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                        >
-                            <View style={{ gap: 4 }}>
-                                <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '800' }}>PERSONAL CFO INTELLIGENCE</Text>
-                                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>
-                                    Portfolio Health Score: {cfoHealthScore || '84.5'}/100 ({cfoHealthGrade || 'A'})
-                                </Text>
-                                {cfoTopAction && (
-                                    <Text style={{ color: '#A5B4FC', fontSize: 11 }}>{cfoTopAction.title || 'Optimal cash deployment recommended'}</Text>
-                                )}
-                            </View>
-                            <Text style={{ color: '#818CF8', fontSize: 12, fontWeight: '800' }}>Command Center ›</Text>
-                        </TouchableOpacity>
-
-                        {/* Personal Spending Table & Cash Truth */}
-                        <MoneyFlowView
-                            transactions={transactions}
-                            onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
-                            onCategorizeTransaction={(txId, cat) => {
-                                setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
-                            }}
-                            onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
-                            onUpdateTransaction={(updatedTx) => {
-                                setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
-                            }}
-                            asOfDate={new Date().toISOString()}
-                        />
-                    </View>
-                )}
 
                 {/* ── Financial Hub (Banking, P2P, Splitwise) ── */}
                 {activeTab === 'sms' && (
@@ -2530,568 +2524,6 @@ export default function SelfScreen() {
                         onNavigateMoneyFlow={() => setActiveTab('flow')}
                     />
                 )}
-                {false && activeTab === 'p2p' && (
-                    <View style={{ gap: 16 }}>
-                                {/* Top Receivable Card Header */}
-                                <View style={{ backgroundColor: '#18181B', borderRadius: 16, padding: 18, borderWidth: 1, borderColor: '#27272A', gap: 12 }}>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <Text style={{ color: '#A1A1AA', fontSize: 13, fontWeight: '600' }}>Receivable</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                            <TouchableOpacity 
-                                                onPress={() => setShowAddLoanModal(true)} 
-                                                style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#6366F1', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
-                                            >
-                                                <Plus size={14} color="#FFF" />
-                                                <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '800' }}>Add Loan</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => setShowCalculator(true)} style={{ backgroundColor: '#27272A', padding: 6, borderRadius: 8 }}>
-                                                <Calculator size={18} color="#A1A1AA" />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity 
-                                                onPress={() => Alert.alert('Loan Reminders', 'No active overdue loan alerts right now. Notifications will appear when installments are due.')} 
-                                                style={{ backgroundColor: '#27272A', padding: 6, borderRadius: 8 }}
-                                            >
-                                                <Bell size={18} color="#A1A1AA" />
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-                                        <Text style={{ color: '#10B981', fontSize: 24, fontWeight: '800' }}>₹9,789,625.20</Text>
-                                        <Text style={{ color: '#71717A', fontSize: 12 }}>as of today.</Text>
-                                    </View>
-
-                                    {/* Dual Breakdown Box */}
-                                    <View style={{ flexDirection: 'row', backgroundColor: '#09090B', borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 1, borderColor: '#27272A' }}>
-                                        <TouchableOpacity 
-                                            onPress={() => {
-                                                setP2pCategoryTab('GIVEN');
-                                                setActiveP2PView('list');
-                                            }}
-                                            style={{ flex: 1, borderRightWidth: 1, borderRightColor: '#27272A', paddingRight: 10 }}
-                                        >
-                                            <Text style={{ color: '#71717A', fontSize: 11 }}>You will get</Text>
-                                            <Text style={{ color: '#10B981', fontSize: 15, fontWeight: '800', marginTop: 4 }}>₹22,322,341.64</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity 
-                                            onPress={() => {
-                                                setP2pCategoryTab('TAKEN');
-                                                setActiveP2PView('list');
-                                            }}
-                                            style={{ flex: 1, paddingLeft: 14 }}
-                                        >
-                                            <Text style={{ color: '#71717A', fontSize: 11 }}>You will pay</Text>
-                                            <Text style={{ color: '#EF4444', fontSize: 15, fontWeight: '800', marginTop: 4 }}>₹12,532,716.44</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-
-                                {/* This Month Interest Widget */}
-                                <View style={{ gap: 8 }}>
-                                    <Text style={{ color: '#E4E4E7', fontSize: 13, fontWeight: '700' }}>This Month Interest</Text>
-                                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                                        <TouchableOpacity 
-                                            onPress={() => {
-                                                setP2pCategoryTab('GIVEN');
-                                                setActiveP2PView('list');
-                                            }}
-                                            style={{ flex: 1, backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-                                        >
-                                            <View>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <ArrowDownLeft size={14} color="#10B981" />
-                                                    <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>Receivable</Text>
-                                                </View>
-                                                <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '800', marginTop: 4 }}>₹218,012.67</Text>
-                                            </View>
-                                            <Text style={{ color: '#71717A', fontSize: 16 }}>›</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity 
-                                            onPress={() => {
-                                                setP2pCategoryTab('TAKEN');
-                                                setActiveP2PView('list');
-                                            }}
-                                            style={{ flex: 1, backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-                                        >
-                                            <View>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <ArrowUpRight size={14} color="#F97316" />
-                                                    <Text style={{ color: '#F97316', fontSize: 12, fontWeight: '700' }}>Payable</Text>
-                                                </View>
-                                                <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '800', marginTop: 4 }}>₹86,387.80</Text>
-                                            </View>
-                                            <Text style={{ color: '#71717A', fontSize: 16 }}>›</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                {/* Loans Due & Collections Banners */}
-                                <View style={{ gap: 10 }}>
-                                    <Text style={{ color: '#E4E4E7', fontSize: 13, fontWeight: '700' }}>Loans Due</Text>
-                                    <TouchableOpacity 
-                                        onPress={() => {
-                                            setP2pCategoryTab('GIVEN');
-                                            setActiveP2PView('list');
-                                        }}
-                                        style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                                    >
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                            <Text style={{ fontSize: 18 }}>🧑‍🤝‍🧑</Text>
-                                            <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '700' }}>Collections</Text>
-                                        </View>
-                                        <Text style={{ color: '#71717A', fontSize: 16 }}>›</Text>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity 
-                                        onPress={() => setShowCalculator(true)}
-                                        style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-                                    >
-                                        <Text style={{ color: '#D4D4D8', fontSize: 13, fontWeight: '600' }}>You will be debt free</Text>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                            <Text style={{ color: '#10B981', fontSize: 13, fontWeight: '700' }}>Check</Text>
-                                            <Text style={{ color: '#10B981', fontSize: 14 }}>›</Text>
-                                        </View>
-                                    </TouchableOpacity>
-
-                                    <TouchableOpacity onPress={() => setActiveTab('reports')} style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                            <Text style={{ fontSize: 18 }}>📄</Text>
-                                            <Text style={{ color: '#EC4899', fontSize: 14, fontWeight: '700' }}>Reports</Text>
-                                        </View>
-                                        <Text style={{ color: '#71717A', fontSize: 16 }}>›</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        )}
-
-                        {/* ── P2P SUB-VIEW 2: LOANS LIST VIEW ('list') ── */}
-                        {activeP2PView === 'list' && (
-                            <View style={{ gap: 14 }}>
-                                 {/* Filter Bar & Search & Add Loan Button */}
-                                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                                    <TouchableOpacity style={{ backgroundColor: '#18181B', padding: 10, borderRadius: 10, borderWidth: 1, borderColor: '#27272A' }}>
-                                        <Layers size={18} color="#A1A1AA" />
-                                    </TouchableOpacity>
-                                    <TextInput 
-                                        placeholder="Search loans..." 
-                                        placeholderTextColor="#71717A" 
-                                        value={p2pSearchQuery}
-                                        onChangeText={setP2pSearchQuery}
-                                        style={{ flex: 1, backgroundColor: '#18181B', color: '#FFF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: '#27272A', fontSize: 12 }}
-                                    />
-                                    <TouchableOpacity 
-                                        onPress={() => setShowAddLoanModal(true)} 
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#6366F1', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10 }}
-                                    >
-                                        <Plus size={16} color="#FFF" />
-                                        <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '800' }}>Add Loan</Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                {/* TAKEN | GIVEN | SETTLED Category Tabs */}
-                                <View style={{ flexDirection: 'row', backgroundColor: '#18181B', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#27272A' }}>
-                                    {[
-                                        { key: 'TAKEN', label: `TAKEN (${loansList.filter(l => l.type === 'taken').length})` },
-                                        { key: 'GIVEN', label: `GIVEN (${loansList.filter(l => l.type === 'given').length})` },
-                                        { key: 'SETTLED', label: `SETTLED (${loansList.filter(l => l.type === 'settled').length})` }
-                                    ].map(tab => (
-                                        <TouchableOpacity 
-                                            key={tab.key} 
-                                            onPress={() => setP2pCategoryTab(tab.key)}
-                                            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: p2pCategoryTab === tab.key ? '#6366F1' : 'transparent' }}
-                                        >
-                                            <Text style={{ color: p2pCategoryTab === tab.key ? '#FFF' : '#A1A1AA', fontSize: 11, fontWeight: '700' }}>{tab.label}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                {/* List of Loan Entity Cards */}
-                                <View style={{ gap: 12 }}>
-                                    {loansList
-                                        .filter(item => p2pCategoryTab === 'SETTLED' ? item.type === 'settled' : item.type === p2pCategoryTab.toLowerCase())
-                                        .filter(item => item.name.toLowerCase().includes(p2pSearchQuery.toLowerCase()))
-                                        .map(entity => {
-                                            const firstLoan = entity.subLoans[0];
-                                            const totalPrincipal = entity.subLoans.reduce((sum, l) => sum + l.principal, 0);
-                                            const totalDue = totalPrincipal * 1.12;
-
-                                            return (
-                                                <TouchableOpacity 
-                                                    key={entity.id}
-                                                    onPress={() => {
-                                                        setSelectedContactId(entity.id);
-                                                        if (firstLoan) setSelectedSubLoanId(firstLoan.id);
-                                                        setActiveP2PView('entity');
-                                                    }}
-                                                    style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}
-                                                >
-                                                    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                                                        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: p2pCategoryTab === 'TAKEN' ? '#F97316' : '#10B981', justifyContent: 'center', alignItems: 'center' }}>
-                                                            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '800' }}>{entity.name.substring(0, 2).toUpperCase()}</Text>
-                                                        </View>
-                                                        <View style={{ flex: 1 }}>
-                                                            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '700' }}>{entity.name}</Text>
-                                                            <Text style={{ color: '#71717A', fontSize: 11, marginTop: 2 }}>
-                                                                {entity.subLoans.length} loan{entity.subLoans.length > 1 ? 's' : ''} ({entity.subLoans.map(s => s.id).join(', ')})
-                                                            </Text>
-                                                        </View>
-                                                        {p2pCategoryTab === 'SETTLED' && (
-                                                            <View style={{ backgroundColor: '#10B98120', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                                                                <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '800' }}>SETTLED</Text>
-                                                            </View>
-                                                        )}
-                                                    </View>
-
-                                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#27272A' }}>
-                                                        <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Net Amount Due:</Text>
-                                                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
-                                                            <Text style={{ color: '#71717A', fontSize: 11, textDecorationLine: 'line-through' }}>₹{totalPrincipal.toLocaleString()}</Text>
-                                                            <Text style={{ color: p2pCategoryTab === 'TAKEN' ? '#F87171' : '#34D399', fontSize: 13, fontWeight: '800' }}>₹{Math.round(totalDue).toLocaleString()}</Text>
-                                                        </View>
-                                                    </View>
-
-                                                    {firstLoan && (
-                                                        <Text style={{ color: '#F59E0B', fontSize: 10, fontStyle: 'italic' }}>
-                                                            • Upcoming installment of ₹53,518.89 on 06 Sep 2026
-                                                        </Text>
-                                                    )}
-                                                </TouchableOpacity>
-                                            );
-                                        })}
-                                </View>
-                            </View>
-                        )}
-
-                        {/* ── P2P SUB-VIEW 3: BORROWER ENTITY DETAIL ('entity') ── */}
-                        {activeP2PView === 'entity' && (
-                            <View style={{ gap: 14 }}>
-                                {/* Top Back Bar */}
-                                <TouchableOpacity onPress={() => setActiveP2PView('loans_list')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <ArrowLeft size={16} color="#A1A1AA" />
-                                    <Text style={{ color: '#A1A1AA', fontSize: 12, fontWeight: '700' }}>Back to Loans List</Text>
-                                </TouchableOpacity>
-
-                                {/* Dark Balance Header Card */}
-                                <View style={{ backgroundColor: '#09090B', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                    <Text style={{ color: '#A1A1AA', fontSize: 12, fontWeight: '600' }}>Loan Balance with ICICI Personal Loan</Text>
-                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <View>
-                                            <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '800' }}>₹0.00</Text>
-                                            <Text style={{ color: '#71717A', fontSize: 10 }}>Loan Given</Text>
-                                        </View>
-                                        <Text style={{ color: '#71717A', fontSize: 16 }}>-</Text>
-                                        <View>
-                                            <Text style={{ color: '#EF4444', fontSize: 14, fontWeight: '800' }}>₹4,647,860.50</Text>
-                                            <Text style={{ color: '#71717A', fontSize: 10 }}>Loan Taken</Text>
-                                        </View>
-                                        <Text style={{ color: '#71717A', fontSize: 16 }}>=</Text>
-                                        <View>
-                                            <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '900' }}>₹4,647,860.50</Text>
-                                            <Text style={{ color: '#71717A', fontSize: 10 }}>Balance</Text>
-                                        </View>
-                                    </View>
-                                </View>
-
-                                {/* Sub Tabs (Pending vs History) */}
-                                <View style={{ flexDirection: 'row', backgroundColor: '#18181B', borderRadius: 10, padding: 3, borderWidth: 1, borderColor: '#27272A' }}>
-                                    {['Pending', 'History'].map(tab => (
-                                        <TouchableOpacity 
-                                            key={tab} 
-                                            onPress={() => setEntitySubTab(tab)}
-                                            style={{ flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, backgroundColor: entitySubTab === tab ? '#6366F1' : 'transparent' }}
-                                        >
-                                            <Text style={{ color: entitySubTab === tab ? '#FFF' : '#A1A1AA', fontSize: 12, fontWeight: '700' }}>{tab}</Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                {/* Pending Sub-Tab Content */}
-                                {entitySubTab === 'Pending' && (
-                                    <View style={{ gap: 12 }}>
-                                        <Text style={{ color: '#E4E4E7', fontSize: 13, fontWeight: '700' }}>Pending Loans (2)</Text>
-                                        
-                                        {/* Loan 110 Card */}
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#EF444420', justifyContent: 'center', alignItems: 'center' }}>
-                                                        <ArrowDownLeft size={18} color="#EF4444" />
-                                                    </View>
-                                                    <View>
-                                                        <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '700' }}>You took a loan</Text>
-                                                        <Text style={{ color: '#71717A', fontSize: 11 }}>Taken on 6th Apr, 2026 (3 months)</Text>
-                                                    </View>
-                                                </View>
-                                                <Text style={{ color: '#A1A1AA', fontSize: 11, fontWeight: '700' }}>Loan-110</Text>
-                                            </View>
-
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#27272A' }}>
-                                                <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Amount Due:</Text>
-                                                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'baseline' }}>
-                                                    <Text style={{ color: '#71717A', fontSize: 11, textDecorationLine: 'line-through' }}>₹2,500,000.00</Text>
-                                                    <Text style={{ color: '#F87171', fontSize: 14, fontWeight: '800' }}>₹2,964,926.02</Text>
-                                                </View>
-                                            </View>
-
-                                            <Text style={{ color: '#F59E0B', fontSize: 11 }}>
-                                                • Upcoming installment of ₹53,518.89 on 06 Sep 2026
-                                            </Text>
-
-                                            {/* Sub Navigation to Summary & Interest Ledger */}
-                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-                                                <TouchableOpacity 
-                                                    onPress={() => {
-                                                        setSelectedSubLoanId('Loan-110');
-                                                        setEntityDetailTab('Summary');
-                                                    }}
-                                                    style={{ flex: 1, backgroundColor: '#6366F120', paddingVertical: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#6366F140' }}
-                                                >
-                                                    <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>View Summary & Actions</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity 
-                                                    onPress={() => setActiveP2PView('interest_ledger')}
-                                                    style={{ flex: 1, backgroundColor: '#10B98120', paddingVertical: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#10B98140' }}
-                                                >
-                                                    <Text style={{ color: '#34D399', fontSize: 11, fontWeight: '700' }}>Interest Schedule ›</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-
-                                        {/* SETTLE UP Floating Action */}
-                                        <TouchableOpacity 
-                                            onPress={() => Alert.alert('Settle Up', 'Are you sure you want to settle the outstanding balance of ₹4,647,860.50?')}
-                                            style={{ backgroundColor: '#F97316', paddingVertical: 14, borderRadius: 12, alignItems: 'center', shadowColor: '#F97316', shadowRadius: 10, shadowOpacity: 0.4 }}
-                                        >
-                                            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '900', letterSpacing: 0.5 }}>SETTLE UP</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
-
-                                {/* History Sub-Tab Content */}
-                                {entitySubTab === 'History' && (
-                                    <View style={{ gap: 10 }}>
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>Aug 2026 (1)</Text>
-                                                <Text style={{ color: '#F87171', fontSize: 13, fontWeight: '800' }}>₹53,529.13</Text>
-                                            </View>
-                                            <View style={{ backgroundColor: '#09090B', padding: 10, borderRadius: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                                    <ArrowUpRight size={14} color="#F87171" />
-                                                    <Text style={{ color: '#D4D4D8', fontSize: 12 }}>ICICI Personal Loan (06 Aug 2026)</Text>
-                                                </View>
-                                                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>₹53,529.13</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-                                )}
-
-                                {/* Summary View Section inside Entity */}
-                                {entityDetailTab === 'Summary' && (
-                                    <View style={{ gap: 14, marginTop: 8 }}>
-                                        {/* Principal Progress Card */}
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                                <View>
-                                                    <Text style={{ color: '#71717A', fontSize: 11 }}>Principal Paid</Text>
-                                                    <Text style={{ color: '#10B981', fontSize: 14, fontWeight: '800' }}>₹132,539.99</Text>
-                                                </View>
-                                                <View style={{ alignItems: 'flex-end' }}>
-                                                    <Text style={{ color: '#71717A', fontSize: 11 }}>Principal Outstanding</Text>
-                                                    <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '800' }}>₹2,367,460.01</Text>
-                                                </View>
-                                            </View>
-                                            {/* Progress Bar */}
-                                            <View style={{ height: 8, backgroundColor: '#27272A', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}>
-                                                <View style={{ width: '5%', height: '100%', backgroundColor: '#10B981' }} />
-                                            </View>
-                                            <Text style={{ color: '#10B981', fontSize: 10, fontWeight: '700' }}>5% cleared</Text>
-                                        </View>
-
-                                        {/* Financial Breakdown Box */}
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                                <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Loan Amount</Text>
-                                                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>₹2,500,000.00 ›</Text>
-                                            </View>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Interest</Text>
-                                                    <View style={{ backgroundColor: '#6366F120', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                                        <Text style={{ color: '#818CF8', fontSize: 9, fontWeight: '800' }}>SI: 9.99% per Year</Text>
-                                                    </View>
-                                                </View>
-                                                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>₹81,606.05 ›</Text>
-                                            </View>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                                    <Text style={{ color: '#A1A1AA', fontSize: 12 }}>Total Repayment</Text>
-                                                    <View style={{ backgroundColor: '#27272A', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                                        <Text style={{ color: '#A1A1AA', fontSize: 9, fontWeight: '800' }}>P+I</Text>
-                                                    </View>
-                                                </View>
-                                                <Text style={{ color: '#FFF', fontSize: 12, fontWeight: '700' }}>₹214,146.04 ›</Text>
-                                            </View>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8, borderTopWidth: 1, borderTopColor: '#27272A' }}>
-                                                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800' }}>Amount Due:</Text>
-                                                <Text style={{ color: '#F87171', fontSize: 15, fontWeight: '900' }}>₹2,964,926.02</Text>
-                                            </View>
-                                        </View>
-
-                                        {/* Security & Safeguards Section */}
-                                        <View style={{ gap: 10 }}>
-                                            <Text style={{ color: '#E4E4E7', fontSize: 13, fontWeight: '700' }}>Secure Your Loan</Text>
-                                            
-                                            {/* Mobile Lock Card */}
-                                            <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', gap: 12, alignItems: 'center' }}>
-                                                <View style={{ width: 38, height: 38, borderRadius: 10, backgroundColor: '#F59E0B20', justifyContent: 'center', alignItems: 'center' }}>
-                                                    <ShieldCheck size={20} color="#F59E0B" />
-                                                </View>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>Secure Loans with Mobile Lock</Text>
-                                                    <Text style={{ color: '#71717A', fontSize: 10, marginTop: 2 }}>Add a lock to borrower devices to protect your loan.</Text>
-                                                </View>
-                                            </View>
-
-                                            {/* Guarantor Card */}
-                                            <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                                                    <Users size={18} color="#6366F1" />
-                                                    <View>
-                                                        <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>Add Guarantor <Text style={{ color: '#71717A', fontSize: 10 }}>(maximum 2)</Text></Text>
-                                                        <Text style={{ color: '#71717A', fontSize: 10 }}>Enhance loan security</Text>
-                                                    </View>
-                                                </View>
-                                                <TouchableOpacity style={{ backgroundColor: '#6366F1', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                                                    <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '800' }}>ADD</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-
-                                        {/* Repayments Control Bar */}
-                                        <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>Repayments</Text>
-                                                <TouchableOpacity onPress={() => setActiveP2PView('interest_ledger')} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                    <Text style={{ color: '#6366F1', fontSize: 11, fontWeight: '700' }}>View Payment Plan</Text>
-                                                    <Text style={{ color: '#6366F1', fontSize: 12 }}>›</Text>
-                                                </TouchableOpacity>
-                                            </View>
-
-                                            <View style={{ backgroundColor: '#09090B', borderRadius: 10, padding: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <View style={{ backgroundColor: '#6366F120', paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, alignItems: 'center' }}>
-                                                    <Text style={{ color: '#818CF8', fontSize: 14, fontWeight: '900' }}>6</Text>
-                                                    <Text style={{ color: '#818CF8', fontSize: 9, fontWeight: '700' }}>Sep'26</Text>
-                                                </View>
-                                                <View style={{ flex: 1, paddingLeft: 12 }}>
-                                                    <Text style={{ color: '#71717A', fontSize: 10 }}>To be paid: <Text style={{ color: '#FFF', fontWeight: '800' }}>₹53,518.89</Text></Text>
-                                                    <Text style={{ color: '#71717A', fontSize: 10, marginTop: 2 }}>Remaining Balance: ₹2,333,650.22</Text>
-                                                </View>
-                                            </View>
-
-                                            {/* Action Buttons: Skip | Paid Partially | Mark as Paid */}
-                                            <View style={{ flexDirection: 'row', gap: 6 }}>
-                                                <TouchableOpacity 
-                                                    onPress={() => Alert.alert('Skip Installment', 'Installment skipped to next billing cycle.')}
-                                                    style={{ flex: 1, backgroundColor: '#27272A', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                                                >
-                                                    <Text style={{ color: '#D4D4D8', fontSize: 11, fontWeight: '700' }}>Skip</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity 
-                                                    onPress={() => Alert.alert('Paid Partially', 'Enter amount paid partially.')}
-                                                    style={{ flex: 1, backgroundColor: '#6366F120', paddingVertical: 8, borderRadius: 8, alignItems: 'center', borderWidth: 1, borderColor: '#6366F140' }}
-                                                >
-                                                    <Text style={{ color: '#818CF8', fontSize: 11, fontWeight: '700' }}>Paid Partially</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity 
-                                                    onPress={() => Alert.alert('Mark as Paid', 'Payment of ₹53,518.89 recorded into ledger.')}
-                                                    style={{ flex: 1, backgroundColor: '#10B981', paddingVertical: 8, borderRadius: 8, alignItems: 'center' }}
-                                                >
-                                                    <Text style={{ color: '#000', fontSize: 11, fontWeight: '900' }}>Mark as Paid</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-
-                                    </View>
-                                )}
-                            </View>
-                        )}
-
-                        {/* ── P2P SUB-VIEW 4: INTEREST DETAILS LEDGER ('interest_ledger') ── */}
-                        {activeP2PView === 'interest_ledger' && (
-                            <View style={{ gap: 14 }}>
-                                <TouchableOpacity onPress={() => setActiveP2PView('entity')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <ArrowLeft size={16} color="#A1A1AA" />
-                                    <Text style={{ color: '#A1A1AA', fontSize: 12, fontWeight: '700' }}>Back to Loan Details</Text>
-                                </TouchableOpacity>
-
-                                <View style={{ backgroundColor: '#18181B', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#27272A', gap: 10 }}>
-                                    <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '800' }}>Interest Details</Text>
-                                    <Text style={{ color: '#71717A', fontSize: 11 }}>ICICI Personal Loan (Loan-110)</Text>
-
-                                    <View style={{ backgroundColor: '#09090B', borderRadius: 10, padding: 12, gap: 6, marginTop: 4 }}>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={{ color: '#71717A', fontSize: 11 }}>Simple Interest Rate</Text>
-                                            <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>9.99% per Year</Text>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={{ color: '#71717A', fontSize: 11 }}>Monthly Interest</Text>
-                                            <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>₹19,709.10 (0.83%/mo)</Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={{ gap: 6, marginTop: 4 }}>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={{ color: '#A1A1AA', fontSize: 11 }}>Interest Incurred</Text>
-                                            <Text style={{ color: '#FFF', fontSize: 11, fontWeight: '700' }}>₹81,606.06</Text>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={{ color: '#A1A1AA', fontSize: 11 }}>Interest Paid</Text>
-                                            <Text style={{ color: '#10B981', fontSize: 11, fontWeight: '700' }}>₹81,606.05</Text>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                            <Text style={{ color: '#A1A1AA', fontSize: 11 }}>Interest Outstanding</Text>
-                                            <Text style={{ color: '#F87171', fontSize: 11, fontWeight: '700' }}>₹0.01</Text>
-                                        </View>
-                                    </View>
-                                </View>
-
-                                {/* Month by Month Interest Schedule List */}
-                                <View style={{ gap: 10 }}>
-                                    {/* July - Pay in Advance */}
-                                    <View style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <View>
-                                            <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '700' }}>July</Text>
-                                            <Text style={{ color: '#71717A', fontSize: 10 }}>06 Jul 2026 - 05 Aug 2026</Text>
-                                        </View>
-                                        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                                            <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '800' }}>₹19,988.33 <Text style={{ color: '#10B981' }}>₹0.01</Text></Text>
-                                            <TouchableOpacity style={{ backgroundColor: '#10B981', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                                                <Text style={{ color: '#000', fontSize: 10, fontWeight: '900' }}>Pay in Advance</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    </View>
-
-                                    {/* Past Paid Months */}
-                                    {['June', 'May', 'April'].map((month, idx) => (
-                                        <View key={month} style={{ backgroundColor: '#18181B', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#27272A', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <View>
-                                                <Text style={{ color: '#FFF', fontSize: 14, fontWeight: '700' }}>{month}</Text>
-                                                <Text style={{ color: '#71717A', fontSize: 10 }}>06 {month.substring(0, 3)} 2026 - 05 Aug 2026</Text>
-                                            </View>
-                                            <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                                                <Text style={{ color: '#A1A1AA', fontSize: 13, fontWeight: '700' }}>₹{(20265 + idx * 275).toLocaleString()}.21</Text>
-                                                <View style={{ backgroundColor: '#27272A', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
-                                                    <Text style={{ color: '#A1A1AA', fontSize: 10, fontWeight: '800' }}>Paid</Text>
-                                                </View>
-                                            </View>
-                                        </View>
-                                    ))}
-                                </View>
-                            </View>
-                        )}
-                )}
-
                 {/* ── 🏦 COMPLETE BANKING RELATIONSHIP INTELLIGENCE (AUTHORITATIVE) ── */}
                 {activeTab === 'banking' && (
                     <BankingMainView />

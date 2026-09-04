@@ -26,7 +26,12 @@ const SUITES = [
     { group: 'Banking Platform', name: 'Banking Core Accounting Invariants', file: 'test_banking_invariants.mjs' },
     { group: 'Banking Platform', name: 'Banking UI Financial Truth (UX-01..20)', file: 'test_banking_ui_truth.mjs' },
     { group: 'Banking Platform', name: 'Banking Financial Corruption Detector', file: 'test_banking_validation.mjs' },
-    { group: 'Banking Platform', name: 'Banking Visual Truth & Calm Gates', file: 'test_banking_visual_truth.mjs' }
+    { group: 'Banking Platform', name: 'Banking Visual Truth & Calm Gates', file: 'test_banking_visual_truth.mjs' },
+
+    // ── MONEY FLOW PLATFORM (CASH ONLY) ──
+    { group: 'Money Flow Platform', name: 'Money Flow Cash Truth & Neutrality', file: 'test_ax2_money_flow_cash_truth.mjs' },
+    { group: 'Money Flow Platform', name: 'Money Flow Presentation ViewModel', file: '../scripts/test_moneyflow_viewmodel.js' },
+    { group: 'Money Flow Platform', name: 'SMS Pipeline & Provenance (SMS-01..07)', file: 'test_sms_pipeline_and_provenance.mjs' }
 ];
 
 console.log('================================================================');
@@ -41,7 +46,7 @@ for (let i = 0; i < SUITES.length; i++) {
     process.stdout.write(`[${i + 1}/${SUITES.length}] Running ${suite.name}... `);
 
     try {
-        const stdout = execSync(`node tests/${suite.file}`, {
+        const stdout = execSync(`node --import ./tests/mock_rn.mjs tests/${suite.file}`, {
             cwd: process.cwd(),
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe']

@@ -9,6 +9,7 @@ register(`data:text/javascript,
 export async function resolve(specifier, context, nextResolve) {
     if (
         specifier === 'react-native' ||
+        specifier === '@react-native-async-storage/async-storage' ||
         specifier === 'expo-file-system/legacy' ||
         specifier === 'expo-crypto' ||
         specifier === 'expo-modules-core' ||
