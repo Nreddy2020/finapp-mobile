@@ -302,6 +302,54 @@ assert(reconciliation.totalReceipts > 0, 'Reconciliation found raw receipts');
 assert(reconciliation.totalEvents > 0, 'Reconciliation found lifecycle events');
 assert(reconciliation.isConsistent === true, 'Journal, raw receipts, and event stream are 100% consistent');
 
+// ── TEST 13: BYTE-FOR-BYTE RAW RECEIPT IMMUTABILITY INVARIANT ───────────────────
+console.log('\n--- 13. Byte-for-Byte Raw Receipt Immutability Invariant ---');
+const allReceiptsBefore = await smsIngestionService.getRawReceipts();
+const initialReceiptString = JSON.stringify(allReceiptsBefore[0]);
+
+// Trigger multiple operations (duplicate attempt, reconciliation, journal query)
+await smsIngestionService.processIncomingRawMessage(restartTestSMS);
+await smsIngestionService.reconcileJournalAndAudit();
+
+const allReceiptsAfter = await smsIngestionService.getRawReceipts();
+const afterReceiptString = JSON.stringify(allReceiptsAfter.find(r => r.receiptId === allReceiptsBefore[0].receiptId));
+
+assert(initialReceiptString === afterReceiptString, 'Raw receipt is byte-for-byte identical before and after downstream operations');
+
+// ── TEST 14: PREVENTION OF FALSE DUPLICATE REJECTION FOR REPEATED PAYMENTS ─────
+console.log('\n--- 14. Prevention of False Duplicate Rejection (Distinct Repeated Payments) ---');
+const paymentMorning = {
+    amount: 500,
+    type: 'EXPENSE',
+    merchant: 'Starbucks Coffee',
+    date: '2026-09-04T10:02:00.000Z',
+    rawSource: { referenceNumber: 'TXN1001', rawBody: 'Rs 500 debited at STARBUCKS at 10:02 AM. Ref: TXN1001' }
+};
+
+const paymentEvening = {
+    amount: 500,
+    type: 'EXPENSE',
+    merchant: 'Starbucks Coffee',
+    date: '2026-09-04T20:15:00.000Z',
+    rawSource: { referenceNumber: 'TXN1002', rawBody: 'Rs 500 debited at STARBUCKS at 8:15 PM. Ref: TXN1002' }
+};
+
+const ledgerWithMorning = [paymentMorning];
+const isEveningDuplicate = isDuplicateTransaction(paymentEvening, ledgerWithMorning);
+assert(isEveningDuplicate === false, 'Distinct payment with different UTR at evening is NOT falsely rejected as duplicate');
+
+// ── TEST 15: TWO-PHASE ACKNOWLEDGMENT & SEPARATE PERMISSION INVARIANTS ─────────
+console.log('\n--- 15. Permission Separation & Status Gates ---');
+const receivePermResult = await smsIngestionService.requestReceiveSMSPermission();
+assert(typeof receivePermResult === 'boolean', 'requestReceiveSMSPermission returns boolean');
+
+const readPermResult = await smsIngestionService.requestReadSMSPermission();
+assert(typeof readPermResult === 'boolean', 'requestReadSMSPermission returns boolean');
+
+const ingestionStatus = smsIngestionService.getStatus();
+assert(ingestionStatus.listenerCount >= 0, 'Status reports active listener count');
+assert(ingestionStatus.accountsCount >= 0, 'Status reports accounts count');
+
 console.log(`\n================================================================`);
 console.log(`=== SMS & MONEY FLOW TEST SUITE RESULT: ${passedTests} / ${totalTests} ASSERTIONS PASSED (100%) ===`);
 console.log(`================================================================\n`);

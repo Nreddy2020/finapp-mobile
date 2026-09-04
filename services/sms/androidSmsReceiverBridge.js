@@ -29,7 +29,7 @@
  *    And emits DeviceEventEmitter event: 'FinlifeSmsReceived' with payload { sender, body, timestamp }.
  */
 
-import { DeviceEventEmitter, Platform } from 'react-native';
+import { DeviceEventEmitter, Platform, NativeModules } from 'react-native';
 import { smsIngestionService } from './smsIngestionService.js';
 
 export const EVENT_NAME_FINLIFE_SMS = 'FinlifeSmsReceived';
@@ -42,7 +42,10 @@ export function startLiveSMSReceiver() {
         return () => {};
     }
 
-    // Connect to native DeviceEventEmitter
+    // 1. Drain any pending offline queue messages from native disk (e.g. received while app was dead)
+    drainNativeOfflineQueue();
+
+    // 2. Connect to live native DeviceEventEmitter for real-time foreground/background events
     let subscription = null;
     try {
         subscription = DeviceEventEmitter.addListener(EVENT_NAME_FINLIFE_SMS, (event) => {
@@ -67,7 +70,43 @@ export function startLiveSMSReceiver() {
     };
 }
 
+/**
+ * Drains native offline SharedPreferences queue and processes messages with 2-Phase Acknowledgment.
+ */
+export async function drainNativeOfflineQueue() {
+    if (Platform.OS !== 'android' || !NativeModules.FinlifeSmsModule) {
+        return 0;
+    }
+
+    try {
+        const rawQueue = await NativeModules.FinlifeSmsModule.getPendingOfflineQueue();
+        const items = typeof rawQueue === 'string' ? JSON.parse(rawQueue) : (rawQueue || []);
+        let processedCount = 0;
+
+        for (const item of items) {
+            if (item && item.body) {
+                const result = await smsIngestionService.processIncomingRawMessage({
+                    body: item.body,
+                    sender: item.sender,
+                    timestamp: item.timestamp
+                });
+
+                // Two-Phase ACK: only acknowledge and delete from native disk if processing succeeded or duplicate handled
+                if (result !== undefined && item.offlineMessageId) {
+                    await NativeModules.FinlifeSmsModule.acknowledgeOfflineMessage(item.offlineMessageId);
+                    processedCount++;
+                }
+            }
+        }
+        return processedCount;
+    } catch (err) {
+        console.warn('[androidSmsReceiverBridge] Failed to drain native offline queue:', err);
+        return 0;
+    }
+}
+
 export default {
     EVENT_NAME_FINLIFE_SMS,
-    startLiveSMSReceiver
+    startLiveSMSReceiver,
+    drainNativeOfflineQueue
 };
