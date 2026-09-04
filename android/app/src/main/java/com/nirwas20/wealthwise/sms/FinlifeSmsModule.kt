@@ -24,7 +24,7 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
             val queueJson = FinlifeSmsBroadcastReceiver.getPendingOfflineQueue(reactApplicationContext)
             promise.resolve(queueJson)
         } catch (e: Exception) {
-            promise.reject("OFFLINE_QUEUE_ERROR", e.message, e)
+            promise.reject("FAIL_CLOSED_DECRYPTION_ERROR", "Fail-closed: offline SMS queue decryption failed. Raw queue contents suppressed: ${e.message}", e)
         }
     }
 

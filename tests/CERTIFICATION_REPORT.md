@@ -1,14 +1,14 @@
 # FinLife Automated Master Certification Report
 
-- **Tested Commit SHA:** `8a474a50a5b9b1dedaa7955bd5fd68f8a30b3ab6`
-- **Tested Tree SHA:** `e9d7dfe3d89bd1fa107f65bfef46c1af40699799`
+- **Tested Commit SHA:** `ab34659f4faa844aa1615db6c7e3c741959ba16e`
+- **Tested Tree SHA:** `6b0dbeb458450d12e09fafc4621d666bc6135bbb`
 - **Provenance Policy:** `EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED`
 - **Node Version:** `v24.14.1`
 - **Platform:** `win32`
-- **Execution Timestamp:** `2026-09-04T20:30:09.709Z`
+- **Execution Timestamp:** `2026-09-04T20:34:30.316Z`
 - **Exit Code:** `0`
 - **Overall Certification Status:** **PASS**
-- **Assertion Coverage:** **421 / 421 (100%)** across **17 test suites**
+- **Assertion Coverage:** **427 / 427 (100%)** across **17 test suites**
 
 ## Physical Device & UI Verification
 - **Device:** `emulator-5554`
@@ -29,8 +29,8 @@
 - **Provider:** `AndroidKeyStore`
 - **Hardware Target:** `StrongBox Hardware Security Module (API 28+) with AndroidKeyStore TEE fallback`
 - **Active Level:** `KEYSTORE_TEE (standard Android AVD emulator-5554)`
-- **Transformation:** `AES/GCM/NoPadding` (Key: 256-bit, Tag: 128-bit, IV: 12-byte)
-- **Fail-Closed Contract:** IllegalStateException thrown on failure; quarantined into finlife_crypto_failure_queue without plaintext
+- **Transformation:** `AES/GCM/NoPadding` (Key: 256-bit, Tag: 128-bit, IV: undefined-byte)
+- **Fail-Closed Contract:** IllegalStateException on write failure; SecurityException on read failure; quarantined into finlife_crypto_failure_queue without plaintext; zero rawJson exposure
 - **Legacy Migration:** Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit
 
 ## Suite Results Matrix
@@ -51,7 +51,7 @@
 | 12 | Banking Platform | Banking Visual Truth & Calm Gates | `test_banking_visual_truth.mjs` | 8 | 8 | 🟢 PASS |
 | 13 | Money Flow Platform | Money Flow Cash Truth & Neutrality | `test_ax2_money_flow_cash_truth.mjs` | 21 | 21 | 🟢 PASS |
 | 14 | Money Flow Platform | Money Flow Presentation ViewModel | `../scripts/test_moneyflow_viewmodel.js` | 17 | 17 | 🟢 PASS |
-| 15 | Money Flow Platform | SMS Pipeline & Provenance (SMS-01..07) | `test_sms_pipeline_and_provenance.mjs` | 115 | 115 | 🟢 PASS |
+| 15 | Money Flow Platform | SMS Pipeline & Provenance (SMS-01..07) | `test_sms_pipeline_and_provenance.mjs` | 121 | 121 | 🟢 PASS |
 | 16 | Smart Budgets Platform | Budget Decision Engine Invariants | `test_budget_decision_engine.mjs` | 19 | 19 | 🟢 PASS |
 | 17 | Smart Budgets Platform | Budget UI Truth & Reconciliation | `test_budget_view_model_truth.mjs` | 13 | 13 | 🟢 PASS |
 
@@ -61,6 +61,6 @@
 | :--- | :-: | :-: | :-: |
 | **P2P Core Frozen Baseline** | 143 | 143 | 🟢 PASS |
 | **P2P Presentation Extended** | 14 | 14 | 🟢 PASS |
-| **Banking Relationship Platform** | 232 | 232 | 🟢 PASS |
+| **Banking Relationship Platform** | 238 | 238 | 🟢 PASS |
 | **Smart Budget Decision Platform** | 32 | 32 | 🟢 PASS |
-| **Master Regression Total** | **421** | **421** | **🟢 PASS** |
+| **Master Regression Total** | **427** | **427** | **🟢 PASS** |

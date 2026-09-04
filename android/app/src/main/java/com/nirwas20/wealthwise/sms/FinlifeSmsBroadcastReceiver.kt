@@ -40,8 +40,15 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
         /**
          * Reads offline pending SMS queue from SharedPreferences, decrypting payload bodies before passing to JS.
          * Automatically migrates and re-encrypts legacy FL_ENC_V1 records to FL_AES_GCM_V1 at rest.
+         *
+         * FAIL-CLOSED SECURITY CONTRACT:
+         * - If decryption fails, NEVER returns rawJson or raw queue contents to callers.
+         * - Preserves the encrypted queue untouched in SharedPreferences for administrative recovery.
+         * - Quarantines failure metadata in finlife_crypto_failure_queue without plaintext.
+         * - Throws SecurityException to ensure callers reject with an explicit error.
          */
         @JvmStatic
+        @Throws(SecurityException::class)
         fun getPendingOfflineQueue(context: Context): String {
             synchronized(PREFS_LOCK) {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -77,6 +84,7 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
                         decryptedArray.put(decryptedItem)
                     }
 
+                    // Only commit re-encryption migration if all items succeeded
                     if (migratedCount > 0) {
                         val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, reencryptedArray.toString()).commit()
                         Log.i(TAG, "Migrated and re-encrypted $migratedCount legacy FL_ENC_V1 records to FL_AES_GCM_V1 at rest (committed: $committed)")
@@ -84,8 +92,23 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
                     return decryptedArray.toString()
                 } catch (e: Exception) {
-                    Log.w(TAG, "Error decrypting offline queue, returning raw: ${e.message}")
-                    return rawJson
+                    // Record failure metadata into finlife_crypto_failure_queue WITHOUT plaintext or raw data
+                    try {
+                        val failureJson = prefs.getString(KEY_CRYPTO_FAILURE_QUEUE, "[]") ?: "[]"
+                        val failureArray = JSONArray(failureJson)
+                        val failObj = JSONObject().apply {
+                            put("operation", "GET_PENDING_OFFLINE_QUEUE_DECRYPTION_FAILED")
+                            put("failedAt", System.currentTimeMillis())
+                            put("error", e.message ?: "DECRYPTION_ERROR")
+                            put("status", "READ_PATH_DECRYPTION_FAILED_CLOSED")
+                        }
+                        failureArray.put(failObj)
+                        prefs.edit().putString(KEY_CRYPTO_FAILURE_QUEUE, failureArray.toString()).commit()
+                    } catch (ignore: Exception) {}
+
+                    Log.e(TAG, "SecurityException: Decryption failed on offline queue. Failing closed: refusing to expose raw queue contents: ${e.message}", e)
+                    // FAIL CLOSED: NEVER return rawJson. Throw SecurityException to reject caller.
+                    throw SecurityException("Fail-closed: offline SMS queue decryption failed (${e.message}). Raw queue contents quarantined.", e)
                 }
             }
         }

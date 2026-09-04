@@ -209,8 +209,7 @@ const reportData = {
         transformation: "AES/GCM/NoPadding",
         keyLengthBits: 256,
         tagLengthBits: 128,
-        ivLengthBytes: 12,
-        failClosedHandling: "IllegalStateException thrown on failure; quarantined into finlife_crypto_failure_queue without plaintext",
+        failClosedHandling: "IllegalStateException on write failure; SecurityException on read failure; quarantined into finlife_crypto_failure_queue without plaintext; zero rawJson exposure",
         legacyMigration: "Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit"
     },
     financialControlCenter: {
