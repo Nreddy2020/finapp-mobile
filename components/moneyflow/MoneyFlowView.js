@@ -11,7 +11,7 @@
  * - MONEYFLOW-VIEW-04: Transfers remain neutral to income/expense/net-movement.
  * - MONEYFLOW-VIEW-05: State updates recompute all sections from the same state.
  * - MONEYFLOW-VIEW-06: Non-ready states never show sample values.
- * - MONEYFLOW-VIEW-07: Home screen provides comprehensive understanding without modals.
+ * - MONEYFLOW-VIEW-07: Pure cash-flow statement semantics (no competing banking dashboard).
  * - SMS-01..07: Ingestion provenance, duplicate rejection, and review quarantine preserved.
  */
 
@@ -19,15 +19,11 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, ScrollView, RefreshControl } from 'react-native';
 import { buildMoneyFlowViewModel } from './moneyFlowViewModel.js';
 import {
-    DEFAULT_AUTHORITATIVE_ACCOUNTS,
-    UPCOMING_OBLIGATIONS_MOCK
-} from './moneyFlowPresentationAdapter.js';
-import {
     getStoredTransactions,
     persistTransactions,
-    resolveTransaction,
-    SEED_MONEY_FLOW_TRANSACTIONS
+    resolveTransaction
 } from '../../services/moneyFlowService.js';
+import { smsIngestionService } from '../../services/sms/smsIngestionService.js';
 import { mfStyles, MF_COLORS } from './moneyFlowStyles.js';
 
 // Presentation Layer Components
@@ -36,19 +32,17 @@ import { WhereDidMyCashGoSection } from './presentation/WhereDidMyCashGoSection.
 import { PeriodStatementSection } from './presentation/PeriodStatementSection.js';
 import { QuickActionSection } from './presentation/QuickActionSection.js';
 import { CashActivitySection } from './presentation/CashActivitySection.js';
-import { MoneyFlowAttentionSection } from './presentation/MoneyFlowAttentionSection.js';
 
 // Modals
 import { PeriodSelectorModal } from './modals/PeriodSelectorModal.js';
-import { ReserveCalculationModal } from './modals/ReserveCalculationModal.js';
 import { SpendingBreakdownModal } from './modals/SpendingBreakdownModal.js';
 import { AddCashActivityModal } from './modals/AddCashActivityModal.js';
 import { TransactionDetailModal } from './modals/TransactionDetailModal.js';
 import { ReviewTransactionModal } from './modals/ReviewTransactionModal.js';
 
 export default function MoneyFlowView({
-    transactions: externalTransactions,
-    accounts: externalAccounts,
+    transactions: controlledTransactions,
+    accounts: controlledAccounts,
     onAddTransaction,
     onDeleteTransaction,
     onUpdateTransaction,
@@ -56,42 +50,62 @@ export default function MoneyFlowView({
     onOpenDrawer,
     hideHeader = false
 }) {
+    // Mode: Controlled if caller provides `transactions` prop, Uncontrolled otherwise
+    const isControlled = controlledTransactions !== undefined;
+
     const [periodType, setPeriodType] = useState('month');
-    const [internalTransactions, setInternalTransactions] = useState(SEED_MONEY_FLOW_TRANSACTIONS);
-    const [accounts, setAccounts] = useState(externalAccounts || DEFAULT_AUTHORITATIVE_ACCOUNTS);
+    const [internalTransactions, setInternalTransactions] = useState([]);
+    const [accounts, setAccounts] = useState(controlledAccounts || []);
+    const [isLoading, setIsLoading] = useState(!isControlled);
     const [refreshing, setRefreshing] = useState(false);
 
-    // Active transaction list from props or local state
-    const activeTransactions = (externalTransactions && externalTransactions.length > 0)
-        ? externalTransactions
-        : internalTransactions;
+    // Active transaction list strictly based on controlled vs uncontrolled mode
+    const activeTransactions = isControlled ? controlledTransactions : internalTransactions;
 
     // Modal Visibility States
     const [periodModalVisible, setPeriodModalVisible] = useState(false);
-    const [reserveModalVisible, setReserveModalVisible] = useState(false);
     const [spendingModalVisible, setSpendingModalVisible] = useState(false);
     const [addModalVisible, setAddModalVisible] = useState(false);
     const [addModalType, setAddModalType] = useState('EXPENSE');
     const [selectedTransaction, setSelectedTransaction] = useState(null);
     const [reviewingTransaction, setReviewingTransaction] = useState(null);
 
-    // 1. Restore persisted transactions on mount if no external transactions
+    // 1. Uncontrolled Mode: Restore persisted transactions on mount & subscribe to live SMS
     useEffect(() => {
-        if (!externalTransactions || externalTransactions.length === 0) {
+        if (!isControlled) {
+            let isMounted = true;
             (async () => {
+                setIsLoading(true);
                 try {
                     const stored = await getStoredTransactions();
-                    if (stored && Array.isArray(stored) && stored.length > 0) {
+                    if (isMounted && stored && Array.isArray(stored)) {
                         setInternalTransactions(stored);
                     }
                 } catch (err) {
                     console.warn('[MoneyFlowView] Failed to restore persisted state:', err);
+                } finally {
+                    if (isMounted) setIsLoading(false);
                 }
             })();
-        }
-    }, [externalTransactions]);
 
-    // 2. Persist transactions helper
+            // Configure SMS Ingestion Service with accounts
+            smsIngestionService.setAccounts(accounts);
+
+            // Subscribe to real-time SMS Ingestion events
+            const unsubscribe = smsIngestionService.addListener((event) => {
+                if (event.type === 'TRANSACTION_INGESTED' && event.allTransactions) {
+                    setInternalTransactions(event.allTransactions);
+                }
+            });
+
+            return () => {
+                isMounted = false;
+                unsubscribe();
+            };
+        }
+    }, [isControlled, accounts]);
+
+    // 2. Uncontrolled Mode: Persist transactions helper
     const saveTransactions = useCallback(async (newTxList) => {
         setInternalTransactions(newTxList);
         await persistTransactions(newTxList);
@@ -101,49 +115,53 @@ export default function MoneyFlowView({
     const viewModel = useMemo(() => {
         return buildMoneyFlowViewModel({
             transactions: activeTransactions,
-            accounts: externalAccounts || accounts,
+            accounts: controlledAccounts || accounts,
             periodType,
             referenceDate: new Date().toISOString(),
-            obligations: UPCOMING_OBLIGATIONS_MOCK,
-            stateStatus: 'READY'
+            isLoading
         });
-    }, [activeTransactions, externalAccounts, accounts, periodType]);
+    }, [activeTransactions, controlledAccounts, accounts, periodType, isLoading]);
 
     // 4. Handlers
     const handleAddTransaction = useCallback((newTx) => {
-        if (onAddTransaction) {
+        if (isControlled && onAddTransaction) {
             onAddTransaction(newTx);
+            return;
         }
         const updated = [newTx, ...activeTransactions];
         saveTransactions(updated);
-    }, [onAddTransaction, activeTransactions, saveTransactions]);
+    }, [isControlled, onAddTransaction, activeTransactions, saveTransactions]);
 
     const handleDeleteTransaction = useCallback((txId) => {
-        if (onDeleteTransaction) {
+        if (isControlled && onDeleteTransaction) {
             onDeleteTransaction(txId);
+            return;
         }
         const updated = activeTransactions.filter(t => t.id !== txId);
         saveTransactions(updated);
-    }, [onDeleteTransaction, activeTransactions, saveTransactions]);
+    }, [isControlled, onDeleteTransaction, activeTransactions, saveTransactions]);
 
     const handleConfirmReview = useCallback((txId, selectedCategory, customType) => {
-        if (onCategorizeTransaction) {
+        if (isControlled && onCategorizeTransaction) {
             onCategorizeTransaction(txId, selectedCategory);
+            return;
         }
         const updated = resolveTransaction(activeTransactions, txId, selectedCategory, customType);
         saveTransactions(updated);
-    }, [onCategorizeTransaction, activeTransactions, saveTransactions]);
+    }, [isControlled, onCategorizeTransaction, activeTransactions, saveTransactions]);
 
     const onRefresh = useCallback(async () => {
         setRefreshing(true);
-        try {
-            const stored = await getStoredTransactions();
-            if (stored && Array.isArray(stored) && stored.length > 0) {
-                setInternalTransactions(stored);
-            }
-        } catch {}
+        if (!isControlled) {
+            try {
+                const stored = await getStoredTransactions();
+                if (stored && Array.isArray(stored)) {
+                    setInternalTransactions(stored);
+                }
+            } catch {}
+        }
         setTimeout(() => setRefreshing(false), 400);
-    }, []);
+    }, [isControlled]);
 
     return (
         <View style={mfStyles.container}>
@@ -204,12 +222,6 @@ export default function MoneyFlowView({
                 onSelectPeriod={(p) => setPeriodType(p)}
             />
 
-            <ReserveCalculationModal
-                visible={reserveModalVisible}
-                onClose={() => setReserveModalVisible(false)}
-                reserveData={viewModel.attention.emergencyReserve}
-            />
-
             <SpendingBreakdownModal
                 visible={spendingModalVisible}
                 onClose={() => setSpendingModalVisible(false)}
@@ -220,7 +232,7 @@ export default function MoneyFlowView({
                 visible={addModalVisible}
                 onClose={() => setAddModalVisible(false)}
                 onSave={handleAddTransaction}
-                accounts={viewModel.whereDidMyCashGo.accounts}
+                accounts={accounts}
                 initialType={addModalType}
             />
 

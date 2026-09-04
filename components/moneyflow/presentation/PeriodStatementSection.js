@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { mfStyles, MF_COLORS } from '../moneyFlowStyles.js';
 
 export function PeriodStatementSection({ data }) {
@@ -24,37 +24,48 @@ export function PeriodStatementSection({ data }) {
                 <Text style={mfStyles.sectionTitle}>{data.periodLabel}</Text>
             </View>
 
-            <View style={mfStyles.statementGrid}>
+            {/* Vertical Statement Layout */}
+            <View style={styles.statementRowsContainer}>
                 {/* Income */}
-                <View style={mfStyles.statementCol}>
-                    <Text style={mfStyles.statementLabel}>Income</Text>
-                    <Text style={mfStyles.statementIncome}>{data.totalIncomeFormatted}</Text>
+                <View style={styles.statementRow}>
+                    <Text style={styles.statementRowLabel}>Income</Text>
+                    <Text style={[styles.statementRowValue, { color: MF_COLORS.successGreenLight }]}>
+                        {data.totalIncomeFormatted}
+                    </Text>
                 </View>
 
                 {/* Expenses */}
-                <View style={mfStyles.statementCol}>
-                    <Text style={mfStyles.statementLabel}>Expenses</Text>
-                    <Text style={mfStyles.statementExpense}>{data.totalExpensesFormatted}</Text>
+                <View style={styles.statementRow}>
+                    <Text style={styles.statementRowLabel}>Expenses</Text>
+                    <Text style={styles.statementRowValue}>
+                        {data.totalExpensesFormatted}
+                    </Text>
                 </View>
 
                 {/* Transfers */}
-                <View style={mfStyles.statementCol}>
-                    <Text style={mfStyles.statementLabel}>Transfers</Text>
-                    <Text style={mfStyles.statementTransfer}>{data.totalTransfersFormatted || '₹0'}</Text>
+                <View style={styles.statementRow}>
+                    <Text style={styles.statementRowLabel}>Transfers</Text>
+                    <Text style={[styles.statementRowValue, { color: MF_COLORS.textMuted }]}>
+                        {data.totalTransfersFormatted || '₹0'}
+                    </Text>
                 </View>
 
+                {/* Divider Line */}
+                <View style={styles.dividerLine} />
+
                 {/* Net Movement */}
-                <View style={mfStyles.statementCol}>
-                    <Text style={mfStyles.statementLabel}>Net Movement</Text>
-                    <Text style={[mfStyles.statementNet, { color: netColor }]}>
+                <View style={[styles.statementRow, { marginTop: 4 }]}>
+                    <Text style={[styles.statementRowLabel, { fontWeight: '700', color: MF_COLORS.textPrimary }]}>
+                        Net Movement
+                    </Text>
+                    <Text style={[styles.statementRowValue, { fontWeight: '800', color: netColor, fontSize: 16 }]}>
                         {data.netMovementFormatted}
                     </Text>
                 </View>
             </View>
 
-            <View style={mfStyles.statementDivider} />
-
-            <View style={mfStyles.savingsRateRow}>
+            {/* Savings Rate Badge */}
+            <View style={styles.savingsRateRow}>
                 <View style={mfStyles.savingsRateBadge}>
                     <Text style={mfStyles.savingsRateText}>✓ {data.savingsRateSummary}</Text>
                 </View>
@@ -62,3 +73,34 @@ export function PeriodStatementSection({ data }) {
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    statementRowsContainer: {
+        paddingVertical: 4,
+    },
+    statementRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    statementRowLabel: {
+        fontSize: 14,
+        color: MF_COLORS.textSecondary,
+        fontWeight: '500',
+    },
+    statementRowValue: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: MF_COLORS.textPrimary,
+    },
+    dividerLine: {
+        height: 1,
+        backgroundColor: MF_COLORS.borderSubtle,
+        marginVertical: 8,
+    },
+    savingsRateRow: {
+        marginTop: 10,
+        alignItems: 'flex-start',
+    },
+});

@@ -10,33 +10,36 @@
  * - MONEYFLOW-VIEW-04: Transfers remain neutral to income/expense/net-movement.
  * - MONEYFLOW-VIEW-05: State updates recompute all sections from the same state.
  * - MONEYFLOW-VIEW-06: Non-ready states never show sample values.
- * - MONEYFLOW-VIEW-07: Home screen provides comprehensive understanding without modals.
+ * - MONEYFLOW-VIEW-07: Pure cash-flow statement semantics (spending != balance).
  */
 
 import {
     getPeriodBounds,
-    DEFAULT_AUTHORITATIVE_ACCOUNTS,
-    computeEmergencyReserve,
-    DEFAULT_ESSENTIAL_BURN_BREAKDOWN,
-    computeEmergencyRunwayMetrics,
     computePeriodCashFlowTruth,
-    getUpcomingOutflows,
-    UPCOMING_OBLIGATIONS_MOCK,
     formatCurrencyINR
 } from './moneyFlowPresentationAdapter.js';
 
 export function buildMoneyFlowViewModel({
     transactions = [],
-    accounts = DEFAULT_AUTHORITATIVE_ACCOUNTS,
-    designatedAccountIds = ['acc_hdfc_sb', 'acc_sbi_sb'],
+    accounts = [],
     periodType = 'month',
     referenceDate = new Date().toISOString(),
     customRange = null,
     selectedYear = new Date().getFullYear(),
-    obligations = UPCOMING_OBLIGATIONS_MOCK,
-    stateStatus = 'READY'
+    isLoading = false,
+    error = null
 } = {}) {
-    // 1. Period Bounds
+    // 1. Determine Lifecyle Status
+    let stateStatus = 'READY';
+    if (isLoading) {
+        stateStatus = 'LOADING';
+    } else if (error) {
+        stateStatus = 'ERROR';
+    } else if (!transactions || transactions.length === 0) {
+        stateStatus = 'EMPTY';
+    }
+
+    // 2. Period Bounds
     const bounds = getPeriodBounds(
         periodType,
         referenceDate,
@@ -44,42 +47,10 @@ export function buildMoneyFlowViewModel({
         customRange?.end
     );
 
-    // 2. Period Cash Flow Truth
+    // 3. Period Cash Flow Truth
     const cashTruth = computePeriodCashFlowTruth(transactions, bounds);
 
-    // 3. Point-in-time Reserve & Liquid Cash
-    const reserveMetrics = computeEmergencyReserve(accounts, designatedAccountIds);
-    const runwayMetrics = computeEmergencyRunwayMetrics(
-        reserveMetrics.currentReserve,
-        DEFAULT_ESSENTIAL_BURN_BREAKDOWN
-    );
-
-    // Filter accounts strictly to liquid cash and bank accounts (CASH ONLY)
-    const liquidAccounts = (accounts || [])
-        .filter(acc => {
-            const t = (acc.type || acc.accountType || '').toUpperCase();
-            return t === 'LIQUID_SAVINGS' || t === 'LIQUID_CURRENT' || t === 'PHYSICAL_CASH' || t === 'SAVINGS' || t === 'CURRENT' || !t;
-        })
-        .map(acc => {
-            const mask = acc.maskedAccountNumber || acc.accountNumberMasked || (acc.id ? `•••• ${acc.id.slice(-4)}` : '•••• 4821');
-            return {
-                id: acc.id,
-                name: acc.name || acc.bankName || 'Bank Account',
-                bankName: acc.bankName || acc.name || 'Bank',
-                maskedAccountNumber: mask,
-                balance: acc.balance || 0,
-                balanceFormatted: formatCurrencyINR(acc.balance || 0, false),
-                accountType: acc.accountType || acc.type || 'SAVINGS'
-            };
-        });
-
-    const totalLiquidCash = liquidAccounts.reduce((sum, a) => sum + a.balance, 0);
-
-    // 4. Upcoming Obligations
-    const upcomingList = getUpcomingOutflows(obligations);
-    const nextObligation = (upcomingList && upcomingList.obligations && upcomingList.obligations[0]) || null;
-
-    // 5. Structure Where Did My Cash Go? Multi-dimension breakdowns
+    // 4. Structure Where Did My Cash Go? Multi-dimension breakdowns
     const byCategory = (cashTruth.categoryBreakdown || []).map((cat, idx) => ({
         id: `cat_${idx}_${cat.category}`,
         name: cat.category,
@@ -111,7 +82,12 @@ export function buildMoneyFlowViewModel({
         color: '#3B82F6'
     }));
 
-    // 6. Recent Activity Mapping & Date Grouping
+    // Derive accounts involved in spending
+    const accountsCount = byAccount.length > 0
+        ? byAccount.length
+        : (accounts && accounts.length > 0 ? accounts.length : 1);
+
+    // 5. Recent Activity Mapping & Date Grouping
     const allNormalizedTransactions = (cashTruth.filteredTransactions || []).map(tx => {
         const isNeedsReview = Boolean(tx.needsSort || tx.status === 'NEEDS_REVIEW');
         const isIncome = tx.type === 'INCOME';
@@ -120,6 +96,11 @@ export function buildMoneyFlowViewModel({
         let amountPrefix = '-';
         if (isIncome) amountPrefix = '+';
         if (isTransfer) amountPrefix = '';
+
+        const sourceLabel = tx.source === 'MANUAL' ? 'Manual' : 'SMS';
+        const statusTag = isNeedsReview
+            ? `⚠ Review · ${sourceLabel}`
+            : `✓ Sorted · ${sourceLabel}`;
 
         return {
             id: tx.id,
@@ -133,9 +114,10 @@ export function buildMoneyFlowViewModel({
             dateFormatted: formatDateString(tx.date),
             dateGroup: getDateGroup(tx.date),
             accountName: tx.accountName || tx.account || 'Primary Account',
-            statusTag: isNeedsReview ? 'NEEDS_REVIEW' : 'SORTED',
+            statusTag,
             isReviewNeeded: isNeedsReview,
             source: tx.source || (tx.rawSource ? 'SMS' : 'MANUAL'),
+            sourceLabel,
             rawTransaction: tx
         };
     });
@@ -143,6 +125,9 @@ export function buildMoneyFlowViewModel({
     const needsReviewCount = allNormalizedTransactions.filter(t => t.isReviewNeeded).length;
     const expenseCount = allNormalizedTransactions.filter(t => t.type === 'EXPENSE').length;
     const incomeCount = allNormalizedTransactions.filter(t => t.type === 'INCOME').length;
+
+    // Period summary string formatting (e.g. "Total spending in September 2026")
+    const periodSummaryText = formatPeriodSummaryTitle(bounds.label);
 
     return {
         stateStatus,
@@ -157,13 +142,11 @@ export function buildMoneyFlowViewModel({
             title: 'Where Did My Cash Go?',
             totalSpending: cashTruth.totalSpending,
             totalSpendingFormatted: cashTruth.totalSpendingFormatted,
-            totalCashAmount: totalLiquidCash,
-            totalCashFormatted: formatCurrencyINR(totalLiquidCash, false),
-            accountSummaryText: `Across ${liquidAccounts.length} bank account${liquidAccounts.length === 1 ? '' : 's'}`,
+            periodSummaryText,
+            accountCountText: `Across ${accountsCount} account${accountsCount === 1 ? '' : 's'}`,
             byCategory,
             byMerchant,
-            byAccount,
-            accounts: liquidAccounts
+            byAccount
         },
         periodStatement: {
             periodLabel: bounds.label.toUpperCase(),
@@ -180,28 +163,6 @@ export function buildMoneyFlowViewModel({
             savingsRateSummary: `${cashTruth.savingsRate}% saved this period`,
             unreviewedCount: needsReviewCount
         },
-        attention: {
-            emergencyReserve: {
-                title: 'Emergency Reserve',
-                amount: reserveMetrics.currentReserve,
-                amountFormatted: reserveMetrics.currentReserve ? formatCurrencyINR(reserveMetrics.currentReserve, false) : '₹0',
-                runwayMonths: runwayMetrics.runwayMonths,
-                runwayMonthsFormatted: `${runwayMetrics.runwayMonths} months`,
-                status: runwayMetrics.status,
-                statusLabel: runwayMetrics.statusLabel,
-                statusColor: runwayMetrics.statusColor,
-                monthlyBurnFormatted: runwayMetrics.essentialMonthlyBurnFormatted,
-                recommendedTargetText: `Target: 3-6 months (${runwayMetrics.minTargetAmountFormatted})`
-            },
-            upcomingObligation: nextObligation ? {
-                title: nextObligation.title,
-                amount: nextObligation.amount,
-                amountFormatted: nextObligation.amountFormatted || formatCurrencyINR(nextObligation.amount, false),
-                dueDate: nextObligation.dueDate,
-                dueDateFormatted: `Due ${nextObligation.dueDate}`,
-                type: nextObligation.category || 'Debt'
-            } : null
-        },
         spendingBreakdown: {
             categories: byCategory
         },
@@ -216,6 +177,13 @@ export function buildMoneyFlowViewModel({
             }
         }
     };
+}
+
+function formatPeriodSummaryTitle(label = '') {
+    if (!label) return 'Total spending this period';
+    if (label.toLowerCase() === 'today') return 'Total spending today';
+    if (label.toLowerCase() === 'this week') return 'Total spending this week';
+    return `Total spending in ${label}`;
 }
 
 function getCategoryColor(catName = '') {

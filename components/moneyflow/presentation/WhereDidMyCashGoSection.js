@@ -36,7 +36,10 @@ export function WhereDidMyCashGoSection({ data, onOpenBreakdown }) {
             {/* Total Spending Amount */}
             <Text style={mfStyles.totalHeroAmount}>{data.totalSpendingFormatted}</Text>
             <Text style={mfStyles.totalHeroSubtext}>
-                Total spending this period · {data.accountSummaryText}
+                {data.periodSummaryText || 'Total spending this period'}
+            </Text>
+            <Text style={[mfStyles.totalHeroSubtext, { marginTop: 2, color: MF_COLORS.textMuted }]}>
+                {data.accountCountText || 'Across accounts'}
             </Text>
 
             {/* Segmented Dimension Switcher */}

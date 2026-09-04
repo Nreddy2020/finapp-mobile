@@ -223,11 +223,11 @@ export function CashActivitySection({
                                                     style={mfStyles.statusBadgeReview}
                                                     onPress={() => onReviewTransaction && onReviewTransaction(tx.rawTransaction)}
                                                 >
-                                                    <Text style={mfStyles.statusBadgeReviewText}>⚠ Review</Text>
+                                                    <Text style={mfStyles.statusBadgeReviewText}>{tx.statusTag || '⚠ Review · SMS'}</Text>
                                                 </TouchableOpacity>
                                             ) : (
                                                 <View style={mfStyles.statusBadgeSorted}>
-                                                    <Text style={mfStyles.statusBadgeSortedText}>✓ Sorted</Text>
+                                                    <Text style={mfStyles.statusBadgeSortedText}>{tx.statusTag || '✓ Sorted · SMS'}</Text>
                                                 </View>
                                             )}
                                         </View>
