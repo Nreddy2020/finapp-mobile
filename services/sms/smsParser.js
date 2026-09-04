@@ -17,24 +17,39 @@ export const KNOWN_BANK_SENDERS = [
 ];
 
 /**
- * Checks if an SMS message is non-financial (OTP, security code, promo spam, KYC prompt).
+ * Checks if an SMS message is non-financial (pure OTP, security code, promo spam, KYC prompt).
+ * Context-aware: does not reject legitimate debit/credit messages that happen to contain security terms.
  */
 export function isNonFinancialOrSecuritySMS(messageBody = '') {
     if (!messageBody || typeof messageBody !== 'string') return true;
-    const lower = messageBody.toLowerCase();
+    const text = messageBody.trim();
+    const lower = text.toLowerCase();
 
-    // 1. OTP, 2FA, & Security verification patterns
+    // Check if the message contains explicit debit/credit terms with an amount
+    const hasFinancialMovement = /\b(debited|credited|spent|paid|transferred to|deposited|refunded)\b/i.test(text);
+    const hasAmount = /(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?/i.test(text);
+
+    // If it has both financial movement and an amount, treat it as financial candidate
+    if (hasFinancialMovement && hasAmount) {
+        return false;
+    }
+
+    // 1. Pure OTP, 2FA, & Login verification patterns
     if (/\b(otp|one time password|verification code|security code|do not share|secret code|auth code|login code)\b/i.test(lower)) {
         return true;
     }
 
-    // 2. Promotional & non-transactional marketing patterns
-    if (/\b(pre-approved|loan offer|apply now|win up to|discount coupon|flat 50%|congratulations)\b/i.test(lower) &&
-        !/\b(debited|credited|spent|paid rs|paid inr)\b/i.test(lower)) {
+    // 2. Promotional & marketing messages without financial debit/credit
+    if (/\b(pre-approved|loan offer|apply now|win up to|discount coupon|flat 50%|congratulations|exclusive deal)\b/i.test(lower)) {
         return true;
     }
 
-    return false;
+    // 3. Informational banking prompts (balance enquiry, branch holidays, KYC reminder)
+    if (/\b(kyc update|link your aadhaar|holiday notice|download our app|call 1800|missed call)\b/i.test(lower)) {
+        return true;
+    }
+
+    return !hasFinancialMovement;
 }
 
 /**

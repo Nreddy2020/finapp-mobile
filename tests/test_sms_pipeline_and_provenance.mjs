@@ -146,6 +146,151 @@ smsIngestionService.registerNativeReceiver((handler) => {
 });
 assert(smsIngestionService.getStatus().isListening === true, 'Native receiver listener registered successfully');
 
+// ── TEST 9: COMPREHENSIVE REAL-WORLD INDIAN BANK SMS TEST SET ───────────────
+console.log('\n--- 9. Real-World Indian Bank SMS Parsing Suite (11 Templates) ---');
+const REAL_SMS_FIXTURES = [
+    {
+        name: 'HDFC Bank Card Debit',
+        sender: 'AD-HDFCBK',
+        text: 'Dear Customer, INR 2,850.00 debited from A/C XX4821 at SWIGGY BLR on 04-Sep-26. UPI Ref 98472910.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 2850,
+        expectedCategory: 'Groceries & Food',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'SBI Bank UPI Debit',
+        sender: 'AD-SBIUPI',
+        text: 'Your A/C XX3021 debited by Rs 1,450.00 on 04-Sep-26 at ZOMATO UPI/982103.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 1450,
+        expectedCategory: 'Groceries & Food',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'ICICI Bank NetBanking Rent Debit',
+        sender: 'VM-ICICIB',
+        text: 'INR 28,000.00 debited from ICICI Bank A/C XX9901 on 01-Sep-26 towards RENT. Info: PRESTIGE MGT. UTR: 892019.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 28000,
+        expectedCategory: 'Rent & Housing',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Axis Bank Cab Ride Debit',
+        sender: 'AD-AXISBK',
+        text: 'Paid Rs. 550.00 via UPI to UBER INDIA from AXIS Bank A/C XX1234 on 03-Sep-26. Ref: 394819.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 550,
+        expectedCategory: 'Travel & Transport',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'UPI Friend Transfer Credit',
+        sender: 'AD-HDFCBK',
+        text: 'Your A/C XX4821 is credited with INR 4,500.00 on 03-Sep-26 by UPI from FRIEND. Ref: 981203.',
+        expectedType: 'INCOME',
+        expectedAmount: 4500,
+        expectedCategory: 'Direct Income',
+        expectedStatus: 'NEEDS_REVIEW'
+    },
+    {
+        name: 'Salary Direct Payroll Credit',
+        sender: 'AD-HDFCBK',
+        text: 'Account XX4821 credited with INR 1,85,000.00 on 01-Sep-26 towards INFOSYS TECH SALARY. Ref: UTR782910.',
+        expectedType: 'INCOME',
+        expectedAmount: 185000,
+        expectedCategory: 'Salary / Income',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Amazon E-Commerce Refund',
+        sender: 'AD-HDFCBK',
+        text: 'INR 2,250.00 refunded to your Card ending 4821 from AMAZON PAY on 02-Sep-26. Ref: REF9847.',
+        expectedType: 'INCOME',
+        expectedAmount: 2250,
+        expectedCategory: 'Shopping',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Inter-Account Fund Transfer',
+        sender: 'AD-HDFCBK',
+        text: 'Transferred to A/C XX3021 Rs. 15,000.00 from A/C XX4821 on 01-Sep-26. Ref: TRF98421.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 15000,
+        expectedCategory: 'General Cash Activity',
+        expectedStatus: 'NEEDS_REVIEW'
+    },
+    {
+        name: 'Bank Security OTP (Non-financial)',
+        sender: 'AD-HDFCBK',
+        text: '482910 is your secret OTP for ICICI Bank Internet Banking login. Do not share with anyone.',
+        expectedType: null // must not be parsed
+    },
+    {
+        name: 'Promotional Marketing Spam (Non-financial)',
+        sender: 'AD-KOTAKB',
+        text: 'Congratulations! You are pre-approved for Personal Loan up to 5 Lakhs. Click here to apply now.',
+        expectedType: null // must not be parsed
+    },
+    {
+        name: 'Ambiguous POS Vendor Debit (Needs Review)',
+        sender: 'AD-HDFCBK',
+        text: 'INR 7,500.00 debited from A/C XX4821 at POS 8847 VENDOR on 04-Sep-26. Ref: 482910.',
+        expectedType: 'EXPENSE',
+        expectedAmount: 7500,
+        expectedCategory: 'General Cash Activity',
+        expectedStatus: 'NEEDS_REVIEW'
+    }
+];
+
+for (const fixture of REAL_SMS_FIXTURES) {
+    const parsed = parseRawSMS(fixture.text, fixture.sender);
+    if (fixture.expectedType === null) {
+        assert(parsed === null, `Non-financial SMS [${fixture.name}] correctly rejected with null`);
+    } else {
+        assert(parsed !== null, `Financial SMS [${fixture.name}] parsed successfully`);
+        assert(parsed.amount === fixture.expectedAmount, `[${fixture.name}] amount ${parsed.amount} matches expected ${fixture.expectedAmount}`);
+        assert(parsed.type === fixture.expectedType, `[${fixture.name}] type ${parsed.type} matches expected ${fixture.expectedType}`);
+        
+        const normalized = normalizeSMSTransaction(parsed);
+        assert(normalized.category === fixture.expectedCategory, `[${fixture.name}] category ${normalized.category} matches expected ${fixture.expectedCategory}`);
+        assert(normalized.status === fixture.expectedStatus, `[${fixture.name}] review status ${normalized.status} matches expected ${fixture.expectedStatus}`);
+    }
+}
+
+// ── TEST 10: APP RESTART & STORAGE DEDUPLICATION GUARANTEE ────────────────────
+console.log('\n--- 10. App Restart / Storage Deduplication Guarantee ---');
+const restartTestSMS = {
+    sender: 'AD-HDFCBK',
+    body: 'Dear Customer, INR 3,499.00 debited from A/C XX4821 at DECATHLON BLR on 04-Sep-26. Ref: DEC98471.',
+    timestamp: '2026-09-04T15:30:00.000Z'
+};
+
+// 1. First ingestion in fresh runtime
+const firstIngestResult = await smsIngestionService.processIncomingRawMessage(restartTestSMS);
+assert(firstIngestResult !== null, 'First SMS ingestion creates canonical transaction');
+
+// 2. Simulate complete app crash / memory restart by wiping in-memory cache
+smsIngestionService._seenFingerprints.clear();
+assert(smsIngestionService._seenFingerprints.size === 0, 'In-memory fingerprint cache cleared (simulating app restart)');
+
+// 3. Second ingestion after restart -> Must detect duplicate from persistent disk ledger
+const secondIngestResult = await smsIngestionService.processIncomingRawMessage(restartTestSMS);
+assert(secondIngestResult === null, 'Identical SMS after app restart rejected idempotently via disk storage');
+
+// ── TEST 11: IMMUTABLE AUDIT TRAIL LIFECYCLE ──────────────────────────────────
+console.log('\n--- 11. Immutable Audit Trail Lifecycle ---');
+const rawLogs = await smsIngestionService.getRawAuditLogs();
+assert(Array.isArray(rawLogs), 'Audit log is accessible as array');
+assert(rawLogs.length >= 2, `Audit logs preserved permanently (count: ${rawLogs.length})`);
+
+const duplicateAuditRecord = rawLogs.find(l => l.status === 'REJECTED_DUPLICATE');
+assert(Boolean(duplicateAuditRecord), 'Duplicate rejection recorded with status REJECTED_DUPLICATE in audit log');
+
+const committedAuditRecord = rawLogs.find(l => l.status === 'COMMITTED');
+assert(Boolean(committedAuditRecord), 'Successful transaction recorded with status COMMITTED and linked transaction ID');
+
 console.log(`\n================================================================`);
 console.log(`=== SMS & MONEY FLOW TEST SUITE RESULT: ${passedTests} / ${totalTests} ASSERTIONS PASSED (100%) ===`);
 console.log(`================================================================\n`);

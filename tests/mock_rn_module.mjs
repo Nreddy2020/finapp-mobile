@@ -14,6 +14,22 @@ export const PermissionsAndroid = {
     check: async () => true
 };
 
+export const DeviceEventEmitter = {
+    addListener: (event, handler) => ({
+        remove: () => {}
+    }),
+    emit: (event, data) => {}
+};
+
+export class NativeEventEmitter {
+    constructor() {}
+    addListener(event, handler) {
+        return { remove: () => {} };
+    }
+}
+
+export const NativeModules = {};
+
 const storageMap = new Map();
 
 global.localStorage = {

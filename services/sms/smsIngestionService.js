@@ -11,7 +11,7 @@
  * - SMS-07: Isolated execution preventing crashes on malformed device SMS.
  */
 
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform, PermissionsAndroid, DeviceEventEmitter, NativeEventEmitter, NativeModules } from 'react-native';
 import { parseRawSMS } from './smsParser.js';
 import { normalizeSMSTransaction } from './smsTransactionNormalizer.js';
 import { isDuplicateTransaction, generateTransactionFingerprint } from './smsDuplicateDetector.js';
@@ -23,12 +23,12 @@ export const STORAGE_KEY_SMS_RAW_AUDIT = 'FINLIFE_SMS_RAW_AUDIT_LOG';
 class SMSIngestionService {
     constructor() {
         this.listeners = new Set();
-        this.nativeReceiverUnsubscribe = null;
+        this.nativeSubscription = null;
         this.isListening = false;
         this.accounts = [];
         // Concurrency Mutex Queue to prevent race conditions on rapid incoming SMS
         this._mutationQueue = Promise.resolve();
-        // In-memory fingerprint cache
+        // In-memory fingerprint cache for current runtime
         this._seenFingerprints = new Set();
     }
 
@@ -66,18 +66,41 @@ class SMSIngestionService {
     }
 
     /**
-     * Register a native Android broadcast receiver / bridge handler.
+     * Initialize automatic listener for native Android SMS BroadcastReceiver events.
+     * Hooks into DeviceEventEmitter or custom NativeEventEmitter.
+     */
+    initializeNativeListener() {
+        if (this.nativeSubscription) {
+            return;
+        }
+
+        try {
+            // Check for standard Android broadcast event 'FinlifeSmsReceived'
+            if (typeof DeviceEventEmitter !== 'undefined' && DeviceEventEmitter.addListener) {
+                this.nativeSubscription = DeviceEventEmitter.addListener('FinlifeSmsReceived', (eventData) => {
+                    this.processIncomingRawMessage(eventData);
+                });
+                this.isListening = true;
+            }
+        } catch (err) {
+            console.warn('[SMSIngestionService] Could not initialize native SMS listener:', err);
+        }
+    }
+
+    /**
+     * Register a custom native receiver bridge handler (e.g. from background task or native plugin).
      */
     registerNativeReceiver(nativeBridge) {
-        if (this.nativeReceiverUnsubscribe) {
-            this.nativeReceiverUnsubscribe();
-            this.nativeReceiverUnsubscribe = null;
+        if (this.nativeSubscription && typeof this.nativeSubscription.remove === 'function') {
+            this.nativeSubscription.remove();
+            this.nativeSubscription = null;
         }
 
         if (typeof nativeBridge === 'function') {
-            this.nativeReceiverUnsubscribe = nativeBridge((rawMsg) => {
+            const unsub = nativeBridge((rawMsg) => {
                 this.processIncomingRawMessage(rawMsg);
             });
+            this.nativeSubscription = { remove: unsub };
             this.isListening = true;
         }
     }
@@ -109,41 +132,53 @@ class SMSIngestionService {
         const body = rawMessage.body || rawMessage.text || rawMessage.message || '';
         const sender = rawMessage.sender || rawMessage.originatingAddress || rawMessage.address || '';
         const timestamp = rawMessage.date || rawMessage.timestamp || new Date().toISOString();
+        const auditLogId = `raw_sms_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+        // 1. Initial Immutable Audit Record: RECEIVED
+        let auditEntry = {
+            id: auditLogId,
+            body,
+            sender,
+            receivedAt: new Date().toISOString(),
+            deviceTimestamp: timestamp,
+            status: 'RECEIVED',
+            transactionId: null,
+            fingerprint: null,
+            error: null
+        };
+        await this._appendRawAuditLog(auditEntry);
 
         try {
-            // 1. Audit Trail: Persist raw SMS payload before processing
-            await this._appendRawAuditLog({
-                id: `raw_sms_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                body,
-                sender,
-                receivedAt: new Date().toISOString(),
-                deviceTimestamp: timestamp
-            });
-
             // 2. Deterministic Parse
             const parsed = parseRawSMS(body, sender, timestamp);
             if (!parsed) {
+                await this._updateAuditLogStatus(auditLogId, 'REJECTED_NON_FINANCIAL');
                 return null; // Non-financial SMS, OTP, or promo ignored
             }
 
             // 3. Fast In-Memory Deduplication Check
             const candidateFingerprint = generateTransactionFingerprint(parsed);
+            auditEntry.fingerprint = candidateFingerprint;
+
             if (candidateFingerprint && this._seenFingerprints.has(candidateFingerprint)) {
+                await this._updateAuditLogStatus(auditLogId, 'REJECTED_DUPLICATE', { fingerprint: candidateFingerprint });
                 return null; // Already queued or processed in memory
             }
 
             // 4. Load Current Canonical Journal from Storage
             const currentJournal = await getStoredTransactions();
 
-            // 5. Deep Storage Duplicate Detection
+            // 5. Deep Persistent Duplicate Detection
             if (isDuplicateTransaction(parsed, currentJournal, this._seenFingerprints)) {
                 if (candidateFingerprint) this._seenFingerprints.add(candidateFingerprint);
+                await this._updateAuditLogStatus(auditLogId, 'REJECTED_DUPLICATE', { fingerprint: candidateFingerprint });
                 return null; // Idempotently ignore duplicates
             }
 
             // 6. Normalization & Confidence Scoring
             const normalized = normalizeSMSTransaction(parsed, this.accounts);
             if (!normalized) {
+                await this._updateAuditLogStatus(auditLogId, 'PROCESSING_FAILED', { error: 'Normalization returned null' });
                 return null;
             }
 
@@ -157,7 +192,16 @@ class SMSIngestionService {
             const updatedJournal = [normalized, ...currentJournal];
             await persistTransactions(updatedJournal);
 
-            // 8. Notify Active UI Subscribers
+            // 8. Update Audit Status to COMMITTED or QUARANTINED_REVIEW
+            const finalAuditStatus = normalized.status === 'NEEDS_REVIEW' ? 'QUARANTINED_REVIEW' : 'COMMITTED';
+            await this._updateAuditLogStatus(auditLogId, finalAuditStatus, {
+                transactionId: normalized.id,
+                fingerprint: normalizedFingerprint,
+                confidence: normalized.confidence,
+                category: normalized.category
+            });
+
+            // 9. Notify Active UI Subscribers
             this.notifyListeners({
                 type: 'TRANSACTION_INGESTED',
                 transaction: normalized,
@@ -168,20 +212,56 @@ class SMSIngestionService {
         } catch (err) {
             // SMS-07: Fault isolation
             console.warn('[SMSIngestionService] Failed to process SMS message safely:', err);
+            await this._updateAuditLogStatus(auditLogId, 'PROCESSING_FAILED', { error: err.message });
             return null;
         }
     }
 
     /**
-     * Persists raw message to audit log for debugging & compliance.
+     * Appends raw message to immutable audit log (never deletes old records).
      */
     async _appendRawAuditLog(rawLogEntry) {
         try {
             const currentLogs = (await loadData(STORAGE_KEY_SMS_RAW_AUDIT)) || [];
-            const updatedLogs = [rawLogEntry, ...currentLogs].slice(0, 100); // keep last 100 raw messages
+            // Append-only; preserve all historical raw audit records
+            const updatedLogs = [rawLogEntry, ...currentLogs];
             await saveData(STORAGE_KEY_SMS_RAW_AUDIT, updatedLogs);
         } catch (err) {
-            // Non-blocking log failure
+            console.warn('[SMSIngestionService] Failed to append raw audit log:', err);
+        }
+    }
+
+    /**
+     * Updates status of an existing audit log entry in storage.
+     */
+    async _updateAuditLogStatus(logId, status, extraFields = {}) {
+        try {
+            const currentLogs = (await loadData(STORAGE_KEY_SMS_RAW_AUDIT)) || [];
+            const updatedLogs = currentLogs.map(entry => {
+                if (entry.id === logId) {
+                    return {
+                        ...entry,
+                        status,
+                        ...extraFields,
+                        updatedAt: new Date().toISOString()
+                    };
+                }
+                return entry;
+            });
+            await saveData(STORAGE_KEY_SMS_RAW_AUDIT, updatedLogs);
+        } catch (err) {
+            console.warn('[SMSIngestionService] Failed to update audit log status:', err);
+        }
+    }
+
+    /**
+     * Retrieve complete raw audit log.
+     */
+    async getRawAuditLogs() {
+        try {
+            return (await loadData(STORAGE_KEY_SMS_RAW_AUDIT)) || [];
+        } catch {
+            return [];
         }
     }
 
