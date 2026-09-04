@@ -28,6 +28,19 @@ export const VIABILITY_STATUS = Object.freeze({
     NOT_COMFORTABLE: 'NOT_COMFORTABLE'
 });
 
+export const DEBT_STRATEGY = Object.freeze({
+    AVALANCHE: 'AVALANCHE',
+    SNOWBALL: 'SNOWBALL',
+    CUSTOM: 'CUSTOM'
+});
+
+export const DEFAULT_DEBT_POLICY = Object.freeze({
+    debtStrategy: DEBT_STRATEGY.AVALANCHE,
+    extraDebtPayment: null,
+    minimumReserve: 0,
+    discretionaryFloor: 0
+});
+
 export const ALLOCATION_STRATEGY_TYPE = Object.freeze({
     PERCENTAGE: 'PERCENTAGE',
     ZERO_BASED: 'ZERO_BASED',

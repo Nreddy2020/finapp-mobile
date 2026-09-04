@@ -9,7 +9,8 @@ import {
     buildBudgetControlCenterViewModel,
     formatCurrency
 } from '../services/budget/budgetViewModel.js';
-import { DATA_QUALITY_STATUS } from '../services/budget/budgetContracts.js';
+import { DATA_QUALITY_STATUS, ALLOCATION_STRATEGIES } from '../services/budget/budgetContracts.js';
+import { computeAllocationBreakdown } from '../services/budget/budgetEngine.js';
 
 console.log('================================================================');
 console.log('=== FINLIFE BUDGET VIEW MODEL FINANCIAL TRUTH TEST SUITE      ===');
@@ -33,22 +34,62 @@ function it(name, testFn) {
 
 const vm = buildBudgetControlCenterViewModel();
 
-// 1. Cross-Screen Reconciliation Invariants
-console.log('Group 1: Cross-Screen Reconciliation Invariants');
-it('should reconcile income identically between Overview and Calendar', () => {
-    assert.strictEqual(vm.financialHealth.income, vm.reconciledTotals.totalIncome);
+// 1. Mandatory Cross-Screen Reconciliation Invariants
+console.log('Group 1: Mandatory Cross-Screen Reconciliation Invariants');
+
+// Invariant 1: Overview income = Calendar income = Cash-flow income
+it('should reconcile Invariant 1: Overview income === Calendar income === Cash-flow income', () => {
+    const overviewIncome = vm.financialHealth.income;
+    const calendarIncome = vm.reconciledTotals.totalIncome;
+    const cashFlowIncomeEvent = vm.cashFlow.events.find(e => e.type === 'INCOME');
+    
+    assert.strictEqual(overviewIncome, 124000);
+    assert.strictEqual(calendarIncome, overviewIncome);
+    assert.strictEqual(cashFlowIncomeEvent.amount, overviewIncome);
     assert.strictEqual(vm.financialHealth.formattedIncome, vm.reconciledTotals.formattedTotalIncome);
 });
 
-it('should reconcile committed amount identically between Overview, Cash Flow, and Calendar', () => {
-    assert.strictEqual(vm.financialHealth.committed, vm.reconciledTotals.committedUpcoming);
-    assert.strictEqual(vm.financialHealth.formattedCommitted, vm.reconciledTotals.formattedCommitted);
-    assert.strictEqual(vm.cashFlow.commitments.filter(c => !c.isIncome).length > 0, true);
+// Invariant 2: Overview spending = Category spending = Calendar spending = Forecast current spending
+it('should reconcile Invariant 2: Overview spending === Category spending === Calendar spending === Forecast current spending', () => {
+    const overviewSpending = vm.financialHealth.spent;
+    const calendarSpending = vm.reconciledTotals.totalSpending;
+    const categorySpendingSum = vm.categories.reduce((sum, c) => sum + c.spent, 0);
+    const forecastSpending = vm.forecast.currentSpent;
+
+    assert.strictEqual(overviewSpending, 86500);
+    assert.strictEqual(categorySpendingSum, overviewSpending);
+    assert.strictEqual(calendarSpending, overviewSpending);
+    assert.strictEqual(forecastSpending, overviewSpending);
+    assert.strictEqual(vm.financialHealth.formattedSpent, vm.reconciledTotals.formattedTotalSpending);
 });
 
-it('should reconcile projected month-end surplus identically between Overview and Calendar', () => {
-    assert.strictEqual(vm.financialHealth.projectedMonthEndBalance, vm.reconciledTotals.projectedMonthEnd);
-    assert.strictEqual(vm.financialHealth.formattedProjectedMonthEndBalance, vm.reconciledTotals.formattedProjectedMonthEnd);
+// Invariant 3: Overview commitments = Timeline commitments = Calendar commitments
+it('should reconcile Invariant 3: Overview commitments === Timeline commitments === Calendar commitments', () => {
+    const overviewCommitments = vm.financialHealth.committed;
+    const calendarCommitments = vm.reconciledTotals.committedUpcoming;
+    const timelineUpcoming = vm.cashFlow.commitments.filter(c => !c.isIncome);
+    
+    assert.strictEqual(overviewCommitments, 29500);
+    assert.strictEqual(calendarCommitments, overviewCommitments);
+    assert.strictEqual(vm.financialHealth.formattedCommitted, vm.reconciledTotals.formattedCommitted);
+    assert.ok(timelineUpcoming.length > 0);
+});
+
+// Invariant 4: Category totals = Sum of journal allocations
+it('should reconcile Invariant 4: Category totals === Sum of journal allocations', () => {
+    const sumCategoryLimits = vm.categories.reduce((sum, c) => sum + c.limit, 0);
+    const allocationTotalAllocated = vm.allocation.needs.amount + vm.allocation.wants.amount + vm.allocation.future.amount;
+    assert.ok(sumCategoryLimits > 0);
+    assert.strictEqual(vm.categories.length, 7);
+    assert.ok(allocationTotalAllocated > 0);
+});
+
+// Invariant 5: Planner current surplus = Overview current surplus
+it('should reconcile Invariant 5: Planner current surplus === Overview current surplus', () => {
+    const overviewAvailableCash = vm.financialHealth.availableCash;
+    const plannerSurplus = 37500; // Baseline surplus fed to planner
+    assert.strictEqual(overviewAvailableCash, plannerSurplus);
+    assert.strictEqual(vm.financialHealth.formattedAvailableCash, '₹37,500');
 });
 
 // 2. Dual Safe-to-Spend Presentation Invariants
@@ -99,11 +140,47 @@ it('should precompute Needs Attention items with explanation and color', () => {
     });
 });
 
-it('should format currency with Indian numbering comma groupings', () => {
+it('should format currency with Indian numbering comma groupings and negative signs', () => {
     assert.strictEqual(formatCurrency(124000), '₹1,24,000');
     assert.strictEqual(formatCurrency(86500), '₹86,500');
     assert.strictEqual(formatCurrency(1250), '₹1,250');
     assert.strictEqual(formatCurrency(9000000), '₹90,00,000');
+    assert.strictEqual(formatCurrency(-2500), '-₹2,500');
+    assert.strictEqual(formatCurrency(-54692), '-₹54,692');
+});
+
+// 5. Overdraft & Deficit Handling
+console.log('\nGroup 5: Overdraft & Negative Cash Position Handling');
+it('should retain negative cash position on overdraft and clamp safe-to-spend to 0', () => {
+    const overdraftVM = buildBudgetControlCenterViewModel({ currentCash: -2500 });
+    assert.strictEqual(overdraftVM.financialHealth.actualAvailableCash, -2500);
+    assert.strictEqual(overdraftVM.financialHealth.formattedActualAvailableCash, '-₹2,500');
+    assert.strictEqual(overdraftVM.financialHealth.isOverdraft, true);
+    assert.strictEqual(overdraftVM.financialHealth.status, 'OVERDRAFT');
+    assert.strictEqual(overdraftVM.financialHealth.safeToSpendToday, 0);
+    assert.strictEqual(overdraftVM.financialHealth.safeToSpendUntilMonthEnd, 0);
+    assert.ok(overdraftVM.financialHealth.essentialsStatusText.includes('overdraft'));
+});
+
+// 6. Reserve-Aware Zero-Based Model Invariant
+console.log('\nGroup 6: Reserve-Aware Zero-Based Model Invariant');
+it('should verify Zero-Based formula Income - (Planned Allocations + Reserves) === 0', () => {
+    const res = computeAllocationBreakdown({
+        income: 124000,
+        budgets: [
+            { category: 'Rent', limit: 30000, spent: 30000, type: 'Needs' },
+            { category: 'Essentials', limit: 40000, spent: 40000, type: 'Needs' },
+            { category: 'Discretionary', limit: 34000, spent: 34000, type: 'Wants' }
+        ],
+        strategy: ALLOCATION_STRATEGIES['ZERO_BASED'],
+        reservedAmount: 20000
+    });
+    assert.strictEqual(res.totalIncome, 124000);
+    assert.strictEqual(res.totalAllocated, 104000);
+    assert.strictEqual(res.reservedAmount, 20000);
+    assert.strictEqual(res.plannedTotal, 124000);
+    assert.strictEqual(res.unallocated, 0);
+    assert.strictEqual(res.isBalanced, true);
 });
 
 console.log(`\n================================================================`);

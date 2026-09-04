@@ -39,20 +39,47 @@ object FinlifeCryptoEngine {
             keyStore.load(null)
             if (!keyStore.containsAlias(KEY_ALIAS)) {
                 val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
-                val keyGenParameterSpec = KeyGenParameterSpec.Builder(
-                    KEY_ALIAS,
-                    KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-                )
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .setRandomizedEncryptionRequired(true)
-                    .build()
-                keyGenerator.init(keyGenParameterSpec)
-                keyGenerator.generateKey()
+                var keyGenerated = false
+
+                // Attempt StrongBox hardware security module first on supported devices (API 28+)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                    try {
+                        val strongBoxSpec = KeyGenParameterSpec.Builder(
+                            KEY_ALIAS,
+                            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                        )
+                            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                            .setKeySize(256)
+                            .setRandomizedEncryptionRequired(true)
+                            .setIsStrongBoxBacked(true)
+                            .build()
+                        keyGenerator.init(strongBoxSpec)
+                        keyGenerator.generateKey()
+                        keyGenerated = true
+                        android.util.Log.i("FinlifeCryptoEngine", "Sealed 256-bit AES master key in StrongBox Hardware Security Module")
+                    } catch (e: Exception) {
+                        android.util.Log.w("FinlifeCryptoEngine", "StrongBox chip unavailable on this hardware, falling back to AndroidKeyStore TEE: ${e.message}")
+                    }
+                }
+
+                if (!keyGenerated) {
+                    val standardSpec = KeyGenParameterSpec.Builder(
+                        KEY_ALIAS,
+                        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+                    )
+                        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                        .setKeySize(256)
+                        .setRandomizedEncryptionRequired(true)
+                        .build()
+                    keyGenerator.init(standardSpec)
+                    keyGenerator.generateKey()
+                    android.util.Log.i("FinlifeCryptoEngine", "Sealed 256-bit AES master key in AndroidKeyStore TEE")
+                }
             }
         } catch (e: Exception) {
-            // Log or handle keystore initialization error
+            android.util.Log.e("FinlifeCryptoEngine", "Keystore initialization failed: ${e.message}", e)
         }
     }
 
@@ -83,6 +110,16 @@ object FinlifeCryptoEngine {
 
     @Synchronized
     fun decrypt(cipherText: String): String {
+        // Transparent backward-compatibility migration for legacy obfuscated records
+        if (cipherText.startsWith("FL_ENC_V1:")) {
+            try {
+                val b64 = cipherText.substring("FL_ENC_V1:".length)
+                return String(Base64.decode(b64, Base64.NO_WRAP), Charsets.UTF_8)
+            } catch (e: Exception) {
+                return cipherText
+            }
+        }
+
         if (!cipherText.startsWith(CIPHER_PREFIX)) {
             return cipherText
         }

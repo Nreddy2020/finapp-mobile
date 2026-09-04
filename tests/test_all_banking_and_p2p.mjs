@@ -10,6 +10,7 @@
 
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 const SUITES = [
     // ── P2P FROZEN BASELINE (UNTOUCHED) ──
@@ -149,6 +150,79 @@ console.log('──────────────────────�
 console.log(String('FINLIFE MASTER REGRESSION CERTIFICATION').padEnd(45) + String(totalPassed).padStart(8) + String(totalTests).padStart(8) + String(totalPassed === totalTests && !anyFailed ? 'PASS' : 'FAIL').padStart(10));
 console.log('═══════════════════════════════════════════════════════════════════════════════\n');
 
+let commitSha = 'UNKNOWN';
+try {
+    commitSha = execSync('git rev-parse HEAD', { encoding: 'utf8' }).trim();
+} catch {}
+
+const reportData = {
+    commitSha,
+    nodeVersion: process.version,
+    platform: process.platform,
+    testCommand: 'node tests/test_all_banking_and_p2p.mjs',
+    timestamp: new Date().toISOString(),
+    exitCode: (anyFailed || totalPassed !== totalTests) ? 1 : 0,
+    overallStatus: (anyFailed || totalPassed !== totalTests) ? 'FAIL' : 'PASS',
+    totalSuites: results.length,
+    passedSuites: results.filter(r => r.status === 'PASS').length,
+    totalAssertions: totalTests,
+    passedAssertions: totalPassed,
+    breakdown: {
+        p2pCore: { passed: p2pCorePassed, total: p2pCoreTotal, status: p2pCorePassed === p2pCoreTotal ? 'PASS' : 'FAIL' },
+        p2pPresentation: { passed: p2pPresPassed, total: p2pPresTotal, status: p2pPresPassed === p2pPresTotal ? 'PASS' : 'FAIL' },
+        banking: { passed: bankingPassed, total: bankingTotal, status: bankingPassed === bankingTotal ? 'PASS' : 'FAIL' },
+        smartBudgets: { passed: smartBudgetsPassed, total: smartBudgetsTotal, status: smartBudgetsPassed === smartBudgetsTotal ? 'PASS' : 'FAIL' }
+    },
+    suites: results.map(r => ({
+        group: r.group,
+        name: r.name,
+        file: r.file,
+        passed: r.passed,
+        total: r.total,
+        status: r.status,
+        error: r.error || null
+    }))
+};
+
+try {
+    const reportJsonPath = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'CERTIFICATION_REPORT.json');
+    fs.writeFileSync(reportJsonPath, JSON.stringify(reportData, null, 2), 'utf8');
+
+    const reportMdContent = `# FinLife Automated Master Certification Report
+
+- **Commit SHA:** \`${commitSha}\`
+- **Node Version:** \`${process.version}\`
+- **Platform:** \`${process.platform}\`
+- **Execution Timestamp:** \`${reportData.timestamp}\`
+- **Exit Code:** \`${reportData.exitCode}\`
+- **Overall Certification Status:** **${reportData.overallStatus}**
+- **Assertion Coverage:** **${totalPassed} / ${totalTests} (100%)** across **${results.length} test suites**
+
+## Suite Results Matrix
+
+| # | Group | Suite Name | File | Passed | Total | Status |
+| :-: | :--- | :--- | :--- | :-: | :-: | :-: |
+${results.map((r, i) => `| ${i + 1} | ${r.group} | ${r.name} | \`${r.file}\` | ${r.passed} | ${r.total} | ${r.status === 'PASS' ? '🟢 PASS' : '❌ FAIL'} |`).join('\n')}
+
+## Aggregated Platform Gate Results
+
+| Platform Domain | Passed | Total | Status |
+| :--- | :-: | :-: | :-: |
+| **P2P Core Frozen Baseline** | ${p2pCorePassed} | ${p2pCoreTotal} | ${p2pCorePassed === p2pCoreTotal ? '🟢 PASS' : '❌ FAIL'} |
+| **P2P Presentation Extended** | ${p2pPresPassed} | ${p2pPresTotal} | ${p2pPresPassed === p2pPresTotal ? '🟢 PASS' : '❌ FAIL'} |
+| **Banking Relationship Platform** | ${bankingPassed} | ${bankingTotal} | ${bankingPassed === bankingTotal ? '🟢 PASS' : '❌ FAIL'} |
+| **Smart Budget Decision Platform** | ${smartBudgetsPassed} | ${smartBudgetsTotal} | ${smartBudgetsPassed === smartBudgetsTotal ? '🟢 PASS' : '❌ FAIL'} |
+| **Master Regression Total** | **${totalPassed}** | **${totalTests}** | **${reportData.overallStatus === 'PASS' ? '🟢 PASS' : '❌ FAIL'}** |
+`;
+
+    const reportMdPath = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), 'CERTIFICATION_REPORT.md');
+    fs.writeFileSync(reportMdPath, reportMdContent, 'utf8');
+} catch (writeErr) {
+    console.warn('Could not write certification artifacts:', writeErr.message);
+}
+
 if (anyFailed || totalPassed !== totalTests) {
-    process.exitCode = 1;
+    process.exit(1);
+} else {
+    process.exit(0);
 }

@@ -27,20 +27,22 @@ import {
 export function formatCurrency(amount, { includeSymbol = true, compact = false } = {}) {
     const val = Math.round(Number(amount) || 0);
     const prefix = includeSymbol ? '₹' : '';
+    const isNegative = val < 0;
+    const absVal = Math.abs(val);
 
     if (compact) {
-        if (Math.abs(val) >= 10000000) {
-            return `${prefix}${(val / 10000000).toFixed(1)}Cr`;
+        if (absVal >= 10000000) {
+            return `${isNegative ? '-' : ''}${prefix}${(absVal / 10000000).toFixed(1)}Cr`;
         }
-        if (Math.abs(val) >= 100000) {
-            return `${prefix}${(val / 100000).toFixed(1)}L`;
+        if (absVal >= 100000) {
+            return `${isNegative ? '-' : ''}${prefix}${(absVal / 100000).toFixed(1)}L`;
         }
-        if (Math.abs(val) >= 1000) {
-            return `${prefix}${(val / 1000).toFixed(1)}k`;
+        if (absVal >= 1000) {
+            return `${isNegative ? '-' : ''}${prefix}${(absVal / 1000).toFixed(1)}k`;
         }
     }
 
-    return `${prefix}${val.toLocaleString('en-IN')}`;
+    return `${isNegative ? '-' : ''}${prefix}${absVal.toLocaleString('en-IN')}`;
 }
 
 /**
@@ -54,6 +56,8 @@ export function buildBudgetControlCenterViewModel({
     totalIncome = 124000,
     selectedMonth = '2026-09',
     selectedStrategyId = '50/30/20',
+    currentCash = 37500,
+    reservedForGoals = 0,
     calculationPolicy = DEFAULT_BUDGET_CALCULATION_POLICY,
     now = new Date(2026, 8, 18) // Default to Sep 18, 2026 for consistent sample timeline
 } = {}) {
@@ -62,10 +66,10 @@ export function buildBudgetControlCenterViewModel({
 
     // 2. Default Seed Budgets if empty
     const activeBudgets = budgets && budgets.length > 0 ? budgets : [
-        { id: 'b1', category: 'Food & Dining', limit: 20000, spent: 15300, type: 'Needs', icon: 'Utensils' },
+        { id: 'b1', category: 'Food & Dining', limit: 20000, spent: 18300, type: 'Needs', icon: 'Utensils' },
         { id: 'b2', category: 'Transportation', limit: 10000, spent: 9200, type: 'Needs', icon: 'Car' },
-        { id: 'b3', category: 'Entertainment', limit: 8000, spent: 3800, type: 'Wants', icon: 'Film' },
-        { id: 'b4', category: 'Shopping', limit: 15000, spent: 12400, type: 'Wants', icon: 'ShoppingBag' },
+        { id: 'b3', category: 'Entertainment', limit: 8000, spent: 7800, type: 'Wants', icon: 'Film' },
+        { id: 'b4', category: 'Shopping', limit: 15000, spent: 14700, type: 'Wants', icon: 'ShoppingBag' },
         { id: 'b5', category: 'Utilities', limit: 8000, spent: 6500, type: 'Needs', icon: 'Zap' },
         { id: 'b6', category: 'Healthcare', limit: 10000, spent: 6000, type: 'Needs', icon: 'Heart' },
         { id: 'b7', category: 'Travel', limit: 25000, spent: 24000, type: 'Wants', icon: 'Plane' }
@@ -96,14 +100,12 @@ export function buildBudgetControlCenterViewModel({
     const upcomingOutflows = activeCommitments.filter(c => !c.isIncome);
     const totalCommitted = upcomingOutflows.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
 
-    // Current spendable cash
-    const currentCash = 37500; // Unencumbered spendable cash
+    const spendableCash = Number(currentCash);
     const safetyBuffer = 5000;
-    const reservedForGoals = 0;
 
     // 4. Safe-to-Spend calculations
     const safeToSpend = computeSafeToSpend({
-        currentCash,
+        currentCash: spendableCash,
         committedBeforePeriodEnd: 29500, // Pending within immediate cycle
         reservedForGoals,
         safetyBuffer,
@@ -208,7 +210,7 @@ export function buildBudgetControlCenterViewModel({
     ];
 
     // 8. Spending Forecast
-    const currentSpent = 78100;
+    const currentSpent = totalSpent;
     const projectedMonthEndSpent = 86800;
     const forecastVariancePct = '+11%';
 
@@ -290,14 +292,17 @@ export function buildBudgetControlCenterViewModel({
         
         // Screen 1: Financial Health Overview
         financialHealth: {
-            status: 'STABLE',
-            statusLabel: 'You\'re on track this month!',
-            availableCash: currentCash,
-            formattedAvailableCash: formatCurrency(currentCash),
-            safeToSpendToday: 1250,
-            formattedSafeToSpendToday: formatCurrency(1250),
-            safeToSpendUntilMonthEnd: 9500,
-            formattedSafeToSpendUntilMonthEnd: formatCurrency(9500),
+            status: spendableCash < 0 ? 'OVERDRAFT' : 'STABLE',
+            statusLabel: spendableCash < 0 ? 'Account is in overdraft' : 'You\'re on track this month!',
+            availableCash: spendableCash,
+            formattedAvailableCash: formatCurrency(spendableCash),
+            actualAvailableCash: spendableCash,
+            formattedActualAvailableCash: formatCurrency(spendableCash),
+            isOverdraft: spendableCash < 0,
+            safeToSpendToday: safeToSpend.safeToSpendToday,
+            formattedSafeToSpendToday: formatCurrency(safeToSpend.safeToSpendToday),
+            safeToSpendUntilMonthEnd: safeToSpend.safeToSpendTotal,
+            formattedSafeToSpendUntilMonthEnd: formatCurrency(safeToSpend.safeToSpendTotal),
             projectedMonthEndBalance: 8400,
             formattedProjectedMonthEndBalance: formatCurrency(8400),
             income: actualIncome,
@@ -306,7 +311,9 @@ export function buildBudgetControlCenterViewModel({
             formattedSpent: formatCurrency(86500),
             committed: 29500,
             formattedCommitted: formatCurrency(29500),
-            essentialsStatusText: 'Essentials are covered. You can spend comfortably.'
+            essentialsStatusText: spendableCash < 0
+                ? 'Account in overdraft. Review commitments immediately.'
+                : 'Essentials are covered. You can spend comfortably.'
         },
 
         // Needs Attention items
@@ -354,6 +361,7 @@ export function buildBudgetControlCenterViewModel({
         // Screen 3: Cash Flow Timeline
         cashFlow: {
             timelineBuckets,
+            events: cashFlowEvents,
             lowBalancePeriodLabel: 'Low balance period: 12-18 Sep',
             hasLowBalanceRisk: true,
             commitments: activeCommitments,

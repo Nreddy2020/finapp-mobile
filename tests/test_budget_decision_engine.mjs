@@ -114,6 +114,23 @@ it('should prevent division by zero when remaining days is 0', () => {
     assert.strictEqual(res.recommendedDailyDiscretionarySpend, 8000); // divided by max(1, 0)
 });
 
+it('should retain negative cash position and flag isOverdraft without silent zero masking', () => {
+    const res = computeSafeToSpend({
+        currentCash: -2000,
+        committedBeforePeriodEnd: 5000,
+        reservedForGoals: 0,
+        safetyBuffer: 1000,
+        remainingDays: 10
+    });
+    assert.strictEqual(res.currentCash, -2000);
+    assert.strictEqual(res.actualCash, -2000);
+    assert.strictEqual(res.isOverdraft, true);
+    assert.strictEqual(res.isDeficit, true);
+    assert.strictEqual(res.safeToSpendTotal, 0);
+    assert.strictEqual(res.recommendedDailyDiscretionarySpend, 0);
+    assert.strictEqual(res.uncoveredCommitments, 8000);
+});
+
 // 3. Category Run-Rate & Multivariate Risk Evaluation
 console.log('\nGroup 3: Category Run-Rate & Multivariate Risk Evaluation');
 it('should evaluate safe category within normal pace', () => {
@@ -153,6 +170,22 @@ it('should assign HIGH confidence when 15 or more days elapsed', () => {
     assert.strictEqual(res.confidence, 'HIGH');
 });
 
+it('should blend current run-rate with historical average when historicalAverage is provided', () => {
+    const res = computeCategoryRunRate({
+        spent: 6000,
+        budgetLimit: 12000,
+        daysElapsed: 10,
+        daysInPeriod: 30,
+        historicalAverage: 9000
+    });
+    // rawDaily = 6000 / 10 = 600. histDaily = 9000 / 30 = 300.
+    // blended = 0.7 * 600 + 0.3 * 300 = 420 + 90 = 510.
+    // projected = 6000 + 510 * 20 = 16200.
+    assert.strictEqual(res.forecastMethod, 'BLEND_CURRENT_AND_HISTORICAL');
+    assert.strictEqual(res.projectedSpend, 16200);
+    assert.strictEqual(res.riskLevel, RISK_LEVEL.AT_RISK);
+});
+
 // 4. Multi-Paradigm Allocation Engine
 console.log('\nGroup 4: Multi-Paradigm Allocation Engine');
 it('should compute 50/30/20 target breakdown and divergence accurately', () => {
@@ -187,6 +220,52 @@ it('should evaluate Zero-Based allocation balance', () => {
     });
     assert.strictEqual(res.unallocated, 0);
     assert.strictEqual(res.isBalanced, true);
+});
+
+it('should evaluate Zero-Based allocation with planned reserves included', () => {
+    const budgets = [
+        { category: 'Needs', limit: 50000, spent: 50000, type: 'Needs' },
+        { category: 'Wants', limit: 30000, spent: 30000, type: 'Wants' },
+        { category: 'Future', limit: 10000, spent: 10000, type: 'Future' }
+    ];
+    const res = computeAllocationBreakdown({
+        income: 100000,
+        budgets,
+        strategy: ALLOCATION_STRATEGIES['ZERO_BASED'],
+        reservedAmount: 10000
+    });
+    // totalAllocated = 90K, reservedAmount = 10K, plannedTotal = 100K -> unallocated = 0
+    assert.strictEqual(res.totalAllocated, 90000);
+    assert.strictEqual(res.reservedAmount, 10000);
+    assert.strictEqual(res.plannedTotal, 100000);
+    assert.strictEqual(res.unallocated, 0);
+    assert.strictEqual(res.isBalanced, true);
+});
+
+it('should evaluate Debt-First strategy with configurable policy, reserve floor, and custom extra payment', () => {
+    const budgets = [
+        { category: 'Housing', limit: 30000, spent: 30000, type: 'Needs' },
+        { category: 'Food', limit: 20000, spent: 20000, type: 'Needs' }
+    ];
+    const res = computeAllocationBreakdown({
+        income: 100000,
+        budgets,
+        strategy: ALLOCATION_STRATEGIES['DEBT_FIRST'],
+        existingDebtPayments: 15000,
+        debtPolicy: {
+            debtStrategy: 'AVALANCHE',
+            minimumReserve: 10000,
+            discretionaryFloor: 5000,
+            extraDebtPayment: 15000
+        }
+    });
+    assert.strictEqual(res.essentials, 50000);
+    assert.strictEqual(res.debtMinimums, 15000);
+    assert.strictEqual(res.minimumReserve, 10000);
+    assert.strictEqual(res.extraDebtAllocation, 15000);
+    assert.strictEqual(res.totalDebtServicing, 30000);
+    assert.strictEqual(res.discretionaryRemaining, 10000);
+    assert.ok(res.advice.includes('Debt Avalanche'));
 });
 
 // 5. Life-Event Loan Simulation & DSR Invariants

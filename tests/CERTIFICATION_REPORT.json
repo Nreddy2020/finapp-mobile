@@ -1,0 +1,190 @@
+{
+  "commitSha": "329aa5c22ce1dd3d568e57fc5c9ff2056d001ee1",
+  "nodeVersion": "v24.14.1",
+  "platform": "win32",
+  "testCommand": "node tests/test_all_banking_and_p2p.mjs",
+  "timestamp": "2026-09-04T20:23:21.755Z",
+  "exitCode": 0,
+  "overallStatus": "PASS",
+  "totalSuites": 17,
+  "passedSuites": 17,
+  "totalAssertions": 421,
+  "passedAssertions": 421,
+  "breakdown": {
+    "p2pCore": {
+      "passed": 143,
+      "total": 143,
+      "status": "PASS"
+    },
+    "p2pPresentation": {
+      "passed": 14,
+      "total": 14,
+      "status": "PASS"
+    },
+    "banking": {
+      "passed": 232,
+      "total": 232,
+      "status": "PASS"
+    },
+    "smartBudgets": {
+      "passed": 32,
+      "total": 32,
+      "status": "PASS"
+    }
+  },
+  "suites": [
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Domain Primitives & Models",
+      "file": "test_p2p_domain.mjs",
+      "passed": 33,
+      "total": 33,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Financial Calculations",
+      "file": "test_p2p_calculations.mjs",
+      "passed": 31,
+      "total": 31,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Interest Engine & Progression",
+      "file": "test_p2p_interest.mjs",
+      "passed": 7,
+      "total": 7,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Repayment Processing & Allocations",
+      "file": "test_p2p_repayment.mjs",
+      "passed": 14,
+      "total": 14,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Settlement Reconciliation & Closures",
+      "file": "test_p2p_settlement.mjs",
+      "passed": 7,
+      "total": 7,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Lifecycle & Invariants (A-Y, Z1-8)",
+      "file": "test_p2p_lifecycle_invariants.mjs",
+      "passed": 34,
+      "total": 34,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Presentation Adapter & ViewModel",
+      "file": "test_p2p_ui.mjs",
+      "passed": 14,
+      "total": 14,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P UI Financial Truth & Comprehension",
+      "file": "test_p2p_ui_financial_truth.mjs",
+      "passed": 17,
+      "total": 17,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking Core Accounting Invariants",
+      "file": "test_banking_invariants.mjs",
+      "passed": 35,
+      "total": 35,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking UI Financial Truth (UX-01..20)",
+      "file": "test_banking_ui_truth.mjs",
+      "passed": 21,
+      "total": 21,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking Financial Corruption Detector",
+      "file": "test_banking_validation.mjs",
+      "passed": 15,
+      "total": 15,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking Visual Truth & Calm Gates",
+      "file": "test_banking_visual_truth.mjs",
+      "passed": 8,
+      "total": 8,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Money Flow Platform",
+      "name": "Money Flow Cash Truth & Neutrality",
+      "file": "test_ax2_money_flow_cash_truth.mjs",
+      "passed": 21,
+      "total": 21,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Money Flow Platform",
+      "name": "Money Flow Presentation ViewModel",
+      "file": "../scripts/test_moneyflow_viewmodel.js",
+      "passed": 17,
+      "total": 17,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Money Flow Platform",
+      "name": "SMS Pipeline & Provenance (SMS-01..07)",
+      "file": "test_sms_pipeline_and_provenance.mjs",
+      "passed": 115,
+      "total": 115,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Smart Budgets Platform",
+      "name": "Budget Decision Engine Invariants",
+      "file": "test_budget_decision_engine.mjs",
+      "passed": 19,
+      "total": 19,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Smart Budgets Platform",
+      "name": "Budget UI Truth & Reconciliation",
+      "file": "test_budget_view_model_truth.mjs",
+      "passed": 13,
+      "total": 13,
+      "status": "PASS",
+      "error": null
+    }
+  ]
+}

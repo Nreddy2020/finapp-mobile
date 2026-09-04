@@ -9,6 +9,8 @@ import {
     VIABILITY_STATUS,
     ALLOCATION_STRATEGY_TYPE,
     ALLOCATION_STRATEGIES,
+    DEBT_STRATEGY,
+    DEFAULT_DEBT_POLICY,
     CATEGORY_TYPE_MAPPING,
     RECOMMENDATION_POLICY
 } from './budgetContracts.js';
@@ -32,23 +34,26 @@ export function computeSafeToSpend({
     safetyBuffer = 0,
     remainingDays = 1
 } = {}) {
-    const cash = Math.max(0, Number(currentCash) || 0);
+    const actualCash = Number(currentCash) || 0;
+    const spendableCash = Math.max(0, actualCash);
     const committed = Math.max(0, Number(committedBeforePeriodEnd) || 0);
     const reserved = Math.max(0, Number(reservedForGoals) || 0);
     const buffer = Math.max(0, Number(safetyBuffer) || 0);
     const days = Math.max(1, Number(remainingDays) || 1);
 
     const deductions = committed + reserved + buffer;
-    const rawNet = cash - deductions;
+    const rawNet = actualCash - deductions;
 
-    const safeToSpendTotal = Math.max(0, rawNet);
+    const safeToSpendTotal = Math.max(0, spendableCash - deductions);
     const recommendedDailyDiscretionarySpend = Math.round((safeToSpendTotal / days) * 100) / 100;
 
-    const isDeficit = rawNet < 0;
+    const isDeficit = rawNet < 0 || actualCash < 0;
     const uncoveredCommitments = isDeficit ? Math.abs(rawNet) : 0;
 
     return {
-        currentCash: cash,
+        actualCash,
+        currentCash: actualCash,
+        isOverdraft: actualCash < 0,
         committedBeforePeriodEnd: committed,
         reservedForGoals: reserved,
         safetyBuffer: buffer,
@@ -93,8 +98,16 @@ export function computeCategoryRunRate({
     const rawDailyAverage = s / elapsed;
     const dailyAverage = Math.round(rawDailyAverage * 100) / 100;
     const allowedDailyAverage = remainingDays > 0 ? Math.round((remaining / remainingDays) * 100) / 100 : 0;
+    // Incorporate historical average velocity when available (70% current pace, 30% historical pace)
+    let effectiveDailyPace = rawDailyAverage;
+    let forecastMethod = 'LINEAR_CURRENT_RUN_RATE';
+    if (historicalAverage !== null && Number(historicalAverage) > 0) {
+        const histDaily = Number(historicalAverage) / totalDays;
+        effectiveDailyPace = (0.7 * rawDailyAverage) + (0.3 * histDaily);
+        forecastMethod = 'BLEND_CURRENT_AND_HISTORICAL';
+    }
 
-    const projectedSpend = Math.round((s + (rawDailyAverage * remainingDays) + pending) * 100) / 100;
+    const projectedSpend = Math.round((s + (effectiveDailyPace * remainingDays) + pending) * 100) / 100;
     const projectedVariance = Math.round((projectedSpend - limit) * 100) / 100;
     const projectedPercentage = limit > 0 ? Math.round((projectedSpend / limit) * 1000) / 10 : 0;
     const overspendAmount = Math.max(0, projectedVariance);
@@ -138,7 +151,9 @@ export function computeCategoryRunRate({
         daysRemaining: remainingDays,
         riskLevel,
         confidence,
-        confidenceReason
+        confidenceReason,
+        forecastMethod,
+        historicalAverage
     };
 }
 
@@ -157,7 +172,9 @@ export function computeAllocationBreakdown({
     income = 0,
     budgets = [],
     strategy = ALLOCATION_STRATEGIES['50/30/20'],
-    existingDebtPayments = 0
+    reservedAmount = 0,
+    existingDebtPayments = 0,
+    debtPolicy = null
 } = {}) {
     const totalIncome = Math.max(0, Number(income) || 0);
     const activeStrategy = strategy || ALLOCATION_STRATEGIES['50/30/20'];
@@ -231,12 +248,15 @@ export function computeAllocationBreakdown({
     }
 
     if (activeStrategy.type === ALLOCATION_STRATEGY_TYPE.ZERO_BASED) {
-        const unallocated = totalIncome - totalAllocated;
+        const reserved = Math.max(0, Number(reservedAmount) || 0);
+        // Zero-based contract: Income - (All Planned Allocations + Reserves) = Unallocated
+        const plannedTotal = totalAllocated + reserved;
+        const unallocated = Math.round((totalIncome - plannedTotal) * 100) / 100;
         let advice = unallocated === 0
-            ? 'Zero-based allocation complete: every rupee has a designated purpose.'
+            ? 'Zero-based allocation complete: every rupee has a designated purpose (including planned reserves).'
             : (unallocated > 0
                 ? `You have ₹${unallocated.toLocaleString('en-IN')} unallocated. Assign it to debt paydown or emergency savings.`
-                : `You are over-allocated by ₹${Math.abs(unallocated).toLocaleString('en-IN')}. Reduce budget limits to balance.`);
+                : `You are over-allocated by ₹${Math.abs(unallocated).toLocaleString('en-IN')} (including ₹${reserved.toLocaleString('en-IN')} reserves). Reduce budget limits to balance.`);
 
         return {
             strategyId: activeStrategy.id,
@@ -244,6 +264,8 @@ export function computeAllocationBreakdown({
             strategyName: activeStrategy.name,
             totalIncome,
             totalAllocated,
+            reservedAmount: reserved,
+            plannedTotal,
             totalSpent,
             unallocated,
             isBalanced: unallocated === 0,
@@ -256,12 +278,37 @@ export function computeAllocationBreakdown({
         };
     }
 
-    // DEBT_PRIORITY
+    // DEBT_PRIORITY / Debt-First
     const debtMinimums = Number(existingDebtPayments) || 0;
     const essentials = breakdown.Needs.allocated;
-    const surplusAfterEssentialsAndDebt = totalIncome - (essentials + debtMinimums);
-    const extraDebtAllocation = Math.max(0, surplusAfterEssentialsAndDebt * 0.7);
+    const policy = debtPolicy || {};
+    const debtStrategy = policy.debtStrategy || DEBT_STRATEGY.AVALANCHE; // 'AVALANCHE' | 'SNOWBALL' | 'CUSTOM'
+    const minimumReserve = Math.max(0, Number(policy.minimumReserve !== undefined ? policy.minimumReserve : reservedAmount) || 0);
+    const discretionaryFloor = Math.max(0, Number(policy.discretionaryFloor) || 0);
+
+    // Surplus remaining after essentials, minimum debt servicing, and minimum reserve floor
+    const surplusAfterEssentialsAndDebt = Math.max(0, totalIncome - (essentials + debtMinimums + minimumReserve));
+
+    let extraDebtAllocation = 0;
+    if (policy.extraDebtPayment !== undefined && policy.extraDebtPayment !== null && Number(policy.extraDebtPayment) >= 0) {
+        extraDebtAllocation = Math.min(surplusAfterEssentialsAndDebt, Number(policy.extraDebtPayment));
+    } else {
+        // Standard accelerated debt policy: dedicate 70% of available surplus above discretionary floor
+        const availableForDebt = Math.max(0, surplusAfterEssentialsAndDebt - discretionaryFloor);
+        extraDebtAllocation = Math.round(availableForDebt * 0.7 * 100) / 100;
+    }
+
     const discretionaryRemaining = Math.max(0, surplusAfterEssentialsAndDebt - extraDebtAllocation);
+    const totalDebtServicing = debtMinimums + extraDebtAllocation;
+
+    let strategyAdvice = '';
+    if (debtStrategy === DEBT_STRATEGY.AVALANCHE) {
+        strategyAdvice = `Debt Avalanche priority: ₹${Math.round(extraDebtAllocation).toLocaleString('en-IN')} directed towards highest-APR liability first after securing ₹${minimumReserve.toLocaleString('en-IN')} reserves.`;
+    } else if (debtStrategy === DEBT_STRATEGY.SNOWBALL) {
+        strategyAdvice = `Debt Snowball priority: ₹${Math.round(extraDebtAllocation).toLocaleString('en-IN')} directed towards smallest balance liability first to build momentum.`;
+    } else {
+        strategyAdvice = `Custom Debt Plan: ₹${Math.round(extraDebtAllocation).toLocaleString('en-IN')} allocated to principal paydown with ₹${discretionaryFloor.toLocaleString('en-IN')} discretionary floor.`;
+    }
 
     return {
         strategyId: activeStrategy.id,
@@ -271,15 +318,24 @@ export function computeAllocationBreakdown({
         totalAllocated,
         totalSpent,
         debtMinimums,
+        minimumReserve,
+        discretionaryFloor,
+        debtPolicy: {
+            debtStrategy,
+            minimumReserve,
+            discretionaryFloor,
+            extraDebtPayment: extraDebtAllocation
+        },
         essentials,
         extraDebtAllocation,
+        totalDebtServicing,
         discretionaryRemaining,
         actual: {
             Needs: breakdown.Needs.spent,
             Wants: breakdown.Wants.spent,
             Future: breakdown.Future.spent
         },
-        advice: `Accelerate debt freedom: ₹${Math.round(extraDebtAllocation).toLocaleString('en-IN')} directed towards principal prepayments.`
+        advice: strategyAdvice
     };
 }
 
@@ -396,6 +452,8 @@ export function simulateLifeEventLoan({
         cashReserveImpact: dp,
         viability,
         viabilityReason,
+        estimateLabel: 'FinLife scenario viability estimate',
+        disclaimer: 'This is a scenario viability estimate based on self-reported inputs, not a bank underwriting approval or lending commitment.',
         alternatives
     };
 }
