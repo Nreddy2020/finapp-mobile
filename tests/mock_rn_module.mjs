@@ -1,3 +1,6 @@
+import nodeCrypto from 'node:crypto';
+global.__FINLIFE_CRYPTO__ = nodeCrypto;
+
 export const Platform = { OS: 'web' };
 
 export const PermissionsAndroid = {

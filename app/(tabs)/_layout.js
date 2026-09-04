@@ -39,7 +39,6 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
         { id: 'recurring', name: 'Recurring', icon: Calendar, route: '/recurring' },
         { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/cashbooks' },
         { id: 'group-expenses', name: 'Group Exp', icon: Users, route: '/group-expenses' },
-        { id: 'savings', name: 'Savings', icon: Landmark, route: '/savings' },
         { id: 'reports', name: 'Reports', icon: TrendingUp, route: '/reports' }
     ];
 

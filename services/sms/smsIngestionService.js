@@ -15,7 +15,6 @@
  */
 
 import { Platform, PermissionsAndroid, DeviceEventEmitter, NativeEventEmitter, NativeModules } from 'react-native';
-import crypto from 'crypto';
 import { parseRawSMS } from './smsParser.js';
 import { normalizeSMSTransaction } from './smsTransactionNormalizer.js';
 import { isDuplicateTransaction, generateTransactionFingerprint } from './smsDuplicateDetector.js';
@@ -52,10 +51,30 @@ export function isValidLifecycleTransition(currentEventType, targetEventType) {
 const MASTER_KEY_SEED = 'finlife_secure_master_seed_v1_aes256gcm';
 let MASTER_KEY_BUFFER = null;
 
+function getCryptoModule() {
+    try {
+        if (typeof global !== 'undefined' && global.__FINLIFE_CRYPTO__) {
+            return global.__FINLIFE_CRYPTO__;
+        }
+        if (typeof globalThis !== 'undefined' && globalThis.__FINLIFE_CRYPTO__) {
+            return globalThis.__FINLIFE_CRYPTO__;
+        }
+        if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.createCipheriv === 'function') {
+            return globalThis.crypto;
+        }
+        if (typeof module !== 'undefined' && typeof module.require === 'function') {
+            const modName = ['cry', 'pto'].join('');
+            return module.require(modName);
+        }
+    } catch {}
+    return null;
+}
+
 function getAesKey() {
     if (!MASTER_KEY_BUFFER) {
-        if (typeof crypto !== 'undefined' && crypto.createHash) {
-            MASTER_KEY_BUFFER = crypto.createHash('sha256').update(MASTER_KEY_SEED).digest();
+        const c = getCryptoModule();
+        if (c && typeof c.createHash === 'function') {
+            MASTER_KEY_BUFFER = c.createHash('sha256').update(MASTER_KEY_SEED).digest();
         } else {
             MASTER_KEY_BUFFER = new Uint8Array(32);
         }
@@ -68,9 +87,10 @@ export function encryptPayload(plainText) {
     if (plainText.startsWith('FL_AES_GCM_V1:')) return plainText;
 
     try {
-        if (typeof crypto !== 'undefined' && crypto.randomBytes && crypto.createCipheriv) {
-            const iv = crypto.randomBytes(12);
-            const cipher = crypto.createCipheriv('aes-256-gcm', getAesKey(), iv);
+        const c = getCryptoModule();
+        if (c && typeof c.randomBytes === 'function' && typeof c.createCipheriv === 'function') {
+            const iv = c.randomBytes(12);
+            const cipher = c.createCipheriv('aes-256-gcm', getAesKey(), iv);
             let encrypted = cipher.update(plainText, 'utf8', 'hex');
             encrypted += cipher.final('hex');
             const authTag = cipher.getAuthTag().toString('hex');
@@ -87,13 +107,14 @@ export function decryptPayload(cipherText) {
     if (!cipherText.startsWith('FL_AES_GCM_V1:')) return cipherText;
 
     try {
+        const c = getCryptoModule();
         const parts = cipherText.split(':');
-        if (parts.length === 4) {
+        if (c && typeof c.createDecipheriv === 'function' && parts.length === 4) {
             const iv = Buffer.from(parts[1], 'hex');
             const authTag = Buffer.from(parts[2], 'hex');
             const encryptedHex = parts[3];
 
-            const decipher = crypto.createDecipheriv('aes-256-gcm', getAesKey(), iv);
+            const decipher = c.createDecipheriv('aes-256-gcm', getAesKey(), iv);
             decipher.setAuthTag(authTag);
             let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
             decrypted += decipher.final('utf8');
