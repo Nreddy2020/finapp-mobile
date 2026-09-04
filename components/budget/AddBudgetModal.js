@@ -18,10 +18,13 @@ const CATEGORIES = {
     'Other': { icon: Wallet, color: '#71717A' },
 };
 
+import { CATEGORY_TYPE_MAPPING } from '../../services/budget/budgetContracts.js';
+
 export default function AddBudgetModal({ visible, onClose, onSave, onDelete, editingBudget = null }) {
     const [category, setCategory] = useState(editingBudget?.category || 'Food & Dining');
     const [limit, setLimit] = useState(editingBudget?.limit?.toString() || '');
     const [period, setPeriod] = useState(editingBudget?.period || 'Monthly');
+    const [allocationType, setAllocationType] = useState(editingBudget?.type || CATEGORY_TYPE_MAPPING['Food & Dining'] || 'Needs');
     const [showCategorySelector, setShowCategorySelector] = useState(false);
 
     // Sync state
@@ -30,10 +33,19 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
             setCategory(editingBudget.category);
             setLimit(editingBudget.limit.toString());
             setPeriod(editingBudget.period || 'Monthly');
+            setAllocationType(editingBudget.type || CATEGORY_TYPE_MAPPING[editingBudget.category] || 'Needs');
         } else {
             resetForm();
         }
     }, [editingBudget]);
+
+    const resetForm = () => {
+        setCategory('Food & Dining');
+        setLimit('');
+        setPeriod('Monthly');
+        setAllocationType('Needs');
+        setShowCategorySelector(false);
+    };
 
     const handleSave = () => {
         if (!limit.trim()) {
@@ -42,8 +54,9 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
         }
 
         const budgetData = {
-            id: editingBudget?.id || Date.now(),
+            id: editingBudget?.id || Date.now().toString(),
             category,
+            type: allocationType,
             limit: parseFloat(limit),
             period,
             spent: editingBudget?.spent || 0, // Preserve spent amount if editing, else 0
@@ -60,11 +73,6 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
         }
     };
 
-    const resetForm = () => {
-        setCategory('Food & Dining');
-        setLimit('');
-        setPeriod('Monthly');
-    };
 
     const categoryConfig = CATEGORIES[category] || CATEGORIES['Other'];
     const CategoryIcon = categoryConfig.icon;
@@ -130,6 +138,22 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
                                     })}
                                 </View>
                             )}
+                        </View>
+
+                        {/* Allocation Bucket (Needs / Wants / Future) */}
+                        <View style={styles.formGroup}>
+                            <Text style={styles.label}>Allocation Bucket</Text>
+                            <View style={styles.bucketRow}>
+                                {['Needs', 'Wants', 'Future'].map(b => (
+                                    <TouchableOpacity
+                                        key={b}
+                                        style={[styles.bucketBtn, allocationType === b && styles.bucketBtnSelected]}
+                                        onPress={() => setAllocationType(b)}
+                                    >
+                                        <Text style={[styles.bucketBtnText, allocationType === b && styles.bucketBtnTextSelected]}>{b}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
                         </View>
 
                         {/* Limit Input */}
@@ -241,6 +265,12 @@ const styles = StyleSheet.create({
     saveButton: { borderRadius: 20, overflow: 'hidden' },
     saveButtonGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, gap: 12 },
     saveButtonText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+
+    bucketRow: { flexDirection: 'row', gap: 10 },
+    bucketBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: '#27272A', borderRadius: 12, borderWidth: 1, borderColor: '#FFFFFF10' },
+    bucketBtnSelected: { backgroundColor: '#3B82F620', borderColor: '#3B82F6' },
+    bucketBtnText: { color: '#71717A', fontSize: 13, fontWeight: '600' },
+    bucketBtnTextSelected: { color: '#3B82F6', fontWeight: '700' },
 
     infoBox: { flexDirection: 'row', gap: 12, backgroundColor: '#27272A50', padding: 16, borderRadius: 16, marginTop: 24 },
     infoText: { flex: 1, fontSize: 13, color: '#A1A1AA', lineHeight: 20 }

@@ -52,21 +52,12 @@ const MASTER_KEY_SEED = 'finlife_secure_master_seed_v1_aes256gcm';
 let MASTER_KEY_BUFFER = null;
 
 function getCryptoModule() {
-    try {
-        if (typeof global !== 'undefined' && global.__FINLIFE_CRYPTO__) {
-            return global.__FINLIFE_CRYPTO__;
-        }
-        if (typeof globalThis !== 'undefined' && globalThis.__FINLIFE_CRYPTO__) {
-            return globalThis.__FINLIFE_CRYPTO__;
-        }
-        if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.createCipheriv === 'function') {
-            return globalThis.crypto;
-        }
-        if (typeof module !== 'undefined' && typeof module.require === 'function') {
-            const modName = ['cry', 'pto'].join('');
-            return module.require(modName);
-        }
-    } catch {}
+    if (typeof globalThis !== 'undefined' && globalThis.__FINLIFE_CRYPTO__) {
+        return globalThis.__FINLIFE_CRYPTO__;
+    }
+    if (typeof global !== 'undefined' && global.__FINLIFE_CRYPTO__) {
+        return global.__FINLIFE_CRYPTO__;
+    }
     return null;
 }
 
