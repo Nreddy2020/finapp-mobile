@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { ChevronLeft, Calendar as CalendarIcon, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import FinancialHealthCard from '../../components/budget/FinancialHealthCard';
@@ -19,6 +20,7 @@ import { buildBudgetControlCenterViewModel } from '../../services/budget/budgetV
 import { BudgetService } from '../../services/budgets.js';
 
 export default function BudgetsScreen() {
+    const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('Overview'); // 'Overview' | 'Categories' | 'Planner'
     const [selectedStrategyId, setSelectedStrategyId] = useState('50/30/20');
     const [selectedMonth, setSelectedMonth] = useState('2026-09');
@@ -90,10 +92,6 @@ export default function BudgetsScreen() {
             setAddBudgetVisible(false);
             return true;
         }
-        if (activeTab !== 'Overview') {
-            setActiveTab('Overview');
-            return true;
-        }
         if (router.canGoBack()) {
             router.back();
             return true;
@@ -106,17 +104,17 @@ export default function BudgetsScreen() {
         const onBackPress = () => handleBack();
         const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
         return () => subscription.remove();
-    }, [selectedCategory, calendarVisible, addBudgetVisible, activeTab]);
+    }, [selectedCategory, calendarVisible, addBudgetVisible]);
 
     return (
         <AnimatedScreen style={styles.container}>
-            {/* Top Navigation Bar */}
-            <View style={styles.topNav}>
+            {/* Top Navigation Bar with Safe Area Top Inset */}
+            <View style={[styles.topNav, { paddingTop: Math.max(insets?.top || 0, 48) + 8 }]}>
                 <TouchableOpacity
                     onPress={handleBack}
                     style={styles.navBtn}
                     activeOpacity={0.7}
-                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                     accessibilityLabel="Go back"
                     accessibilityRole="button"
                 >
@@ -274,12 +272,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingTop: 14,
-        paddingBottom: 10
+        paddingBottom: 12
     },
     navBtn: {
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         justifyContent: 'center',
         alignItems: 'center'
     },

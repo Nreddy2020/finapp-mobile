@@ -2,11 +2,13 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedScreen from '../components/ui/AnimatedScreen';
 import AdvancedWhatIfPlanner from '../components/budget/AdvancedWhatIfPlanner';
 
 export default function BudgetPlannerScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
 
     const handleBack = () => {
         if (router.canGoBack()) {
@@ -18,12 +20,12 @@ export default function BudgetPlannerScreen() {
 
     return (
         <AnimatedScreen style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Math.max(insets?.top || 0, 48) + 8 }]}>
                 <TouchableOpacity
                     onPress={handleBack}
                     style={styles.backBtn}
                     activeOpacity={0.7}
-                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
                     accessibilityLabel="Go back"
                     accessibilityRole="button"
                 >

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { ArrowLeft, ChevronLeft, ChevronRight, Home, CreditCard, GraduationCap, Shield, Zap, Wallet, CheckCircle2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatCurrency } from '../../services/budget/budgetViewModel.js';
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -15,6 +16,7 @@ const COMMITMENT_ICONS = {
 };
 
 export default function BudgetCalendarModal({ visible, onClose, calendarData, reconciledTotals }) {
+    const insets = useSafeAreaInsets();
     const [selectedDay, setSelectedDay] = useState(5);
     const [viewMode, setViewMode] = useState('Calendar'); // 'Calendar' | 'Summary'
 
@@ -32,10 +34,17 @@ export default function BudgetCalendarModal({ visible, onClose, calendarData, re
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.navBar}>
-                    <TouchableOpacity onPress={onClose} style={styles.backBtn} activeOpacity={0.7}>
-                        <ArrowLeft size={22} color="#F8FAFC" />
+                {/* Header with Safe Area Inset */}
+                <View style={[styles.navBar, { paddingTop: Math.max(insets?.top || 0, 48) + 8 }]}>
+                    <TouchableOpacity
+                        onPress={onClose}
+                        style={styles.backBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                        accessibilityLabel="Close calendar"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={24} color="#F8FAFC" />
                     </TouchableOpacity>
 
                     <View style={styles.monthNav}>

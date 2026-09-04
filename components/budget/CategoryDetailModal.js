@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'react-native';
 import { ArrowLeft, MoreVertical, Car, Utensils, ShoppingBag, Zap, Heart, Plane, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateExplainableCategoryInsight } from '../../services/budget/budgetEngine.js';
 import { formatCurrency } from '../../services/budget/budgetViewModel.js';
 
@@ -14,6 +15,7 @@ const CATEGORY_ICONS = {
 };
 
 export default function CategoryDetailModal({ visible, category, onClose, onAdjustBudget, onViewTransactions }) {
+    const insets = useSafeAreaInsets();
     const [activeSubTab, setActiveSubTab] = useState('Overview');
     
     const activeCat = category || {
@@ -43,13 +45,26 @@ export default function CategoryDetailModal({ visible, category, onClose, onAdju
     return (
         <Modal visible={!!visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.navBar}>
-                    <TouchableOpacity onPress={onClose} style={styles.backBtn} activeOpacity={0.7}>
-                        <ArrowLeft size={22} color="#F8FAFC" />
+                {/* Header with Safe Area Top Inset */}
+                <View style={[styles.navBar, { paddingTop: Math.max(insets?.top || 0, 48) + 8 }]}>
+                    <TouchableOpacity
+                        onPress={onClose}
+                        style={styles.backBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                        accessibilityLabel="Close details"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={24} color="#F8FAFC" />
                     </TouchableOpacity>
                     <Text style={styles.navTitle}>{activeCat.category}</Text>
-                    <TouchableOpacity style={styles.moreBtn} activeOpacity={0.7}>
+                    <TouchableOpacity
+                        style={styles.moreBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+                        accessibilityLabel="More options"
+                        accessibilityRole="button"
+                    >
                         <MoreVertical size={20} color="#94A3B8" />
                     </TouchableOpacity>
                 </View>
