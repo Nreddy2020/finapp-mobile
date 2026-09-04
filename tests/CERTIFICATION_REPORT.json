@@ -1,13 +1,13 @@
 {
-  "testedCommitSha": "e2dfdc51f2649f1e013104cdba827942247eeb01",
-  "testedTreeSha": "0e738a08afab2629fd5b24058dcc33158e45cf72",
+  "testedCommitSha": "ab94e4ee36242782a94fc74e0bd91790cd242187",
+  "testedTreeSha": "fb3233a00ed19276803bb90068f8424e4bbec6d3",
   "provenancePolicy": "EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED",
   "provenanceNote": "The release commit directly inherits verified test results from testedTreeSha. Automated test suites execute on a clean working tree; the release commit seals the certification report and documentation without altering application logic.",
   "provenanceProof": {
-    "releaseCommit": "e2dfdc51f2649f1e013104cdba827942247eeb01",
-    "releaseParentCommit": "9c37a621fdbfbfece0e253bf2d6b6a5c922c6d7e",
-    "releaseTree": "0e738a08afab2629fd5b24058dcc33158e45cf72",
-    "releaseParentTree": "ba720a43e997ce90f6d86e4c829aee1faa8d8f3b",
+    "releaseCommit": "ab94e4ee36242782a94fc74e0bd91790cd242187",
+    "releaseParentCommit": "62afc093bee859eafd1712114c9ae990c669c553",
+    "releaseTree": "fb3233a00ed19276803bb90068f8424e4bbec6d3",
+    "releaseParentTree": "1026a04f112fe2496cd5b9b232069c3818e18829",
     "workingTreeClean": true,
     "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
   },
@@ -19,7 +19,7 @@
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-09-04T20:51:40.362Z",
+  "timestamp": "2026-09-04T21:02:11.009Z",
   "exitCode": 0,
   "overallStatus": "PASS",
   "totalSuites": 17,
