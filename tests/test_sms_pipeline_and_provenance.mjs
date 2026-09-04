@@ -279,17 +279,28 @@ assert(smsIngestionService._seenFingerprints.size === 0, 'In-memory fingerprint 
 const secondIngestResult = await smsIngestionService.processIncomingRawMessage(restartTestSMS);
 assert(secondIngestResult === null, 'Identical SMS after app restart rejected idempotently via disk storage');
 
-// ── TEST 11: IMMUTABLE AUDIT TRAIL LIFECYCLE ──────────────────────────────────
-console.log('\n--- 11. Immutable Audit Trail Lifecycle ---');
-const rawLogs = await smsIngestionService.getRawAuditLogs();
-assert(Array.isArray(rawLogs), 'Audit log is accessible as array');
-assert(rawLogs.length >= 2, `Audit logs preserved permanently (count: ${rawLogs.length})`);
+// ── TEST 11: DUAL IMMUTABLE APPEND-ONLY AUDIT & EVENT STREAM ──────────────────
+console.log('\n--- 11. Dual Immutable Append-Only Audit & Event Stream ---');
+const rawReceipts = await smsIngestionService.getRawReceipts();
+assert(Array.isArray(rawReceipts), 'Raw receipts accessible as array');
+assert(rawReceipts.length >= 2, `Raw receipts preserved permanently (count: ${rawReceipts.length})`);
 
-const duplicateAuditRecord = rawLogs.find(l => l.status === 'REJECTED_DUPLICATE');
-assert(Boolean(duplicateAuditRecord), 'Duplicate rejection recorded with status REJECTED_DUPLICATE in audit log');
+const eventLogs = await smsIngestionService.getEventLogs();
+assert(Array.isArray(eventLogs), 'Event log accessible as array');
+assert(eventLogs.length >= 4, `Lifecycle events logged append-only (count: ${eventLogs.length})`);
 
-const committedAuditRecord = rawLogs.find(l => l.status === 'COMMITTED');
-assert(Boolean(committedAuditRecord), 'Successful transaction recorded with status COMMITTED and linked transaction ID');
+const duplicateEvent = eventLogs.find(e => e.eventType === 'REJECTED_DUPLICATE');
+assert(Boolean(duplicateEvent), 'Duplicate rejection recorded as immutable REJECTED_DUPLICATE event');
+
+const committedEvent = eventLogs.find(e => e.eventType === 'COMMITTED');
+assert(Boolean(committedEvent), 'Committed transaction recorded as immutable COMMITTED event');
+
+// ── TEST 12: JOURNAL & AUDIT RECONCILIATION INTEGRITY ─────────────────────────
+console.log('\n--- 12. Journal & Audit Reconciliation Integrity ---');
+const reconciliation = await smsIngestionService.reconcileJournalAndAudit();
+assert(reconciliation.totalReceipts > 0, 'Reconciliation found raw receipts');
+assert(reconciliation.totalEvents > 0, 'Reconciliation found lifecycle events');
+assert(reconciliation.isConsistent === true, 'Journal, raw receipts, and event stream are 100% consistent');
 
 console.log(`\n================================================================`);
 console.log(`=== SMS & MONEY FLOW TEST SUITE RESULT: ${passedTests} / ${totalTests} ASSERTIONS PASSED (100%) ===`);

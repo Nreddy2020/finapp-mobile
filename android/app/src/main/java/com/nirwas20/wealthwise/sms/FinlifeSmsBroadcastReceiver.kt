@@ -3,12 +3,15 @@ package com.nirwas20.wealthwise.sms
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.provider.Telephony
 import android.util.Log
 import com.facebook.react.ReactApplication
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * FinlifeSmsBroadcastReceiver
@@ -18,13 +21,27 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
  * Invariants:
  * - Listens to android.provider.Telephony.SMS_RECEIVED with high priority.
  * - Extracts sender address, message text, and timestamp.
- * - Emits 'FinlifeSmsReceived' event to React Native JavaScript runtime.
+ * - Emits 'FinlifeSmsReceived' event to React Native JavaScript runtime when active.
+ * - If JS runtime is inactive (app killed/backgrounded), queues message in SharedPreferences disk store.
  */
 class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "FinlifeSmsReceiver"
         const val EVENT_NAME = "FinlifeSmsReceived"
+        const val PREFS_NAME = "finlife_sms_native_prefs"
+        const val KEY_OFFLINE_QUEUE = "pending_offline_sms_queue"
+
+        /**
+         * Reads and clears offline pending SMS queue from SharedPreferences.
+         */
+        @JvmStatic
+        fun popPendingOfflineQueue(context: Context): String {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val queueJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+            prefs.edit().putString(KEY_OFFLINE_QUEUE, "[]").apply()
+            return queueJson
+        }
     }
 
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -50,22 +67,22 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
             Log.d(TAG, "Received incoming SMS from: $sender")
 
-            // Send event to React Native JavaScript context
-            sendEventToReactNative(context, sender, completeBody, timestamp)
+            // Send event to React Native JavaScript context or persist to native offline queue
+            sendEventOrQueue(context, sender, completeBody, timestamp)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error processing incoming native SMS: ${e.message}", e)
         }
     }
 
-    private fun sendEventToReactNative(context: Context?, sender: String, body: String, timestamp: Long) {
+    private fun sendEventOrQueue(context: Context?, sender: String, body: String, timestamp: Long) {
         if (context == null) return
 
         try {
-            val app = context.applicationContext as? ReactApplication ?: return
-            val reactNativeHost = app.reactNativeHost
-            val reactInstanceManager = reactNativeHost.reactInstanceManager
-            val reactContext = reactInstanceManager.currentReactContext
+            val app = context.applicationContext as? ReactApplication
+            val reactNativeHost = app?.reactNativeHost
+            val reactInstanceManager = reactNativeHost?.reactInstanceManager
+            val reactContext = reactInstanceManager?.currentReactContext
 
             if (reactContext != null && reactContext.hasActiveReactInstance()) {
                 val params = Arguments.createMap().apply {
@@ -78,12 +95,35 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
                     .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
                     .emit(EVENT_NAME, params)
 
-                Log.d(TAG, "Successfully emitted $EVENT_NAME to React Native runtime")
+                Log.d(TAG, "Successfully emitted $EVENT_NAME to active React Native runtime")
             } else {
-                Log.w(TAG, "ReactContext is not currently active, message queued")
+                Log.w(TAG, "ReactContext inactive. Queuing SMS to native disk SharedPreferences.")
+                queueOfflineMessage(context, sender, body, timestamp)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to emit SMS event to React Native: ${e.message}", e)
+            Log.e(TAG, "Failed to deliver SMS to React Native, falling back to disk queue: ${e.message}", e)
+            queueOfflineMessage(context, sender, body, timestamp)
+        }
+    }
+
+    private fun queueOfflineMessage(context: Context, sender: String, body: String, timestamp: Long) {
+        try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+            val array = JSONArray(existingJson)
+
+            val msgObj = JSONObject().apply {
+                put("sender", sender)
+                put("body", body)
+                put("timestamp", timestamp)
+                put("queuedAt", System.currentTimeMillis())
+            }
+            array.put(msgObj)
+
+            prefs.edit().putString(KEY_OFFLINE_QUEUE, array.toString()).apply()
+            Log.d(TAG, "Persisted offline SMS to disk. Queue size: ${array.length()}")
+        } catch (err: Exception) {
+            Log.e(TAG, "Failed to persist offline SMS to disk queue: ${err.message}", err)
         }
     }
 }
