@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, BackHandler } from 'react-native';
 import { ChevronLeft, Calendar as CalendarIcon, ChevronRight } from 'lucide-react-native';
 import { router } from 'expo-router';
 
@@ -77,11 +77,49 @@ export default function BudgetsScreen() {
         }
     };
 
+    const handleBack = () => {
+        if (selectedCategory) {
+            setSelectedCategory(null);
+            return true;
+        }
+        if (calendarVisible) {
+            setCalendarVisible(false);
+            return true;
+        }
+        if (addBudgetVisible) {
+            setAddBudgetVisible(false);
+            return true;
+        }
+        if (activeTab !== 'Overview') {
+            setActiveTab('Overview');
+            return true;
+        }
+        if (router.canGoBack()) {
+            router.back();
+            return true;
+        }
+        router.replace('/(tabs)');
+        return true;
+    };
+
+    useEffect(() => {
+        const onBackPress = () => handleBack();
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, [selectedCategory, calendarVisible, addBudgetVisible, activeTab]);
+
     return (
         <AnimatedScreen style={styles.container}>
             {/* Top Navigation Bar */}
             <View style={styles.topNav}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.navBtn} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.navBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    accessibilityLabel="Go back"
+                    accessibilityRole="button"
+                >
                     <ChevronLeft size={24} color="#F8FAFC" />
                 </TouchableOpacity>
 
@@ -240,8 +278,8 @@ const styles = StyleSheet.create({
         paddingBottom: 10
     },
     navBtn: {
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         justifyContent: 'center',
         alignItems: 'center'
     },

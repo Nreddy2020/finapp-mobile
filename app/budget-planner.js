@@ -8,17 +8,32 @@ import AdvancedWhatIfPlanner from '../components/budget/AdvancedWhatIfPlanner';
 export default function BudgetPlannerScreen() {
     const router = useRouter();
 
+    const handleBack = () => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    };
+
     return (
         <AnimatedScreen style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={styles.backBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+                    accessibilityLabel="Go back"
+                    accessibilityRole="button"
+                >
                     <ChevronLeft size={24} color="#F8FAFC" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>What-If Life Event Simulator</Text>
                 <View style={{ width: 24 }} />
             </View>
 
-            <AdvancedWhatIfPlanner onBack={() => router.back()} />
+            <AdvancedWhatIfPlanner onBack={handleBack} />
         </AnimatedScreen>
     );
 }
