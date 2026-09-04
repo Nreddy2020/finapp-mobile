@@ -1,13 +1,13 @@
 {
-  "testedCommitSha": "ab94e4ee36242782a94fc74e0bd91790cd242187",
-  "testedTreeSha": "fb3233a00ed19276803bb90068f8424e4bbec6d3",
+  "testedCommitSha": "f7c3fa0f725cdf0156b95017b7c64db40de66f00",
+  "testedTreeSha": "8daa3cbc1183958b51871f55c23c16a04408bd4c",
   "provenancePolicy": "EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED",
   "provenanceNote": "The release commit directly inherits verified test results from testedTreeSha. Automated test suites execute on a clean working tree; the release commit seals the certification report and documentation without altering application logic.",
   "provenanceProof": {
-    "releaseCommit": "ab94e4ee36242782a94fc74e0bd91790cd242187",
-    "releaseParentCommit": "62afc093bee859eafd1712114c9ae990c669c553",
-    "releaseTree": "fb3233a00ed19276803bb90068f8424e4bbec6d3",
-    "releaseParentTree": "1026a04f112fe2496cd5b9b232069c3818e18829",
+    "releaseCommit": "f7c3fa0f725cdf0156b95017b7c64db40de66f00",
+    "releaseParentCommit": "58e2bd26dcbcb54f6f590b90ddcbf74dd6e5be24",
+    "releaseTree": "8daa3cbc1183958b51871f55c23c16a04408bd4c",
+    "releaseParentTree": "e0fdfaef48c5b2148b201503eb0094da0b72f35e",
     "workingTreeClean": true,
     "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
   },
@@ -19,19 +19,29 @@
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-09-04T21:02:11.009Z",
+  "timestamp": "2026-09-04T21:46:10.949Z",
   "exitCode": 0,
   "overallStatus": "PASS",
-  "totalSuites": 17,
-  "passedSuites": 17,
-  "totalAssertions": 427,
-  "passedAssertions": 427,
+  "totalSuites": 21,
+  "passedSuites": 21,
+  "totalAssertions": 453,
+  "passedAssertions": 453,
   "deviceVerification": {
     "emulatorSerial": "emulator-5554",
     "platform": "Android 16 (API 36)",
     "resolution": "1080x2340",
-    "testedScreensCount": 8,
+    "testedScreensCount": 10,
     "screenshots": [
+      {
+        "file": "screen_recurring_active_liabilities.png",
+        "sizeBytes": 246701,
+        "sha256": "4dd58c33fec73ebcead684ee0da20bf25fabd446873942a82962e061a869a86c"
+      },
+      {
+        "file": "screen_recurring_dashboard.png",
+        "sizeBytes": 594793,
+        "sha256": "a95a59f656a0bc15340918f5a83818cbb2444d61b0a17856b7fdf33d2d14dfa4"
+      },
       {
         "file": "screen_smart_budgets_calendar.png",
         "sizeBytes": 167773,
@@ -266,6 +276,42 @@
       "file": "test_budget_view_model_truth.mjs",
       "passed": 13,
       "total": 13,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Recurring Commitments Platform",
+      "name": "Commitment Invariants & Engine",
+      "file": "test_commitment_engine.mjs",
+      "passed": 10,
+      "total": 10,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Recurring Commitments Platform",
+      "name": "Commitment UI View Model Truth",
+      "file": "test_commitment_view_model.mjs",
+      "passed": 5,
+      "total": 5,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Recurring Commitments Platform",
+      "name": "Commitment Audit Trail Immutability",
+      "file": "test_commitment_audit.mjs",
+      "passed": 4,
+      "total": 4,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Recurring Commitments Platform",
+      "name": "Commitment Legacy Data Migration",
+      "file": "test_commitment_migration.mjs",
+      "passed": 7,
+      "total": 7,
       "status": "PASS",
       "error": null
     }

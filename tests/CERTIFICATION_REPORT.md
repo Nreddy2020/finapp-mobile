@@ -1,20 +1,22 @@
 # FinLife Automated Master Certification Report
 
-- **Tested Commit SHA:** `ab94e4ee36242782a94fc74e0bd91790cd242187`
-- **Tested Tree SHA:** `fb3233a00ed19276803bb90068f8424e4bbec6d3`
+- **Tested Commit SHA:** `f7c3fa0f725cdf0156b95017b7c64db40de66f00`
+- **Tested Tree SHA:** `8daa3cbc1183958b51871f55c23c16a04408bd4c`
 - **Provenance Policy:** `EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED`
 - **Node Version:** `v24.14.1`
 - **Platform:** `win32`
-- **Execution Timestamp:** `2026-09-04T21:02:11.009Z`
+- **Execution Timestamp:** `2026-09-04T21:46:10.949Z`
 - **Exit Code:** `0`
 - **Overall Certification Status:** **PASS**
-- **Assertion Coverage:** **427 / 427 (100%)** across **17 test suites**
+- **Assertion Coverage:** **453 / 453 (100%)** across **21 test suites**
 
 ## Physical Device & UI Verification
 - **Device:** `emulator-5554`
 - **OS Version:** `Android 16 (API 36)`
 - **Resolution:** `1080x2340`
-- **Verified Screen Captures (8):**
+- **Verified Screen Captures (10):**
+  - `screen_recurring_active_liabilities.png` (246701 bytes) - SHA-256: `4dd58c33fec73ebcead684ee0da20bf25fabd446873942a82962e061a869a86c`
+  - `screen_recurring_dashboard.png` (594793 bytes) - SHA-256: `a95a59f656a0bc15340918f5a83818cbb2444d61b0a17856b7fdf33d2d14dfa4`
   - `screen_smart_budgets_calendar.png` (167773 bytes) - SHA-256: `77b903e9955da47b2f690662da99f9d2970f269832a5521e04650041dff23697`
   - `screen_smart_budgets_categories.png` (234555 bytes) - SHA-256: `f8ff479421906d5f480c80c85d6784bfd08ce236304d2fe9c350db5ccc180b1e`
   - `screen_smart_budgets_category_detail_screen5.png` (196011 bytes) - SHA-256: `90b550a27d0778bc49cef4f11be43c987c3e53a7be8110acb1888b61068be2a5`
@@ -34,10 +36,10 @@
 - **Legacy Migration:** Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit
 
 ## Provenance Contract Proof
-- **Release Commit:** `ab94e4ee36242782a94fc74e0bd91790cd242187`
-- **Parent Implementation Commit:** `62afc093bee859eafd1712114c9ae990c669c553`
-- **Parent Tree SHA:** `1026a04f112fe2496cd5b9b232069c3818e18829`
-- **Release Tree SHA:** `fb3233a00ed19276803bb90068f8424e4bbec6d3`
+- **Release Commit:** `f7c3fa0f725cdf0156b95017b7c64db40de66f00`
+- **Parent Implementation Commit:** `58e2bd26dcbcb54f6f590b90ddcbf74dd6e5be24`
+- **Parent Tree SHA:** `e0fdfaef48c5b2148b201503eb0094da0b72f35e`
+- **Release Tree SHA:** `8daa3cbc1183958b51871f55c23c16a04408bd4c`
 - **Clean Working Tree:** `true`
 - **Equivalence Contract:** `release.parent == testedCommitSha && tree(release.parent) == testedTreeSha`
 
@@ -67,6 +69,10 @@
 | 15 | Money Flow Platform | SMS Pipeline & Provenance (SMS-01..07) | `test_sms_pipeline_and_provenance.mjs` | 121 | 121 | 🟢 PASS |
 | 16 | Smart Budgets Platform | Budget Decision Engine Invariants | `test_budget_decision_engine.mjs` | 19 | 19 | 🟢 PASS |
 | 17 | Smart Budgets Platform | Budget UI Truth & Reconciliation | `test_budget_view_model_truth.mjs` | 13 | 13 | 🟢 PASS |
+| 18 | Recurring Commitments Platform | Commitment Invariants & Engine | `test_commitment_engine.mjs` | 10 | 10 | 🟢 PASS |
+| 19 | Recurring Commitments Platform | Commitment UI View Model Truth | `test_commitment_view_model.mjs` | 5 | 5 | 🟢 PASS |
+| 20 | Recurring Commitments Platform | Commitment Audit Trail Immutability | `test_commitment_audit.mjs` | 4 | 4 | 🟢 PASS |
+| 21 | Recurring Commitments Platform | Commitment Legacy Data Migration | `test_commitment_migration.mjs` | 7 | 7 | 🟢 PASS |
 
 ## Aggregated Platform Gate Results
 
@@ -76,4 +82,4 @@
 | **P2P Presentation Extended** | 14 | 14 | 🟢 PASS |
 | **Banking Relationship Platform** | 238 | 238 | 🟢 PASS |
 | **Smart Budget Decision Platform** | 32 | 32 | 🟢 PASS |
-| **Master Regression Total** | **427** | **427** | **🟢 PASS** |
+| **Master Regression Total** | **453** | **453** | **🟢 PASS** |
