@@ -17,11 +17,37 @@ export const KNOWN_BANK_SENDERS = [
 ];
 
 /**
+ * Checks if an SMS message is non-financial (OTP, security code, promo spam, KYC prompt).
+ */
+export function isNonFinancialOrSecuritySMS(messageBody = '') {
+    if (!messageBody || typeof messageBody !== 'string') return true;
+    const lower = messageBody.toLowerCase();
+
+    // 1. OTP, 2FA, & Security verification patterns
+    if (/\b(otp|one time password|verification code|security code|do not share|secret code|auth code|login code)\b/i.test(lower)) {
+        return true;
+    }
+
+    // 2. Promotional & non-transactional marketing patterns
+    if (/\b(pre-approved|loan offer|apply now|win up to|discount coupon|flat 50%|congratulations)\b/i.test(lower) &&
+        !/\b(debited|credited|spent|paid rs|paid inr)\b/i.test(lower)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Parses raw SMS text and returns extracted transaction candidate.
  * Returns null if the message is not a financial debit/credit transaction.
  */
 export function parseRawSMS(messageBody = '', sender = '', timestamp = new Date().toISOString()) {
     if (!messageBody || typeof messageBody !== 'string') return null;
+
+    // Filter out OTPs and promotional spam immediately
+    if (isNonFinancialOrSecuritySMS(messageBody)) {
+        return null;
+    }
 
     const text = messageBody.trim();
     const upper = text.toUpperCase();

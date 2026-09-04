@@ -14,11 +14,12 @@
  * - MONEYFLOW-VIEW-01..07: Multi-dimension breakdowns & Transfer Neutrality
  */
 
-import { parseRawSMS, KNOWN_BANK_SENDERS } from '../services/sms/smsParser.js';
+import { parseRawSMS, KNOWN_BANK_SENDERS, isNonFinancialOrSecuritySMS } from '../services/sms/smsParser.js';
 import { normalizeSMSTransaction, classifyTransactionCategory } from '../services/sms/smsTransactionNormalizer.js';
 import { generateTransactionFingerprint, isDuplicateTransaction } from '../services/sms/smsDuplicateDetector.js';
 import { partitionTransactionsByReviewStatus, confirmReviewTransaction } from '../services/sms/smsReviewService.js';
 import { ingestSMSMessages, resolveTransaction, SEED_MONEY_FLOW_TRANSACTIONS } from '../services/moneyFlowService.js';
+import { smsIngestionService } from '../services/sms/smsIngestionService.js';
 import { buildMoneyFlowViewModel } from '../components/moneyflow/moneyFlowViewModel.js';
 import { parseAndEvaluateArithmetic } from '../components/moneyflow/mathParser.js';
 
@@ -132,6 +133,18 @@ assert(vm.periodStatement.totalIncome > 0, 'Period statement has valid income');
 assert(vm.periodStatement.totalExpenses > 0, 'Period statement has valid expenses');
 assert(vm.recentActivity.transactions.length > 0, 'Recent activity populated');
 assert(vm.recentActivity.unreviewedCount > 0, 'Unreviewed transactions detected');
+
+// ── TEST 8: SMS INGESTION SERVICE QUEUE & CONCURRENCY SAFETY ────────────────
+console.log('\n--- 8. SMS Ingestion Service Queue & Concurrency ---');
+assert(isNonFinancialOrSecuritySMS('Your OTP is 482910 for ICICI Bank login. Do not share.') === true, 'OTP message recognized as non-financial');
+assert(isNonFinancialOrSecuritySMS('Congratulations! You are pre-approved for loan of 5 Lacs. Apply now.') === true, 'Marketing spam recognized as non-financial');
+assert(isNonFinancialOrSecuritySMS('INR 1,200.00 debited from A/C XX4821 at CAFE on 04-Sep-26.') === false, 'Legitimate debit SMS recognized as financial');
+
+smsIngestionService.registerNativeReceiver((handler) => {
+    // Simulating native background receiver hook
+    return () => {};
+});
+assert(smsIngestionService.getStatus().isListening === true, 'Native receiver listener registered successfully');
 
 console.log(`\n================================================================`);
 console.log(`=== SMS & MONEY FLOW TEST SUITE RESULT: ${passedTests} / ${totalTests} ASSERTIONS PASSED (100%) ===`);

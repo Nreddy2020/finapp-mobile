@@ -225,6 +225,8 @@ export const SEED_MONEY_FLOW_TRANSACTIONS = [
     }
 ];
 
+let _storageMutationQueue = Promise.resolve();
+
 export async function getStoredTransactions() {
     try {
         const stored = await loadData(STORAGE_KEY_MONEY_FLOW);
@@ -243,6 +245,29 @@ export async function persistTransactions(transactions) {
     } catch (e) {
         console.warn('[MoneyFlowService] Error persisting transactions:', e);
     }
+}
+
+/**
+ * Executes an atomic mutation on the persisted transaction journal within a serialized queue.
+ */
+export async function executeAtomicJournalMutation(mutationFn) {
+    return new Promise((resolve, reject) => {
+        _storageMutationQueue = _storageMutationQueue
+            .then(async () => {
+                const currentJournal = await getStoredTransactions();
+                const updatedJournal = await mutationFn(currentJournal);
+                if (updatedJournal && Array.isArray(updatedJournal)) {
+                    await persistTransactions(updatedJournal);
+                    resolve(updatedJournal);
+                } else {
+                    resolve(currentJournal);
+                }
+            })
+            .catch((err) => {
+                console.warn('[MoneyFlowService] Atomic mutation error:', err);
+                reject(err);
+            });
+    });
 }
 
 /**

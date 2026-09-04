@@ -70,7 +70,15 @@ export default function MoneyFlowView({
     const [selectedTransaction, setSelectedTransaction] = useState(null);
     const [reviewingTransaction, setReviewingTransaction] = useState(null);
 
-    // 1. Uncontrolled Mode: Restore persisted transactions on mount & subscribe to live SMS
+    // 1. Synchronize authoritative accounts from props into state & SMS Ingestion Service
+    useEffect(() => {
+        if (controlledAccounts && Array.isArray(controlledAccounts)) {
+            setAccounts(controlledAccounts);
+            smsIngestionService.setAccounts(controlledAccounts);
+        }
+    }, [controlledAccounts]);
+
+    // 2. Uncontrolled Mode: Restore persisted transactions on mount & subscribe to live SMS
     useEffect(() => {
         if (!isControlled) {
             let isMounted = true;
@@ -88,8 +96,11 @@ export default function MoneyFlowView({
                 }
             })();
 
-            // Configure SMS Ingestion Service with accounts
-            smsIngestionService.setAccounts(accounts);
+            // Configure SMS Ingestion Service with current authoritative accounts
+            const currentAccs = controlledAccounts || accounts;
+            if (currentAccs && currentAccs.length > 0) {
+                smsIngestionService.setAccounts(currentAccs);
+            }
 
             // Subscribe to real-time SMS Ingestion events
             const unsubscribe = smsIngestionService.addListener((event) => {
@@ -103,9 +114,9 @@ export default function MoneyFlowView({
                 unsubscribe();
             };
         }
-    }, [isControlled, accounts]);
+    }, [isControlled]);
 
-    // 2. Uncontrolled Mode: Persist transactions helper
+    // 3. Uncontrolled Mode: Persist transactions helper
     const saveTransactions = useCallback(async (newTxList) => {
         setInternalTransactions(newTxList);
         await persistTransactions(newTxList);
