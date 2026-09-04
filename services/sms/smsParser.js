@@ -26,7 +26,7 @@ export function isNonFinancialOrSecuritySMS(messageBody = '') {
     const lower = text.toLowerCase();
 
     // Check if the message contains explicit debit/credit terms with an amount
-    const hasFinancialMovement = /\b(debited|credited|spent|paid|transferred to|deposited|refunded)\b/i.test(text);
+    const hasFinancialMovement = /\b(debited|credited|spent|paid|sent|charged|withdrawn|transferred to|deposited|refunded|used for|used at|used on)\b/i.test(text);
     const hasAmount = /(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?/i.test(text);
 
     // If it has both financial movement and an amount, treat it as financial candidate
@@ -69,7 +69,7 @@ export function parseRawSMS(messageBody = '', sender = '', timestamp = new Date(
 
     // 1. Detect Transaction Type (DEBIT vs CREDIT vs TRANSFER)
     let type = null;
-    if (/\b(DEBITED|SPENT|PAID|SENT|CHARGED|WITHDRAWN|PURCHASE|TRANSFERRED TO)\b/i.test(text)) {
+    if (/\b(DEBITED|SPENT|PAID|SENT|CHARGED|WITHDRAWN|PURCHASE|TRANSFERRED TO|USED FOR|USED AT|USED ON)\b/i.test(text)) {
         type = 'EXPENSE';
     } else if (/\b(CREDITED|RECEIVED|DEPOSITED|ADDED|REFUNDED|CASHBACK)\b/i.test(text)) {
         type = 'INCOME';

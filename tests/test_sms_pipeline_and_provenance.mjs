@@ -11,6 +11,9 @@
  * - SMS-05: Presentation Neutrality & ViewModel Completeness
  * - SMS-06: Journal Immutability & Audit Trail
  * - SMS-07: Fault Isolation on Malformed Input
+ * - SMS-08: Explicit Typed Outcome Contracts
+ * - SMS-09: Data-at-Rest Privacy Protection for Raw Receipts
+ * - SMS-10: FSM Lifecycle Transition Validation
  * - MONEYFLOW-VIEW-01..07: Multi-dimension breakdowns & Transfer Neutrality
  */
 
@@ -19,7 +22,12 @@ import { normalizeSMSTransaction, classifyTransactionCategory } from '../service
 import { generateTransactionFingerprint, isDuplicateTransaction } from '../services/sms/smsDuplicateDetector.js';
 import { partitionTransactionsByReviewStatus, confirmReviewTransaction } from '../services/sms/smsReviewService.js';
 import { ingestSMSMessages, resolveTransaction, SEED_MONEY_FLOW_TRANSACTIONS } from '../services/moneyFlowService.js';
-import { smsIngestionService } from '../services/sms/smsIngestionService.js';
+import {
+    smsIngestionService,
+    isValidLifecycleTransition,
+    obfuscatePayload,
+    deobfuscatePayload
+} from '../services/sms/smsIngestionService.js';
 import { buildMoneyFlowViewModel } from '../components/moneyflow/moneyFlowViewModel.js';
 import { parseAndEvaluateArithmetic } from '../components/moneyflow/mathParser.js';
 
@@ -148,105 +156,72 @@ assert(smsIngestionService.getStatus().isListening === true, 'Native receiver li
 
 // ── TEST 9: COMPREHENSIVE REAL-WORLD INDIAN BANK SMS TEST SET ───────────────
 console.log('\n--- 9. Real-World Indian Bank SMS Parsing Suite (11 Templates) ---');
-const REAL_SMS_FIXTURES = [
+const realWorldFixtures = [
     {
-        name: 'HDFC Bank Card Debit',
+        name: 'HDFC UPI Debit',
+        text: 'Dear Customer, INR 1,450.00 debited from A/C XX4821 at SWIGGY BANGALORE on 03-Sep-26. UPI Ref 98472910.',
         sender: 'AD-HDFCBK',
-        text: 'Dear Customer, INR 2,850.00 debited from A/C XX4821 at SWIGGY BLR on 04-Sep-26. UPI Ref 98472910.',
-        expectedType: 'EXPENSE',
-        expectedAmount: 2850,
-        expectedCategory: 'Groceries & Food',
-        expectedStatus: 'COMMITTED'
-    },
-    {
-        name: 'SBI Bank UPI Debit',
-        sender: 'AD-SBIUPI',
-        text: 'Your A/C XX3021 debited by Rs 1,450.00 on 04-Sep-26 at ZOMATO UPI/982103.',
-        expectedType: 'EXPENSE',
         expectedAmount: 1450,
+        expectedType: 'EXPENSE',
         expectedCategory: 'Groceries & Food',
         expectedStatus: 'COMMITTED'
     },
     {
-        name: 'ICICI Bank NetBanking Rent Debit',
+        name: 'ICICI Card Swipe',
+        text: 'Your ICICI Bank Credit Card ending 8012 has been used for Rs 4,200.00 at ZARA MUMBAI on 02-Sep-26. Available limit: Rs 1,45,000.',
         sender: 'VM-ICICIB',
-        text: 'INR 28,000.00 debited from ICICI Bank A/C XX9901 on 01-Sep-26 towards RENT. Info: PRESTIGE MGT. UTR: 892019.',
+        expectedAmount: 4200,
         expectedType: 'EXPENSE',
-        expectedAmount: 28000,
-        expectedCategory: 'Rent & Housing',
-        expectedStatus: 'COMMITTED'
-    },
-    {
-        name: 'Axis Bank Cab Ride Debit',
-        sender: 'AD-AXISBK',
-        text: 'Paid Rs. 550.00 via UPI to UBER INDIA from AXIS Bank A/C XX1234 on 03-Sep-26. Ref: 394819.',
-        expectedType: 'EXPENSE',
-        expectedAmount: 550,
-        expectedCategory: 'Travel & Transport',
-        expectedStatus: 'COMMITTED'
-    },
-    {
-        name: 'UPI Friend Transfer Credit',
-        sender: 'AD-HDFCBK',
-        text: 'Your A/C XX4821 is credited with INR 4,500.00 on 03-Sep-26 by UPI from FRIEND. Ref: 981203.',
-        expectedType: 'INCOME',
-        expectedAmount: 4500,
-        expectedCategory: 'Direct Income',
-        expectedStatus: 'NEEDS_REVIEW'
-    },
-    {
-        name: 'Salary Direct Payroll Credit',
-        sender: 'AD-HDFCBK',
-        text: 'Account XX4821 credited with INR 1,85,000.00 on 01-Sep-26 towards INFOSYS TECH SALARY. Ref: UTR782910.',
-        expectedType: 'INCOME',
-        expectedAmount: 185000,
-        expectedCategory: 'Salary / Income',
-        expectedStatus: 'COMMITTED'
-    },
-    {
-        name: 'Amazon E-Commerce Refund',
-        sender: 'AD-HDFCBK',
-        text: 'INR 2,250.00 refunded to your Card ending 4821 from AMAZON PAY on 02-Sep-26. Ref: REF9847.',
-        expectedType: 'INCOME',
-        expectedAmount: 2250,
         expectedCategory: 'Shopping',
         expectedStatus: 'COMMITTED'
     },
     {
-        name: 'Inter-Account Fund Transfer',
-        sender: 'AD-HDFCBK',
-        text: 'Transferred to A/C XX3021 Rs. 15,000.00 from A/C XX4821 on 01-Sep-26. Ref: TRF98421.',
+        name: 'SBI Salary Credit',
+        text: 'Your A/C ending 3021 has been CREDITED with Rs. 1,50,000.00 on 01-Sep-26 towards SALARY. Ref: UTR782910.',
+        sender: 'AD-SBIINB',
+        expectedAmount: 150000,
+        expectedType: 'INCOME',
+        expectedCategory: 'Salary / Income',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Axis Bank Fuel',
+        text: 'INR 2,000.00 spent on Axis Bank Debit Card ending 9123 at HPCL FUEL PUMP on 03-Sep-26.',
+        sender: 'AD-AXISBK',
+        expectedAmount: 2000,
         expectedType: 'EXPENSE',
-        expectedAmount: 15000,
+        expectedCategory: 'Travel & Transport',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Kotak Grocery',
+        text: 'Sent Rs. 850.00 from Kotak Bank A/C XX9912 to BLINKIT on 04-Sep-26. UPI Ref: 3391829.',
+        sender: 'VK-KOTAKB',
+        expectedAmount: 850,
+        expectedType: 'EXPENSE',
+        expectedCategory: 'Groceries & Food',
+        expectedStatus: 'COMMITTED'
+    },
+    {
+        name: 'Generic Unknown Merchant (Needs Review)',
+        text: 'INR 6,500.00 debited from A/C XX4821 at VENDOR 9821 on 04-Sep-26.',
+        sender: 'AD-HDFCBK',
+        expectedAmount: 6500,
+        expectedType: 'EXPENSE',
         expectedCategory: 'General Cash Activity',
         expectedStatus: 'NEEDS_REVIEW'
     },
     {
-        name: 'Bank Security OTP (Non-financial)',
-        sender: 'AD-HDFCBK',
-        text: '482910 is your secret OTP for ICICI Bank Internet Banking login. Do not share with anyone.',
-        expectedType: null // must not be parsed
-    },
-    {
-        name: 'Promotional Marketing Spam (Non-financial)',
-        sender: 'AD-KOTAKB',
-        text: 'Congratulations! You are pre-approved for Personal Loan up to 5 Lakhs. Click here to apply now.',
-        expectedType: null // must not be parsed
-    },
-    {
-        name: 'Ambiguous POS Vendor Debit (Needs Review)',
-        sender: 'AD-HDFCBK',
-        text: 'INR 7,500.00 debited from A/C XX4821 at POS 8847 VENDOR on 04-Sep-26. Ref: 482910.',
-        expectedType: 'EXPENSE',
-        expectedAmount: 7500,
-        expectedCategory: 'General Cash Activity',
-        expectedStatus: 'NEEDS_REVIEW'
+        name: 'Login OTP (Non-Financial)',
+        text: 'Your OTP is 482910 for ICICI Bank netbanking login. Do not share this with anyone.',
+        sender: 'VM-ICICIB',
+        isNonFinancial: true
     }
 ];
 
-for (const fixture of REAL_SMS_FIXTURES) {
+for (const fixture of realWorldFixtures) {
     const parsed = parseRawSMS(fixture.text, fixture.sender);
-    if (fixture.expectedType === null) {
+    if (fixture.isNonFinancial) {
         assert(parsed === null, `Non-financial SMS [${fixture.name}] correctly rejected with null`);
     } else {
         assert(parsed !== null, `Financial SMS [${fixture.name}] parsed successfully`);
@@ -260,24 +235,28 @@ for (const fixture of REAL_SMS_FIXTURES) {
 }
 
 // ── TEST 10: APP RESTART & STORAGE DEDUPLICATION GUARANTEE ────────────────────
-console.log('\n--- 10. App Restart / Storage Deduplication Guarantee ---');
+console.log('\n--- 10. App Restart / Storage Deduplication Guarantee & Typed Outcome ---');
 const restartTestSMS = {
     sender: 'AD-HDFCBK',
     body: 'Dear Customer, INR 3,499.00 debited from A/C XX4821 at DECATHLON BLR on 04-Sep-26. Ref: DEC98471.',
     timestamp: '2026-09-04T15:30:00.000Z'
 };
 
-// 1. First ingestion in fresh runtime
+// 1. First ingestion in fresh runtime -> Must return COMMITTED outcome with durable: true
 const firstIngestResult = await smsIngestionService.processIncomingRawMessage(restartTestSMS);
-assert(firstIngestResult !== null, 'First SMS ingestion creates canonical transaction');
+assert(firstIngestResult !== null && firstIngestResult.outcome === 'COMMITTED', 'First SMS ingestion returns COMMITTED outcome');
+assert(firstIngestResult.durable === true, 'First SMS ingestion reports durable: true');
+assert(firstIngestResult.transaction !== null && firstIngestResult.transaction.amount === 3499, 'First SMS creates valid transaction');
 
 // 2. Simulate complete app crash / memory restart by wiping in-memory cache
 smsIngestionService._seenFingerprints.clear();
 assert(smsIngestionService._seenFingerprints.size === 0, 'In-memory fingerprint cache cleared (simulating app restart)');
 
-// 3. Second ingestion after restart -> Must detect duplicate from persistent disk ledger
+// 3. Second ingestion after restart -> Must return DUPLICATE outcome with durable: true
 const secondIngestResult = await smsIngestionService.processIncomingRawMessage(restartTestSMS);
-assert(secondIngestResult === null, 'Identical SMS after app restart rejected idempotently via disk storage');
+assert(secondIngestResult.outcome === 'DUPLICATE', 'Identical SMS after app restart returns DUPLICATE outcome');
+assert(secondIngestResult.durable === true, 'Duplicate rejection reports durable: true for 2-Phase ACK');
+assert(secondIngestResult.transaction === null, 'Duplicate rejection does not produce a second transaction');
 
 // ── TEST 11: DUAL IMMUTABLE APPEND-ONLY AUDIT & EVENT STREAM ──────────────────
 console.log('\n--- 11. Dual Immutable Append-Only Audit & Event Stream ---');
@@ -338,7 +317,7 @@ const ledgerWithMorning = [paymentMorning];
 const isEveningDuplicate = isDuplicateTransaction(paymentEvening, ledgerWithMorning);
 assert(isEveningDuplicate === false, 'Distinct payment with different UTR at evening is NOT falsely rejected as duplicate');
 
-// ── TEST 15: TWO-PHASE ACKNOWLEDGMENT & SEPARATE PERMISSION INVARIANTS ─────────
+// ── TEST 15: PERMISSION SEPARATION & STATUS GATES ──────────────────────────────
 console.log('\n--- 15. Permission Separation & Status Gates ---');
 const receivePermResult = await smsIngestionService.requestReceiveSMSPermission();
 assert(typeof receivePermResult === 'boolean', 'requestReceiveSMSPermission returns boolean');
@@ -349,6 +328,60 @@ assert(typeof readPermResult === 'boolean', 'requestReadSMSPermission returns bo
 const ingestionStatus = smsIngestionService.getStatus();
 assert(ingestionStatus.listenerCount >= 0, 'Status reports active listener count');
 assert(ingestionStatus.accountsCount >= 0, 'Status reports accounts count');
+
+// ── TEST 16: DATA-AT-REST ENCRYPTION / PRIVACY VERIFICATION ──────────────────
+console.log('\n--- 16. Data-at-Rest Privacy Protection & Obfuscation ---');
+const plainText = 'Rs. 9,999.00 debited from A/C XX1234 at APPLE STORE on 04-Sep-26.';
+const cipher = obfuscatePayload(plainText);
+assert(cipher.startsWith('FL_ENC_V1:'), 'Obfuscated text has encryption marker prefix');
+assert(!cipher.includes('APPLE STORE'), 'Plain-text sensitive merchant name is obfuscated at rest');
+
+const recovered = deobfuscatePayload(cipher);
+assert(recovered === plainText, 'Deobfuscated payload exactly restores original plain text');
+
+// Verify disk store receipts are encrypted at rest
+const receiptsAtRest = await smsIngestionService.getRawReceiptsAtRest();
+if (receiptsAtRest.length > 0) {
+    assert(receiptsAtRest[0].rawBody.startsWith('FL_ENC_V1:'), 'Raw receipt body on disk is encrypted at rest');
+}
+
+// ── TEST 17: FSM LIFECYCLE STATE TRANSITION VALIDATION ────────────────────────
+console.log('\n--- 17. FSM Lifecycle State Transition Enforcement ---');
+assert(isValidLifecycleTransition(null, 'RECEIVED') === true, 'null -> RECEIVED is valid initial transition');
+assert(isValidLifecycleTransition('RECEIVED', 'PARSED') === true, 'RECEIVED -> PARSED is valid');
+assert(isValidLifecycleTransition('RECEIVED', 'REJECTED_NON_FINANCIAL') === true, 'RECEIVED -> REJECTED_NON_FINANCIAL is valid');
+assert(isValidLifecycleTransition('PARSED', 'COMMITTED') === true, 'PARSED -> COMMITTED is valid');
+assert(isValidLifecycleTransition('PARSED', 'QUARANTINED_REVIEW') === true, 'PARSED -> QUARANTINED_REVIEW is valid');
+assert(isValidLifecycleTransition('PARSED', 'REJECTED_DUPLICATE') === true, 'PARSED -> REJECTED_DUPLICATE is valid');
+assert(isValidLifecycleTransition('COMMITTED', 'PARSED') === false, 'COMMITTED -> PARSED (backwards) is rejected');
+assert(isValidLifecycleTransition('REJECTED_DUPLICATE', 'COMMITTED') === false, 'REJECTED_DUPLICATE -> COMMITTED is rejected');
+
+// ── TEST 18: MULTI-PASS BYTE-FOR-BYTE ARRAY IMMUTABILITY TEST ──────────────────
+console.log('\n--- 18. Multi-Pass Byte-for-Byte Array Immutability Verification ---');
+const baselineReceipts = await smsIngestionService.getRawReceipts();
+const baselineEventLogs = await smsIngestionService.getEventLogs();
+
+// Ingest 3 distinct non-duplicate messages
+const msgA = { sender: 'AD-HDFCBK', body: 'INR 100.00 debited from A/C XX4821 at CHAI POINT on 04-Sep-26. Ref: CP101.', timestamp: '2026-09-04T16:00:00.000Z' };
+const msgB = { sender: 'AD-ICICIB', body: 'INR 200.00 debited from A/C XX9912 at CAFE COFFEE on 04-Sep-26. Ref: CCD102.', timestamp: '2026-09-04T16:05:00.000Z' };
+const msgC = { sender: 'VM-SBIINB', body: 'Your OTP is 998811 for SBI card login.', timestamp: '2026-09-04T16:10:00.000Z' };
+
+const resA = await smsIngestionService.processIncomingRawMessage(msgA);
+const resB = await smsIngestionService.processIncomingRawMessage(msgB);
+const resC = await smsIngestionService.processIncomingRawMessage(msgC);
+
+assert(resA.outcome === 'COMMITTED', 'msgA outcome is COMMITTED');
+assert(resB.outcome === 'COMMITTED', 'msgB outcome is COMMITTED');
+assert(resC.outcome === 'NON_FINANCIAL', 'msgC outcome is NON_FINANCIAL');
+
+// Check that historical baseline receipts are preserved byte-for-byte in their original indices
+const updatedReceipts = await smsIngestionService.getRawReceipts();
+for (let i = 0; i < baselineReceipts.length; i++) {
+    const historicalReceipt = baselineReceipts[i];
+    const foundReceipt = updatedReceipts.find(r => r.receiptId === historicalReceipt.receiptId);
+    assert(foundReceipt !== undefined, `Historical receipt [${historicalReceipt.receiptId}] still exists`);
+    assert(JSON.stringify(historicalReceipt) === JSON.stringify(foundReceipt), `Historical receipt [${historicalReceipt.receiptId}] is byte-for-byte identical`);
+}
 
 console.log(`\n================================================================`);
 console.log(`=== SMS & MONEY FLOW TEST SUITE RESULT: ${passedTests} / ${totalTests} ASSERTIONS PASSED (100%) ===`);

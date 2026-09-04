@@ -13,7 +13,7 @@ import { normalizeMerchant } from '../../components/moneyflow/moneyFlowPresentat
 
 // Canonical Category Rules
 const CATEGORY_RULES = [
-    { category: 'Groceries & Food', emoji: '🍔', keywords: ['swiggy', 'zomato', 'bigbasket', 'blinkit', 'zepto', 'dmart', 'mcdonald', 'starbucks', 'kfc', 'burger', 'subway', 'domino', 'pizza', 'supermarket', 'food', 'restaurant', 'cafe', 'dining', 'bakery'] },
+    { category: 'Groceries & Food', emoji: '🍔', keywords: ['swiggy', 'zomato', 'bigbasket', 'blinkit', 'zepto', 'dmart', 'mcdonald', 'starbucks', 'kfc', 'burger', 'subway', 'domino', 'pizza', 'supermarket', 'food', 'restaurant', 'cafe', 'dining', 'bakery', 'chai', 'tea', 'coffee', 'sweets'] },
     { category: 'Rent & Housing', emoji: '🏠', keywords: ['rent', 'society', 'maintenance', 'prestige', 'sobha', 'brigade', 'apartment', 'housing', 'landlord'] },
     { category: 'Utilities', emoji: '⚡', keywords: ['electricity', 'bescom', 'water', 'gas', 'bill', 'airtel', 'jio', 'broadband', 'wifi', 'recharge', 'dth'] },
     { category: 'Travel & Transport', emoji: '✈️', keywords: ['uber', 'ola', 'rapido', 'metro', 'fuel', 'shell', 'petrol', 'diesel', 'indianoil', 'flight', 'indigo', 'makemytrip', 'irctc', 'railways'] },

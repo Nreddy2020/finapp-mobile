@@ -91,8 +91,8 @@ export async function drainNativeOfflineQueue() {
                     timestamp: item.timestamp
                 });
 
-                // Two-Phase ACK: only acknowledge and delete from native disk if processing succeeded or duplicate handled
-                if (result !== undefined && item.offlineMessageId) {
+                // Two-Phase ACK: only acknowledge and delete from native disk if durable persistence was achieved (COMMITTED, QUARANTINED, DUPLICATE, or NON_FINANCIAL)
+                if (result && result.durable === true && item.offlineMessageId) {
                     await NativeModules.FinlifeSmsModule.acknowledgeOfflineMessage(item.offlineMessageId);
                     processedCount++;
                 }

@@ -12,6 +12,7 @@ import com.facebook.react.bridge.ReactContext
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.UUID
 
 /**
  * FinlifeSmsBroadcastReceiver
@@ -23,6 +24,7 @@ import org.json.JSONObject
  * - Extracts sender address, message text, and timestamp.
  * - Emits 'FinlifeSmsReceived' event to React Native JavaScript runtime when active.
  * - If JS runtime is inactive (app killed/backgrounded), queues message in SharedPreferences disk store.
+ * - Guarantees synchronous disk write (commit) and thread safety across concurrent broadcasts.
  */
 class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
@@ -31,14 +33,17 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
         const val EVENT_NAME = "FinlifeSmsReceived"
         const val PREFS_NAME = "finlife_sms_native_prefs"
         const val KEY_OFFLINE_QUEUE = "pending_offline_sms_queue"
+        private val PREFS_LOCK = Any()
 
         /**
          * Reads offline pending SMS queue from SharedPreferences without deleting.
          */
         @JvmStatic
         fun getPendingOfflineQueue(context: Context): String {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            return prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+            synchronized(PREFS_LOCK) {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                return prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+            }
         }
 
         /**
@@ -46,24 +51,26 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
          */
         @JvmStatic
         fun acknowledgeOfflineMessage(context: Context, messageId: String): Boolean {
-            try {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
-                val array = JSONArray(existingJson)
-                val newArray = JSONArray()
+            synchronized(PREFS_LOCK) {
+                try {
+                    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+                    val array = JSONArray(existingJson)
+                    val newArray = JSONArray()
 
-                for (i in 0 until array.length()) {
-                    val item = array.getJSONObject(i)
-                    if (item.optString("offlineMessageId") != messageId) {
-                        newArray.put(item)
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        if (item.optString("offlineMessageId") != messageId) {
+                            newArray.put(item)
+                        }
                     }
+                    val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, newArray.toString()).commit()
+                    Log.d(TAG, "Acknowledged offline SMS [$messageId]. Committed: $committed. Remaining queue: ${newArray.length()}")
+                    return committed
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to acknowledge offline SMS [$messageId]: ${e.message}", e)
+                    return false
                 }
-                prefs.edit().putString(KEY_OFFLINE_QUEUE, newArray.toString()).apply()
-                Log.d(TAG, "Acknowledged offline SMS [$messageId]. Remaining queue: ${newArray.length()}")
-                return true
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to acknowledge offline SMS [$messageId]: ${e.message}", e)
-                return false
             }
         }
     }
@@ -131,25 +138,27 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
     }
 
     private fun queueOfflineMessage(context: Context, sender: String, body: String, timestamp: Long) {
-        try {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
-            val array = JSONArray(existingJson)
+        synchronized(PREFS_LOCK) {
+            try {
+                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+                val array = JSONArray(existingJson)
 
-            val offlineMsgId = "off_msg_${System.currentTimeMillis()}_${(1000..9999).random()}"
-            val msgObj = JSONObject().apply {
-                put("offlineMessageId", offlineMsgId)
-                put("sender", sender)
-                put("body", body)
-                put("timestamp", timestamp)
-                put("queuedAt", System.currentTimeMillis())
+                val offlineMsgId = "off_msg_${UUID.randomUUID()}"
+                val msgObj = JSONObject().apply {
+                    put("offlineMessageId", offlineMsgId)
+                    put("sender", sender)
+                    put("body", body)
+                    put("timestamp", timestamp)
+                    put("queuedAt", System.currentTimeMillis())
+                }
+                array.put(msgObj)
+
+                val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, array.toString()).commit()
+                Log.d(TAG, "Persisted offline SMS [$offlineMsgId] to disk (committed: $committed). Queue size: ${array.length()}")
+            } catch (err: Exception) {
+                Log.e(TAG, "Failed to persist offline SMS to disk queue: ${err.message}", err)
             }
-            array.put(msgObj)
-
-            prefs.edit().putString(KEY_OFFLINE_QUEUE, array.toString()).apply()
-            Log.d(TAG, "Persisted offline SMS [$offlineMsgId] to disk. Queue size: ${array.length()}")
-        } catch (err: Exception) {
-            Log.e(TAG, "Failed to persist offline SMS to disk queue: ${err.message}", err)
         }
     }
 }
