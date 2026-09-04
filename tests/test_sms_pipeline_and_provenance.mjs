@@ -12,8 +12,8 @@
  * - SMS-06: Journal Immutability & Audit Trail
  * - SMS-07: Fault Isolation on Malformed Input
  * - SMS-08: Explicit Typed Outcome Contracts
- * - SMS-09: Data-at-Rest Privacy Protection for Raw Receipts
- * - SMS-10: FSM Lifecycle Transition Validation
+ * - SMS-09: Authenticated Cryptographic AES-256-GCM Encryption at Rest
+ * - SMS-10: Strict FSM Lifecycle Transition Validation & Guarding
  * - MONEYFLOW-VIEW-01..07: Multi-dimension breakdowns & Transfer Neutrality
  */
 
@@ -25,8 +25,8 @@ import { ingestSMSMessages, resolveTransaction, SEED_MONEY_FLOW_TRANSACTIONS } f
 import {
     smsIngestionService,
     isValidLifecycleTransition,
-    obfuscatePayload,
-    deobfuscatePayload
+    encryptPayload,
+    decryptPayload
 } from '../services/sms/smsIngestionService.js';
 import { buildMoneyFlowViewModel } from '../components/moneyflow/moneyFlowViewModel.js';
 import { parseAndEvaluateArithmetic } from '../components/moneyflow/mathParser.js';
@@ -329,24 +329,34 @@ const ingestionStatus = smsIngestionService.getStatus();
 assert(ingestionStatus.listenerCount >= 0, 'Status reports active listener count');
 assert(ingestionStatus.accountsCount >= 0, 'Status reports accounts count');
 
-// ── TEST 16: DATA-AT-REST ENCRYPTION / PRIVACY VERIFICATION ──────────────────
-console.log('\n--- 16. Data-at-Rest Privacy Protection & Obfuscation ---');
+// ── TEST 16: AUTHENTICATED AES-256-GCM ENCRYPTION AT REST ──────────────────────
+console.log('\n--- 16. Authenticated Cryptographic AES-256-GCM Encryption at Rest ---');
 const plainText = 'Rs. 9,999.00 debited from A/C XX1234 at APPLE STORE on 04-Sep-26.';
-const cipher = obfuscatePayload(plainText);
-assert(cipher.startsWith('FL_ENC_V1:'), 'Obfuscated text has encryption marker prefix');
-assert(!cipher.includes('APPLE STORE'), 'Plain-text sensitive merchant name is obfuscated at rest');
+const cipher1 = encryptPayload(plainText);
+const cipher2 = encryptPayload(plainText);
 
-const recovered = deobfuscatePayload(cipher);
-assert(recovered === plainText, 'Deobfuscated payload exactly restores original plain text');
+assert(cipher1.startsWith('FL_AES_GCM_V1:'), 'Encrypted payload uses authenticated FL_AES_GCM_V1: envelope');
+assert(cipher1 !== cipher2, 'Unique randomized 12-byte IV generates distinct ciphertexts for identical plaintext');
+assert(!cipher1.includes('APPLE STORE') && !cipher1.includes('9999'), 'Plaintext is cryptographically encrypted');
 
-// Verify disk store receipts are encrypted at rest
+const recovered = decryptPayload(cipher1);
+assert(recovered === plainText, 'AES-256-GCM authenticated decryption recovers exact original plaintext');
+
+// Tamper Detection Verification: altering even a single byte in ciphertext must fail authenticated tag check
+const cipherParts = cipher1.split(':');
+const tamperedHex = cipherParts[3].slice(0, -2) + (cipherParts[3].slice(-2) === 'aa' ? 'bb' : 'aa');
+const tamperedCipher = `${cipherParts[0]}:${cipherParts[1]}:${cipherParts[2]}:${tamperedHex}`;
+const tamperedRecovery = decryptPayload(tamperedCipher);
+assert(tamperedRecovery === tamperedCipher, 'Tampered ciphertext fails authentication tag verification without revealing corrupt data');
+
+// Verify disk store receipts are encrypted at rest with FL_AES_GCM_V1
 const receiptsAtRest = await smsIngestionService.getRawReceiptsAtRest();
 if (receiptsAtRest.length > 0) {
-    assert(receiptsAtRest[0].rawBody.startsWith('FL_ENC_V1:'), 'Raw receipt body on disk is encrypted at rest');
+    assert(receiptsAtRest[0].rawBody.startsWith('FL_AES_GCM_V1:'), 'Raw receipt body on disk is authenticated AES-256-GCM encrypted');
 }
 
-// ── TEST 17: FSM LIFECYCLE STATE TRANSITION VALIDATION ────────────────────────
-console.log('\n--- 17. FSM Lifecycle State Transition Enforcement ---');
+// ── TEST 17: STRICT FSM LIFECYCLE TRANSITION VALIDATION & TERMINAL GUARDS ─────
+console.log('\n--- 17. Strict FSM Lifecycle State Transition Enforcement ---');
 assert(isValidLifecycleTransition(null, 'RECEIVED') === true, 'null -> RECEIVED is valid initial transition');
 assert(isValidLifecycleTransition('RECEIVED', 'PARSED') === true, 'RECEIVED -> PARSED is valid');
 assert(isValidLifecycleTransition('RECEIVED', 'REJECTED_NON_FINANCIAL') === true, 'RECEIVED -> REJECTED_NON_FINANCIAL is valid');
@@ -355,11 +365,11 @@ assert(isValidLifecycleTransition('PARSED', 'QUARANTINED_REVIEW') === true, 'PAR
 assert(isValidLifecycleTransition('PARSED', 'REJECTED_DUPLICATE') === true, 'PARSED -> REJECTED_DUPLICATE is valid');
 assert(isValidLifecycleTransition('COMMITTED', 'PARSED') === false, 'COMMITTED -> PARSED (backwards) is rejected');
 assert(isValidLifecycleTransition('REJECTED_DUPLICATE', 'COMMITTED') === false, 'REJECTED_DUPLICATE -> COMMITTED is rejected');
+assert(isValidLifecycleTransition('QUARANTINED_REVIEW', 'PARSED') === false, 'QUARANTINED_REVIEW -> PARSED is rejected');
 
 // ── TEST 18: MULTI-PASS BYTE-FOR-BYTE ARRAY IMMUTABILITY TEST ──────────────────
 console.log('\n--- 18. Multi-Pass Byte-for-Byte Array Immutability Verification ---');
 const baselineReceipts = await smsIngestionService.getRawReceipts();
-const baselineEventLogs = await smsIngestionService.getEventLogs();
 
 // Ingest 3 distinct non-duplicate messages
 const msgA = { sender: 'AD-HDFCBK', body: 'INR 100.00 debited from A/C XX4821 at CHAI POINT on 04-Sep-26. Ref: CP101.', timestamp: '2026-09-04T16:00:00.000Z' };

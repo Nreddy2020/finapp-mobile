@@ -24,6 +24,7 @@ import java.util.UUID
  * - Extracts sender address, message text, and timestamp.
  * - Emits 'FinlifeSmsReceived' event to React Native JavaScript runtime when active.
  * - If JS runtime is inactive (app killed/backgrounded), queues message in SharedPreferences disk store.
+ * - Offline queue is encrypted at rest using AndroidKeyStore AES-256-GCM (FinlifeCryptoEngine).
  * - Guarantees synchronous disk write (commit) and thread safety across concurrent broadcasts.
  */
 class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
@@ -36,13 +37,30 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
         private val PREFS_LOCK = Any()
 
         /**
-         * Reads offline pending SMS queue from SharedPreferences without deleting.
+         * Reads offline pending SMS queue from SharedPreferences, decrypting payload bodies before passing to JS.
          */
         @JvmStatic
         fun getPendingOfflineQueue(context: Context): String {
             synchronized(PREFS_LOCK) {
                 val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                return prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+                val rawJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
+                try {
+                    val array = JSONArray(rawJson)
+                    val decryptedArray = JSONArray()
+                    for (i in 0 until array.length()) {
+                        val item = array.getJSONObject(i)
+                        val rawBody = item.optString("body")
+                        val decryptedBody = FinlifeCryptoEngine.decrypt(rawBody)
+                        val newItem = JSONObject(item.toString()).apply {
+                            put("body", decryptedBody)
+                        }
+                        decryptedArray.put(newItem)
+                    }
+                    return decryptedArray.toString()
+                } catch (e: Exception) {
+                    Log.w(TAG, "Error decrypting offline queue, returning raw: ${e.message}")
+                    return rawJson
+                }
             }
         }
 
@@ -128,7 +146,7 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
                 Log.d(TAG, "Successfully emitted $EVENT_NAME to active React Native runtime")
             } else {
-                Log.w(TAG, "ReactContext inactive. Queuing SMS to native disk SharedPreferences.")
+                Log.w(TAG, "ReactContext inactive. Queuing encrypted SMS to native disk SharedPreferences.")
                 queueOfflineMessage(context, sender, body, timestamp)
             }
         } catch (e: Exception) {
@@ -145,19 +163,22 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
                 val array = JSONArray(existingJson)
 
                 val offlineMsgId = "off_msg_${UUID.randomUUID()}"
+                // Encrypt payload body at rest with AndroidKeyStore AES-256-GCM
+                val encryptedBody = FinlifeCryptoEngine.encrypt(body)
+
                 val msgObj = JSONObject().apply {
                     put("offlineMessageId", offlineMsgId)
                     put("sender", sender)
-                    put("body", body)
+                    put("body", encryptedBody)
                     put("timestamp", timestamp)
                     put("queuedAt", System.currentTimeMillis())
                 }
                 array.put(msgObj)
 
                 val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, array.toString()).commit()
-                Log.d(TAG, "Persisted offline SMS [$offlineMsgId] to disk (committed: $committed). Queue size: ${array.length()}")
+                Log.d(TAG, "Persisted encrypted offline SMS [$offlineMsgId] to disk (committed: $committed). Queue size: ${array.length()}")
             } catch (err: Exception) {
-                Log.e(TAG, "Failed to persist offline SMS to disk queue: ${err.message}", err)
+                Log.e(TAG, "Failed to persist encrypted offline SMS to disk queue: ${err.message}", err)
             }
         }
     }

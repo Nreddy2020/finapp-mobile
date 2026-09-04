@@ -9,7 +9,8 @@ import com.facebook.react.bridge.ReactMethod
  * FinlifeSmsModule
  * 
  * Exposes native Android SharedPreferences offline SMS queue methods
- * to JavaScript for Two-Phase Acknowledgment (2-Phase ACK).
+ * and AndroidKeyStore AES-256-GCM cryptography to JavaScript for
+ * Two-Phase Acknowledgment and hardware-backed data-at-rest encryption.
  */
 class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
@@ -32,6 +33,26 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
             promise.resolve(success)
         } catch (e: Exception) {
             promise.reject("ACKNOWLEDGE_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun encryptPayload(plainText: String, promise: Promise) {
+        try {
+            val cipherText = FinlifeCryptoEngine.encrypt(plainText)
+            promise.resolve(cipherText)
+        } catch (e: Exception) {
+            promise.reject("ENCRYPT_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun decryptPayload(cipherText: String, promise: Promise) {
+        try {
+            val plainText = FinlifeCryptoEngine.decrypt(cipherText)
+            promise.resolve(plainText)
+        } catch (e: Exception) {
+            promise.reject("DECRYPT_ERROR", e.message, e)
         }
     }
 }
