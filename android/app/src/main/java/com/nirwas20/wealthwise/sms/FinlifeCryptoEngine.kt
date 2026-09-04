@@ -28,6 +28,19 @@ object FinlifeCryptoEngine {
     private const val IV_LENGTH = 12
     const val CIPHER_PREFIX = "FL_AES_GCM_V1:"
 
+    enum class CryptoSecurityLevel {
+        STRONGBOX_HSM,
+        KEYSTORE_TEE,
+        UNINITIALIZED,
+        FAILED
+    }
+
+    var securityLevel: CryptoSecurityLevel = CryptoSecurityLevel.UNINITIALIZED
+        private set
+
+    var initializationError: String? = null
+        private set
+
     init {
         ensureMasterKey()
     }
@@ -57,6 +70,7 @@ object FinlifeCryptoEngine {
                         keyGenerator.init(strongBoxSpec)
                         keyGenerator.generateKey()
                         keyGenerated = true
+                        securityLevel = CryptoSecurityLevel.STRONGBOX_HSM
                         android.util.Log.i("FinlifeCryptoEngine", "Sealed 256-bit AES master key in StrongBox Hardware Security Module")
                     } catch (e: Exception) {
                         android.util.Log.w("FinlifeCryptoEngine", "StrongBox chip unavailable on this hardware, falling back to AndroidKeyStore TEE: ${e.message}")
@@ -75,23 +89,43 @@ object FinlifeCryptoEngine {
                         .build()
                     keyGenerator.init(standardSpec)
                     keyGenerator.generateKey()
+                    securityLevel = CryptoSecurityLevel.KEYSTORE_TEE
                     android.util.Log.i("FinlifeCryptoEngine", "Sealed 256-bit AES master key in AndroidKeyStore TEE")
+                }
+            } else {
+                if (securityLevel == CryptoSecurityLevel.UNINITIALIZED) {
+                    securityLevel = CryptoSecurityLevel.KEYSTORE_TEE
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("FinlifeCryptoEngine", "Keystore initialization failed: ${e.message}", e)
+            securityLevel = CryptoSecurityLevel.FAILED
+            initializationError = e.message
+            android.util.Log.e("FinlifeCryptoEngine", "Fatal: Keystore initialization failed: ${e.message}", e)
         }
+    }
+
+    fun getDiagnostics(): Map<String, Any?> {
+        return mapOf(
+            "securityLevel" to securityLevel.name,
+            "isStrongBox" to (securityLevel == CryptoSecurityLevel.STRONGBOX_HSM),
+            "keyAlias" to KEY_ALIAS,
+            "transformation" to TRANSFORMATION,
+            "initializationError" to initializationError
+        )
     }
 
     private fun getSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE)
         keyStore.load(null)
         val entry = keyStore.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry
-        return entry?.secretKey ?: throw IllegalStateException("Failed to load FinLife Keystore Master Key")
+        return entry?.secretKey ?: throw IllegalStateException("Failed to load FinLife Keystore Master Key (state: $securityLevel)")
     }
 
     @Synchronized
     fun encrypt(plainText: String): String {
+        if (securityLevel == CryptoSecurityLevel.FAILED) {
+            throw IllegalStateException("FinlifeCryptoEngine is in FAILED state ($initializationError). Fail-closed: refusing unencrypted persistence.")
+        }
         try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())

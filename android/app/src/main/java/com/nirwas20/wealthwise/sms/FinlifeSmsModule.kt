@@ -1,9 +1,11 @@
 package com.nirwas20.wealthwise.sms
 
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import android.content.Context
 
 /**
  * FinlifeSmsModule
@@ -53,6 +55,38 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
             promise.resolve(plainText)
         } catch (e: Exception) {
             promise.reject("DECRYPT_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getCryptoDiagnostics(promise: Promise) {
+        try {
+            val diag = FinlifeCryptoEngine.getDiagnostics()
+            val map = Arguments.createMap()
+            map.putString("securityLevel", diag["securityLevel"] as? String ?: "UNKNOWN")
+            map.putBoolean("isStrongBox", diag["isStrongBox"] as? Boolean ?: false)
+            map.putString("keyAlias", diag["keyAlias"] as? String ?: "")
+            map.putString("transformation", diag["transformation"] as? String ?: "")
+            val initErr = diag["initializationError"] as? String
+            if (initErr != null) {
+                map.putString("initializationError", initErr)
+            } else {
+                map.putNull("initializationError")
+            }
+            promise.resolve(map)
+        } catch (e: Exception) {
+            promise.reject("DIAGNOSTICS_ERROR", e.message, e)
+        }
+    }
+
+    @ReactMethod
+    fun getCryptoFailureQueue(promise: Promise) {
+        try {
+            val prefs = reactApplicationContext.getSharedPreferences(FinlifeSmsBroadcastReceiver.PREFS_NAME, Context.MODE_PRIVATE)
+            val failureJson = prefs.getString(FinlifeSmsBroadcastReceiver.KEY_CRYPTO_FAILURE_QUEUE, "[]") ?: "[]"
+            promise.resolve(failureJson)
+        } catch (e: Exception) {
+            promise.reject("CRYPTO_FAILURE_QUEUE_ERROR", e.message, e)
         }
     }
 }

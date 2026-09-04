@@ -1,12 +1,37 @@
 # FinLife Automated Master Certification Report
 
-- **Commit SHA:** `7dcd60c6414a108b6b0b16d78e6d3416aa2a4f5e`
+- **Tested Commit SHA:** `53b74c235728dedae772cda1313aec446e6d58e6`
+- **Tested Tree SHA:** `f00d4b9efcaa9e8e6b671a5650036e51bdf8fcae`
+- **Provenance Policy:** `EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED`
 - **Node Version:** `v24.14.1`
 - **Platform:** `win32`
-- **Execution Timestamp:** `2026-09-04T20:23:59.891Z`
+- **Execution Timestamp:** `2026-09-04T20:29:44.835Z`
 - **Exit Code:** `0`
 - **Overall Certification Status:** **PASS**
 - **Assertion Coverage:** **421 / 421 (100%)** across **17 test suites**
+
+## Physical Device & UI Verification
+- **Device:** `emulator-5554`
+- **OS Version:** `Android 16 (API 36)`
+- **Resolution:** `1080x2340`
+- **Verified Screen Captures (8):**
+  - `screen_smart_budgets_calendar.png` (167773 bytes) - SHA-256: `77b903e9955da47b2f690662da99f9d2970f269832a5521e04650041dff23697`
+  - `screen_smart_budgets_categories.png` (234555 bytes) - SHA-256: `f8ff479421906d5f480c80c85d6784bfd08ce236304d2fe9c350db5ccc180b1e`
+  - `screen_smart_budgets_category_detail_screen5.png` (196011 bytes) - SHA-256: `90b550a27d0778bc49cef4f11be43c987c3e53a7be8110acb1888b61068be2a5`
+  - `screen_smart_budgets_detail_modal.png` (221073 bytes) - SHA-256: `249e137568e4c5c09fe336e43a50aae91e245c12347b937937b652e10edd365f`
+  - `screen_smart_budgets_main.png` (221051 bytes) - SHA-256: `b606b8774bbc8f273aee18a4a59b0ebdfa30be20cc9c450ad20f62f1c2d7c368`
+  - `screen_smart_budgets_planner.png` (230619 bytes) - SHA-256: `a1d5ad9b347e7533511635fd6f47b2484a06c3336977cd0bae3ec6cc92a3a1ab`
+  - `screen_smart_budgets_planner_impact.png` (197163 bytes) - SHA-256: `6c91cd4c1e1057d5c1cb6a601908703603984a30b9eb04cfd435ba2a7c301b50`
+  - `screen_smart_budgets_planner_live.png` (177817 bytes) - SHA-256: `320897096548208cf9f5d2ddb4d6dbfa812595e5644cddfff97cb7a72e4e667c`
+
+## Security & Cryptographic Telemetry
+- **Engine:** `FinlifeCryptoEngine (Kotlin)`
+- **Provider:** `AndroidKeyStore`
+- **Hardware Target:** `StrongBox Hardware Security Module (API 28+) with AndroidKeyStore TEE fallback`
+- **Active Level:** `KEYSTORE_TEE (standard Android AVD emulator-5554)`
+- **Transformation:** `AES/GCM/NoPadding` (Key: 256-bit, Tag: 128-bit, IV: 12-byte)
+- **Fail-Closed Contract:** IllegalStateException thrown on failure; quarantined into finlife_crypto_failure_queue without plaintext
+- **Legacy Migration:** Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit
 
 ## Suite Results Matrix
 

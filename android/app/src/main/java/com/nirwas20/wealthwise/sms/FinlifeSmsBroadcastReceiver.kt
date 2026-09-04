@@ -34,10 +34,12 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
         const val EVENT_NAME = "FinlifeSmsReceived"
         const val PREFS_NAME = "finlife_sms_native_prefs"
         const val KEY_OFFLINE_QUEUE = "pending_offline_sms_queue"
+        const val KEY_CRYPTO_FAILURE_QUEUE = "finlife_crypto_failure_queue"
         private val PREFS_LOCK = Any()
 
         /**
          * Reads offline pending SMS queue from SharedPreferences, decrypting payload bodies before passing to JS.
+         * Automatically migrates and re-encrypts legacy FL_ENC_V1 records to FL_AES_GCM_V1 at rest.
          */
         @JvmStatic
         fun getPendingOfflineQueue(context: Context): String {
@@ -47,15 +49,39 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
                 try {
                     val array = JSONArray(rawJson)
                     val decryptedArray = JSONArray()
+                    val reencryptedArray = JSONArray()
+                    var migratedCount = 0
+
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)
                         val rawBody = item.optString("body")
+                        val isLegacy = rawBody.startsWith("FL_ENC_V1:")
                         val decryptedBody = FinlifeCryptoEngine.decrypt(rawBody)
-                        val newItem = JSONObject(item.toString()).apply {
+
+                        if (isLegacy) {
+                            // Real migration: Re-encrypt legacy FL_ENC_V1 record with modern AES-256-GCM
+                            val modernCipher = FinlifeCryptoEngine.encrypt(decryptedBody)
+                            val migratedItem = JSONObject(item.toString()).apply {
+                                put("body", modernCipher)
+                                put("migratedAt", System.currentTimeMillis())
+                            }
+                            reencryptedArray.put(migratedItem)
+                            migratedCount++
+                        } else {
+                            reencryptedArray.put(item)
+                        }
+
+                        val decryptedItem = JSONObject(item.toString()).apply {
                             put("body", decryptedBody)
                         }
-                        decryptedArray.put(newItem)
+                        decryptedArray.put(decryptedItem)
                     }
+
+                    if (migratedCount > 0) {
+                        val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, reencryptedArray.toString()).commit()
+                        Log.i(TAG, "Migrated and re-encrypted $migratedCount legacy FL_ENC_V1 records to FL_AES_GCM_V1 at rest (committed: $committed)")
+                    }
+
                     return decryptedArray.toString()
                 } catch (e: Exception) {
                     Log.w(TAG, "Error decrypting offline queue, returning raw: ${e.message}")
@@ -157,14 +183,15 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
 
     private fun queueOfflineMessage(context: Context, sender: String, body: String, timestamp: Long) {
         synchronized(PREFS_LOCK) {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val offlineMsgId = "off_msg_${UUID.randomUUID()}"
             try {
-                val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                // Fail-Closed: Encrypt payload body at rest with AndroidKeyStore AES-256-GCM.
+                // If Keystore is in FAILED state or throws, we do NOT write unencrypted plaintext.
+                val encryptedBody = FinlifeCryptoEngine.encrypt(body)
+
                 val existingJson = prefs.getString(KEY_OFFLINE_QUEUE, "[]") ?: "[]"
                 val array = JSONArray(existingJson)
-
-                val offlineMsgId = "off_msg_${UUID.randomUUID()}"
-                // Encrypt payload body at rest with AndroidKeyStore AES-256-GCM
-                val encryptedBody = FinlifeCryptoEngine.encrypt(body)
 
                 val msgObj = JSONObject().apply {
                     put("offlineMessageId", offlineMsgId)
@@ -178,7 +205,25 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
                 val committed = prefs.edit().putString(KEY_OFFLINE_QUEUE, array.toString()).commit()
                 Log.d(TAG, "Persisted encrypted offline SMS [$offlineMsgId] to disk (committed: $committed). Queue size: ${array.length()}")
             } catch (err: Exception) {
-                Log.e(TAG, "Failed to persist encrypted offline SMS to disk queue: ${err.message}", err)
+                // Fail-closed quarantine: isolate message metadata into finlife_crypto_failure_queue WITHOUT plaintext body
+                try {
+                    val failureJson = prefs.getString(KEY_CRYPTO_FAILURE_QUEUE, "[]") ?: "[]"
+                    val failureArray = JSONArray(failureJson)
+                    val failObj = JSONObject().apply {
+                        put("offlineMessageId", offlineMsgId)
+                        put("sender", sender)
+                        put("timestamp", timestamp)
+                        put("failedAt", System.currentTimeMillis())
+                        put("error", err.message ?: "ENCRYPTION_FAILURE")
+                        put("status", "QUARANTINED_CRYPTO_FAILED")
+                        // Explicitly omit body to ensure ZERO unencrypted plaintext at rest
+                    }
+                    failureArray.put(failObj)
+                    prefs.edit().putString(KEY_CRYPTO_FAILURE_QUEUE, failureArray.toString()).commit()
+                    Log.e(TAG, "CRITICAL: Encryption failed, quarantined message metadata [$offlineMsgId] to $KEY_CRYPTO_FAILURE_QUEUE without plaintext: ${err.message}", err)
+                } catch (qErr: Exception) {
+                    Log.e(TAG, "Fatal: failed to write to crypto failure queue: ${qErr.message}", qErr)
+                }
             }
         }
     }
