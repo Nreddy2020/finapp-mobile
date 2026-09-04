@@ -37,7 +37,13 @@ const SUITES = [
 
     // ── SMART BUDGET DECISION ENGINE PLATFORM ──
     { group: 'Smart Budgets Platform', name: 'Budget Decision Engine Invariants', file: 'test_budget_decision_engine.mjs' },
-    { group: 'Smart Budgets Platform', name: 'Budget UI Truth & Reconciliation', file: 'test_budget_view_model_truth.mjs' }
+    { group: 'Smart Budgets Platform', name: 'Budget UI Truth & Reconciliation', file: 'test_budget_view_model_truth.mjs' },
+
+    // ── RECURRING FINANCIAL COMMITMENTS & LIABILITY PLATFORM ──
+    { group: 'Recurring Commitments Platform', name: 'Commitment Invariants & Engine', file: 'test_commitment_engine.mjs' },
+    { group: 'Recurring Commitments Platform', name: 'Commitment UI View Model Truth', file: 'test_commitment_view_model.mjs' },
+    { group: 'Recurring Commitments Platform', name: 'Commitment Audit Trail Immutability', file: 'test_commitment_audit.mjs' },
+    { group: 'Recurring Commitments Platform', name: 'Commitment Legacy Data Migration', file: 'test_commitment_migration.mjs' }
 ];
 
 console.log('================================================================');
@@ -117,6 +123,8 @@ let bankingPassed = 0;
 let bankingTotal = 0;
 let smartBudgetsPassed = 0;
 let smartBudgetsTotal = 0;
+let recurringPassed = 0;
+let recurringTotal = 0;
 
 results.forEach(r => {
     if (r.name.includes('Presentation Adapter')) {
@@ -128,6 +136,9 @@ results.forEach(r => {
     } else if (r.group === 'Smart Budgets Platform') {
         smartBudgetsPassed += r.passed;
         smartBudgetsTotal += r.total;
+    } else if (r.group === 'Recurring Commitments Platform') {
+        recurringPassed += r.passed;
+        recurringTotal += r.total;
     } else {
         bankingPassed += r.passed;
         bankingTotal += r.total;
@@ -147,6 +158,7 @@ console.log(String('P2P PRESENTATION EXTENDED REGRESSION').padEnd(45) + String(p
 console.log(String('P2P TOTAL REGRESSION SUITE').padEnd(45) + String(p2pTotalPassed).padStart(8) + String(p2pTotalExpected).padStart(8) + String(p2pTotalPassed === p2pTotalExpected ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('BANKING RELATIONSHIP PLATFORM').padEnd(45) + String(bankingPassed).padStart(8) + String(bankingTotal).padStart(8) + String(bankingPassed === bankingTotal ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('SMART BUDGET DECISION PLATFORM').padEnd(45) + String(smartBudgetsPassed).padStart(8) + String(smartBudgetsTotal).padStart(8) + String(smartBudgetsPassed === smartBudgetsTotal ? 'PASS' : 'FAIL').padStart(10));
+console.log(String('RECURRING FINANCIAL COMMITMENTS').padEnd(45) + String(recurringPassed).padStart(8) + String(recurringTotal).padStart(8) + String(recurringPassed === recurringTotal ? 'PASS' : 'FAIL').padStart(10));
 console.log('───────────────────────────────────────────────────────────────────────────────');
 console.log(String('FINLIFE MASTER REGRESSION CERTIFICATION').padEnd(45) + String(totalPassed).padStart(8) + String(totalTests).padStart(8) + String(totalPassed === totalTests && !anyFailed ? 'PASS' : 'FAIL').padStart(10));
 console.log('═══════════════════════════════════════════════════════════════════════════════\n');
