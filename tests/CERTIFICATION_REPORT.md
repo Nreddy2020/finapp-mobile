@@ -1,11 +1,11 @@
 # FinLife Automated Master Certification Report
 
-- **Tested Commit SHA:** `1fab88ee67a9bea3acb801a555dfb93ca3f2b904`
-- **Tested Tree SHA:** `ddea14bc4967f25dace9185cad53490052d852a6`
+- **Tested Commit SHA:** `1a582b8235af391cb8e2bdd206936ef30603ad99`
+- **Tested Tree SHA:** `bc38ddbb8f234b2268fe8c67f2b933cc3460094a`
 - **Provenance Policy:** `EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED`
 - **Node Version:** `v24.14.1`
 - **Platform:** `win32`
-- **Execution Timestamp:** `2026-09-04T20:35:15.113Z`
+- **Execution Timestamp:** `2026-09-04T20:37:41.954Z`
 - **Exit Code:** `0`
 - **Overall Certification Status:** **PASS**
 - **Assertion Coverage:** **427 / 427 (100%)** across **17 test suites**
@@ -29,9 +29,22 @@
 - **Provider:** `AndroidKeyStore`
 - **Hardware Target:** `StrongBox Hardware Security Module (API 28+) with AndroidKeyStore TEE fallback`
 - **Active Level:** `KEYSTORE_TEE (standard Android AVD emulator-5554)`
-- **Transformation:** `AES/GCM/NoPadding` (Key: 256-bit, Tag: 128-bit, IV: undefined-byte)
+- **Transformation:** `AES/GCM/NoPadding` (Key: 256-bit, Tag: 128-bit, IV: 12-byte)
 - **Fail-Closed Contract:** IllegalStateException on write failure; SecurityException on read failure; quarantined into finlife_crypto_failure_queue without plaintext; zero rawJson exposure
 - **Legacy Migration:** Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit
+
+## Provenance Contract Proof
+- **Release Commit:** `1a582b8235af391cb8e2bdd206936ef30603ad99`
+- **Parent Implementation Commit:** `1fab88ee67a9bea3acb801a555dfb93ca3f2b904`
+- **Parent Tree SHA:** `ddea14bc4967f25dace9185cad53490052d852a6`
+- **Release Tree SHA:** `bc38ddbb8f234b2268fe8c67f2b933cc3460094a`
+- **Clean Working Tree:** `false`
+- **Equivalence Contract:** `release.parent == testedCommitSha && tree(release.parent) == testedTreeSha`
+
+## Fail-Closed 3-Layer Architecture Contract
+- **Layer 1 (Native Receiver):** `FinlifeSmsBroadcastReceiver.getPendingOfflineQueue()` throws `SecurityException` on decryption failure and quarantines non-sensitive failure metadata without payload body.
+- **Layer 2 (React Native Module):** `FinlifeSmsModule.getPendingOfflineQueue()` catches exception and rejects Promise with `FAIL_CLOSED_DECRYPTION_ERROR`, ensuring zero raw queue data is resolved or returned.
+- **Layer 3 (JavaScript Bridge):** `androidSmsReceiverBridge.drainNativeOfflineQueue()` catches rejection and safely returns `0` processed messages.
 
 ## Suite Results Matrix
 

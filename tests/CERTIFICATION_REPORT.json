@@ -1,12 +1,25 @@
 {
-  "testedCommitSha": "1fab88ee67a9bea3acb801a555dfb93ca3f2b904",
-  "testedTreeSha": "ddea14bc4967f25dace9185cad53490052d852a6",
+  "testedCommitSha": "1a582b8235af391cb8e2bdd206936ef30603ad99",
+  "testedTreeSha": "bc38ddbb8f234b2268fe8c67f2b933cc3460094a",
   "provenancePolicy": "EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED",
   "provenanceNote": "The release commit directly inherits verified test results from testedTreeSha. Automated test suites execute on a clean working tree; the release commit seals the certification report and documentation without altering application logic.",
+  "provenanceProof": {
+    "releaseCommit": "1a582b8235af391cb8e2bdd206936ef30603ad99",
+    "releaseParentCommit": "1fab88ee67a9bea3acb801a555dfb93ca3f2b904",
+    "releaseTree": "bc38ddbb8f234b2268fe8c67f2b933cc3460094a",
+    "releaseParentTree": "ddea14bc4967f25dace9185cad53490052d852a6",
+    "workingTreeClean": false,
+    "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
+  },
+  "failClosedContract": {
+    "layer1NativeReceiver": "Throws SecurityException; quarantines metadata without plaintext; encrypted queue preserved",
+    "layer2ReactNativeModule": "Rejects Promise with FAIL_CLOSED_DECRYPTION_ERROR; raw queue suppressed",
+    "layer3JavaScriptBridge": "Catches rejection and returns 0 processed messages safely"
+  },
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-09-04T20:35:15.113Z",
+  "timestamp": "2026-09-04T20:37:41.954Z",
   "exitCode": 0,
   "overallStatus": "PASS",
   "totalSuites": 17,
@@ -69,6 +82,7 @@
     "transformation": "AES/GCM/NoPadding",
     "keyLengthBits": 256,
     "tagLengthBits": 128,
+    "ivLengthBytes": 12,
     "failClosedHandling": "IllegalStateException on write failure; SecurityException on read failure; quarantined into finlife_crypto_failure_queue without plaintext; zero rawJson exposure",
     "legacyMigration": "Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit"
   },

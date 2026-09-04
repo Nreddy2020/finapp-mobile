@@ -429,15 +429,15 @@ try {
     caughtError = err;
 }
 
-assert(readAttemptResult === null, 'Read path NEVER returns raw queue data on decryption failure');
-assert(caughtError !== null && caughtError.message.includes('Fail-closed'), 'Decryption failure throws explicit fail-closed Security/Error');
-assert(failureQueueLogged.length > 0, 'Decryption failure logs non-sensitive quarantine metadata');
-assert(!JSON.stringify(failureQueueLogged).includes('CORRUPTED_CIPHER'), 'Quarantine log strictly excludes message payload/plaintext');
-assert(nativeDiskQueuePreserved.includes('off_1'), 'Encrypted queue at rest remains preserved and uncorrupted for recovery');
+assert(caughtError !== null && caughtError.message.includes('Fail-closed'), 'Contract Layer 1 & 2: Native receiver throws SecurityException and React Native module rejects Promise');
+assert(readAttemptResult === null, 'Contract Layer 2: Module rejection ensures no raw queue data is resolved or returned');
+assert(failureQueueLogged.length > 0, 'Contract Layer 1: Decryption failure quarantines non-sensitive metadata in finlife_crypto_failure_queue');
+assert(!JSON.stringify(failureQueueLogged).includes('CORRUPTED_CIPHER'), 'Contract Layer 1: Quarantine log strictly excludes message payload/plaintext');
+assert(nativeDiskQueuePreserved.includes('off_1'), 'Contract Layer 1: Encrypted queue at rest remains preserved and uncorrupted for recovery');
 
 // Verify bridge drain handles fail-closed gracefully
 const processedCount = await drainNativeOfflineQueue();
-assert(processedCount === 0, 'drainNativeOfflineQueue safely returns 0 processed messages when decryption fails closed');
+assert(processedCount === 0, 'Contract Layer 3: JavaScript bridge drainNativeOfflineQueue catches rejection and safely returns 0 processed messages');
 
 // Restore Platform.OS
 Platform.OS = origOS;
