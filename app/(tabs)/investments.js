@@ -1,711 +1,612 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, ScrollView, Text, StyleSheet, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
-import { TrendingUp, TrendingDown, PieChart, DollarSign, Activity, Globe, ArrowUpRight, ArrowDownLeft, Wallet, Briefcase, Bitcoin, BrainCircuit, AlertTriangle, Zap, X, Save, Layers } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
-import LuxuryCard from '../../components/ui/LuxuryCard';
-import StackHeader from '../../components/ui/StackHeader';
-import { COLORS } from '../../constants/theme';
-import { getLoans, getMetalPrices } from '../../services/api';
-import { loadData, saveData, STORAGE_KEYS, loadHoldings, loadInvestmentEvents, loadMarketQuotes } from '../../services/storage';
-import { InvestmentsService } from '../../services/investments';
-import InvestingAnalyticsEngine from '../../services/investingAnalyticsEngine';
-import MarketDataService from '../../services/marketDataService';
-import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
-import PortfolioOverviewCard from '../../components/investments/PortfolioOverviewCard';
-import PortfolioHeader from '../../components/investments/PortfolioHeader';
-import AssetAllocationCard from '../../components/investments/AssetAllocationCard';
-import PerformanceGrowthTimelineCard from '../../components/investments/PerformanceGrowthTimelineCard';
-import MasterStatementCard from '../../components/investments/MasterStatementCard';
-import RebalancingVisualizerCard from '../../components/investments/RebalancingVisualizerCard';
-import OrderPreviewModal from '../../components/investments/OrderPreviewModal';
-import RiskIntelligenceDashboard from '../../components/investments/RiskIntelligenceDashboard';
-import FinancialCommandCenter from '../../components/investments/FinancialCommandCenter';
-import TaxOptimizedRebalancingService from '../../services/taxOptimizedRebalancingService';
-import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScoreEngine';
-import { evaluatePortfolioStressScenarios } from '../../services/scenarioStressEngine';
-import { calculateConcentration } from '../../services/concentrationEngine';
-import { calculateVolatilityMetrics } from '../../services/volatilityDrawdownEngine';
-import { calculateCorrelationMatrix } from '../../services/correlationEngine';
-import { calculateLiquidityBreakdown } from '../../services/liquidityEngine';
+/**
+ * app/(tabs)/investments.js
+ *
+ * FinLife Investments Module V1 — Canonical Standalone Screen (Phase 5).
+ * Connects the certified Phase 1–4 backend engines to a production-grade UI layer.
+ *
+ * Implements 4 Sub-Tabs:
+ * 1. Overview (Hero Portfolio Card, Freshness Banner, Asset Class Allocation, Key Metrics)
+ * 2. Holdings (Filterable securities list by asset class, holding cards with P&L badges)
+ * 3. Tax Lots & Audit (Tax lot inspector, FIFO depletions, Section 55(2)(aa) bonus shares, isolation audit)
+ * 4. Personal CFO (Consolidated Balance Sheet Card with Personal vs Family BPS split)
+ *
+ * Guarantees:
+ * - ZERO financial calculations inside React components (consumes presentation adapters).
+ * - ZERO raw BigInt leaks into UI props.
+ * - Exact UI state model: LOADING, EMPTY, AVAILABLE, STALE, PARTIAL, UNAVAILABLE, ERROR.
+ * - Deterministic two-tier hardware/header back navigation.
+ * - Strictly guarded development-only fixture seeding.
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  BackHandler,
+  ActivityIndicator,
+  StatusBar
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Menu,
+  TrendingUp,
+  Briefcase,
+  Layers,
+  PieChart,
+  ShieldCheck,
+  AlertTriangle,
+  RefreshCw,
+  Plus
+} from 'lucide-react-native';
+
+import { useDrawer } from './_layout';
+import { InvestmentService } from '../../services/investmentService.js';
+import {
+  UI_STATE,
+  getInvestmentsOverviewViewModel,
+  getHoldingsListViewModel,
+  getHoldingDetailViewModel,
+  getCFOIntegrationViewModel
+} from '../../components/investments/investmentUIPresentationAdapter.js';
+
+import InvestmentHeroCard from '../../components/investments/InvestmentHeroCard.js';
+import InvestmentHoldingCard from '../../components/investments/InvestmentHoldingCard.js';
+import InvestmentHoldingDetailModal from '../../components/investments/InvestmentHoldingDetailModal.js';
+import InvestmentAssetAllocationCard from '../../components/investments/InvestmentAssetAllocationCard.js';
+import InvestmentCFOCard from '../../components/investments/InvestmentCFOCard.js';
+import InvestmentTaxLotsAuditView from '../../components/investments/InvestmentTaxLotsAuditView.js';
+import { COLORS, SPACING } from '../../constants/theme';
+
+export const INVESTMENTS_TABS = Object.freeze({
+  OVERVIEW: 'Overview',
+  HOLDINGS: 'Holdings',
+  TAX_LOTS: 'Tax Lots',
+  PERSONAL_CFO: 'Personal CFO'
+});
+
+const HOLDING_FILTERS = [
+  { id: 'ALL', label: 'All' },
+  { id: 'EQUITY', label: 'Equities' },
+  { id: 'MUTUAL_FUND', label: 'Mutual Funds' },
+  { id: 'GOLD_ETF', label: 'Gold / SGB' },
+  { id: 'REIT_INVIT', label: 'REITs' },
+  { id: 'GOVERNMENT_SECURITY', label: 'Govt Debt' }
+];
 
 export default function InvestmentsScreen() {
-    const { inflationRate, formatAmount } = useGlobalFinance();
-    const [netWorth, setNetWorth] = useState(0);
-    const [portfolioValue, setPortfolioValue] = useState(0);
-    const [cashBalance, setCashBalance] = useState(150000);
-    const [refreshing, setRefreshing] = useState(false);
-    const [isCrisisMode, setIsCrisisMode] = useState(false);
-    const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
+  const { setIsDrawerOpen } = useDrawer() || {};
 
-    // Stage C.5.1, C.5.2, C.5.3 & C.5.4 Portfolio Analytics State
-    const [selectedPortfolioId, setSelectedPortfolioId] = useState(null); // null = ALL_PORTFOLIOS
-    const [availablePortfolios, setAvailablePortfolios] = useState([]);
-    const [portfolioSummary, setPortfolioSummary] = useState(null);
-    const [allocationSummary, setAllocationSummary] = useState(null);
-    const [performanceMetrics, setPerformanceMetrics] = useState(null);
-    const [performanceTimeline, setPerformanceTimeline] = useState([]);
-    const [selectedPeriod, setSelectedPeriod] = useState('ALL_TIME');
-    const [portfolioStatement, setPortfolioStatement] = useState(null);
-    const [lastRefreshTime, setLastRefreshTime] = useState(null);
-    const [orderModalVisible, setOrderModalVisible] = useState(false);
-    const [rebalancingSummary, setRebalancingSummary] = useState(null);
-    const [riskHealthDTO, setRiskHealthDTO] = useState(null);
-    const [riskStressDTO, setRiskStressDTO] = useState(null);
-    const requestIdRef = useRef(0);
+  // Tab & Navigation State
+  const [activeTab, setActiveTab] = useState(INVESTMENTS_TABS.OVERVIEW);
+  const [selectedFilter, setSelectedFilter] = useState('ALL');
+  const [selectedHoldingId, setSelectedHoldingId] = useState(null);
+  const [ownershipMode, setOwnershipMode] = useState('PERSONAL');
 
-    // Modal State
-    const [modalVisible, setModalVisible] = useState(false);
-    const [newInv, setNewInv] = useState({ name: '', type: 'Stock', quantity: '', investedAmount: '' });
+  // Authoritative Domain Data State
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
-    // Live Market Data
-    const [marketData, setMarketData] = useState([
-        { symbol: 'NIFTY 50', price: 24500, change: 1.2, isUp: true },
-        { symbol: 'SENSEX', price: 81200, change: 1.1, isUp: true },
-        { symbol: 'GOLD', price: 160000, change: -0.4, isUp: false },
-        { symbol: 'SILVER', price: 350000, change: 0.8, isUp: true },
-        { symbol: 'BTC', price: 68000, change: 2.5, isUp: true },
-        { symbol: 'ETH', price: 3400, change: -1.2, isUp: false },
-    ]);
+  const [portfolioValuation, setPortfolioValuation] = useState(null);
+  const [taxLots, setTaxLots] = useState([]);
+  const [instruments, setInstruments] = useState([]);
+  const [accounts, setAccounts] = useState([]);
+  const [cfoSnapshot, setCfoSnapshot] = useState(null);
 
-    // Holdings
-    const [holdings, setHoldings] = useState([]);
+  // ───────────────────────────────────────────────────────────────────────────
+  // Data Loading Pipeline
+  // ───────────────────────────────────────────────────────────────────────────
 
-    const fetchData = async (targetPortfolioId = selectedPortfolioId, targetPeriod = selectedPeriod) => {
-        const currentReqId = ++requestIdRef.current;
-        try {
-            // 1. Discover unique portfolios from holdings & events
-            const allHoldings = await loadHoldings();
-            const allEvents = await loadInvestmentEvents();
+  const loadData = useCallback(async () => {
+    try {
+      setErrorMessage(null);
 
-            const pIdSet = new Set();
-            allHoldings.forEach(h => { if (h.portfolioId) pIdSet.add(h.portfolioId); });
-            allEvents.forEach(e => { if (e.portfolioId) pIdSet.add(e.portfolioId); });
+      // Fetch authoritative records from InvestmentService
+      const [insts, accs, lots, rawHoldings, latestCfo] = await Promise.all([
+        InvestmentService.getInstruments(),
+        InvestmentService.getAccounts(),
+        InvestmentService.getTaxLots(),
+        InvestmentService.getHoldings(),
+        InvestmentService.getLatestCFOSnapshot()
+      ]);
 
-            const discoveredPortfolios = Array.from(pIdSet).map(id => ({
-                id,
-                name: id === 'default' ? 'Main Account' : (id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' '))
-            }));
+      setInstruments(insts || []);
+      setAccounts(accs || []);
+      setTaxLots(lots || []);
 
-            // 2. Compute C.4.1 Summary, C.4.2 Allocation, C.4.3 Performance & C.4.4 Master Statement
-            const now = new Date();
-            const t0 = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-            const t1 = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
-            const t2 = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-            const tNow = now;
-
-            const [summary, allocSummary, perfNow, perfT0, perfT1, perfT2, statement] = await Promise.all([
-                InvestingAnalyticsEngine.getPortfolioSummary({
-                    portfolioId: targetPortfolioId
-                }),
-                InvestingAnalyticsEngine.getAssetAllocationSummary({
-                    portfolioId: targetPortfolioId
-                }),
-                InvestingAnalyticsEngine.getPerformanceMetrics({
-                    portfolioId: targetPortfolioId,
-                    asOfDate: tNow
-                }),
-                InvestingAnalyticsEngine.getPerformanceMetrics({
-                    portfolioId: targetPortfolioId,
-                    asOfDate: t0
-                }),
-                InvestingAnalyticsEngine.getPerformanceMetrics({
-                    portfolioId: targetPortfolioId,
-                    asOfDate: t1
-                }),
-                InvestingAnalyticsEngine.getPerformanceMetrics({
-                    portfolioId: targetPortfolioId,
-                    asOfDate: t2
-                }),
-                InvestingAnalyticsEngine.generatePortfolioStatement({
-                    portfolioId: targetPortfolioId,
-                    period: targetPeriod
-                })
-            ]);
-
-            // Construct timeline points with monotonic ordering and explicit deduplication
-            const rawPoints = [
-                { date: t0.toISOString().slice(0, 10), timestamp: t0.getTime(), ...perfT0 },
-                { date: t1.toISOString().slice(0, 10), timestamp: t1.getTime(), ...perfT1 },
-                { date: t2.toISOString().slice(0, 10), timestamp: t2.getTime(), ...perfT2 },
-                { date: tNow.toISOString().slice(0, 10), timestamp: tNow.getTime(), ...perfNow }
-            ];
-
-            const sortedPoints = rawPoints
-                .map(pt => ({
-                    date: pt.date,
-                    timestamp: pt.timestamp,
-                    terminalMarketValue: pt.cashFlowSummary?.terminalMarketValue || 0,
-                    historicalOutflows: pt.cashFlowSummary?.historicalOutflows || 0,
-                    historicalInflows: pt.cashFlowSummary?.historicalInflows || 0,
-                    xirrPercent: pt.xirrPercent || 0,
-                    cagrPercent: pt.cagrPercent || 0,
-                    absoluteReturnPercent: pt.absoluteReturnPercent || 0,
-                    performanceType: pt.performanceType || 'ABSOLUTE',
-                    valuationBasis: pt.valuationBasis || 'EMPTY'
-                }))
-                .sort((a, b) => a.timestamp - b.timestamp);
-
-            const timeline = [];
-            const seenTimestamps = new Set();
-            for (const pt of sortedPoints) {
-                const key = pt.date || String(pt.timestamp);
-                if (!seenTimestamps.has(key)) {
-                    seenTimestamps.add(key);
-                    timeline.push(pt);
-                }
-            }
-
-
-            // 3. Sourced Quote Timestamps
-            const cachedQuotes = await loadMarketQuotes();
-            let latestQuoteTime = null;
-            if (cachedQuotes && cachedQuotes.length > 0) {
-                const timestamps = cachedQuotes.map(q => new Date(q.timestamp).getTime()).filter(t => !isNaN(t));
-                if (timestamps.length > 0) {
-                    latestQuoteTime = Math.max(...timestamps);
-                }
-            }
-
-            // Load legacy holdings for bottom list view
-            const currentHoldings = await InvestmentsService.getInvestments();
-
-            // 4. Compute Stage C.7 Risk Intelligence, Health Score & Stress Test
-            const evalDate = tNow.toISOString();
-            const relevantHoldings = targetPortfolioId
-                ? allHoldings.filter(h => h.portfolioId === targetPortfolioId)
-                : allHoldings;
-
-            let healthResult = null;
-            let stressResult = null;
-            if (relevantHoldings.length > 0) {
-                try {
-                    const conc = calculateConcentration(relevantHoldings);
-                    const vol = calculateVolatilityMetrics(relevantHoldings, evalDate);
-                    const corr = calculateCorrelationMatrix(relevantHoldings, evalDate);
-                    const liq = calculateLiquidityBreakdown(relevantHoldings, { monthlyIncome: 0, totalMonthlyBurn: 0 }, evalDate);
-                    stressResult = evaluatePortfolioStressScenarios({ holdings: relevantHoldings, cashFlow: { monthlyIncome: 0, totalMonthlyBurn: 0 } }, evalDate);
-                    healthResult = evaluatePortfolioHealthScore({
-                        portfolioId: targetPortfolioId,
-                        holdings: relevantHoldings,
-                        concentration: conc,
-                        volatility: vol,
-                        correlation: corr,
-                        liquidity: liq,
-                        stress: stressResult
-                    }, evalDate);
-                } catch (err) {
-                    console.error('[InvestmentsScreen] Error computing risk health score:', err);
-                }
-            }
-
-            // Guard against race conditions: discard out-of-order async responses
-            if (currentReqId !== requestIdRef.current) {
-                return;
-            }
-
-            setAvailablePortfolios(discoveredPortfolios);
-            setPortfolioSummary(summary);
-            setAllocationSummary(allocSummary);
-            setPerformanceMetrics(perfNow);
-            setPerformanceTimeline(timeline);
-            setPortfolioStatement(statement);
-            setLastRefreshTime(latestQuoteTime);
-            setHoldings(currentHoldings);
-            setRiskHealthDTO(healthResult);
-            setRiskStressDTO(stressResult);
-
-            const investValue = summary.totalMarketValue || 0;
-            setPortfolioValue(investValue);
-            setNetWorth((cashBalance + investValue) - 0);
-
-        } catch (error) {
-            console.error('[InvestmentsScreen] Error loading portfolio summary:', error);
-        } finally {
-            if (currentReqId === requestIdRef.current) {
-                setLoading(false);
-                setRefreshing(false);
-            }
-        }
-    };
-
-
-
-    const handleSelectPortfolio = (pId) => {
-
-        setSelectedPortfolioId(pId);
-        fetchData(pId);
-    };
-
-
-    // Keep a ref so we can safely clear the interval on unmount
-    const intervalRef = useRef(null);
-
-    const refreshMetals = useCallback(async () => {
-        try {
-            const liveMetals = await getMetalPrices();
-            setMarketData(prev => prev.map(item => {
-                if (item.symbol === 'GOLD') {
-                    const diff = liveMetals.GOLD - item.price;
-                    return { ...item, price: liveMetals.GOLD, change: (diff / 160000) * 100, isUp: diff >= 0 };
-                }
-                if (item.symbol === 'SILVER') {
-                    const diff = liveMetals.SILVER - item.price;
-                    return { ...item, price: liveMetals.SILVER, change: (diff / 350000) * 100, isUp: diff >= 0 };
-                }
-                // Simulated random-walk for non-metal symbols
-                const jitter = Math.random() * 0.001 - 0.0005;
-                return { ...item, price: item.price * (1 + jitter), isUp: jitter >= 0 };
-            }));
-        } catch {
-            // Silently ignore — stale prices are fine here
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchData();
-        // Fetch metals on mount, then refresh every 30 s (API-friendly)
-        refreshMetals();
-        intervalRef.current = setInterval(refreshMetals, 30_000);
-        return () => clearInterval(intervalRef.current);
-    }, [refreshMetals]);
-
-    const onRefresh = async () => {
-        setRefreshing(true);
-        try {
-            // 1. Fetch live quotes for all holding symbols via MarketDataService
-            const allHoldings = await loadHoldings();
-            const symbolsToRefresh = Array.from(new Set(allHoldings.map(h => h.symbol).filter(Boolean)));
-            if (symbolsToRefresh.length > 0) {
-                await Promise.all(symbolsToRefresh.map(sym => MarketDataService.getQuote(sym)));
-            }
-
-            // 2. Refresh metals & market pulse ticker
-            await refreshMetals();
-
-            // 3. Re-fetch portfolio summary and valuation snapshot
-            await fetchData(selectedPortfolioId);
-        } catch (err) {
-            console.warn('[InvestmentsScreen] Error refreshing quotes via MarketDataService:', err);
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-
-    const handleBuy = async () => {
-        if (!newInv.name || !newInv.investedAmount) {
-            Alert.alert('Error', 'Please enter Name and Amount');
-            return;
-        }
-
-        await InvestmentsService.addInvestment({
-            ...newInv,
-            currentValue: newInv.investedAmount, // Start at cost
-            purchaseDate: new Date().toISOString()
+      // If holdings exist, compute valuation snapshot
+      if (rawHoldings && rawHoldings.length > 0) {
+        const asOfDate = new Date().toISOString().split('T')[0];
+        const valSnapshot = await InvestmentService.captureValuationSnapshot(asOfDate, {
+          allowStale: true
         });
+        setPortfolioValuation(valSnapshot);
+      } else {
+        setPortfolioValuation(null);
+      }
 
-        setModalVisible(false);
-        setNewInv({ name: '', type: 'Stock', quantity: '', investedAmount: '' });
-        fetchData();
-        Alert.alert('Success', 'Order Executed');
+      // Update or capture CFO Snapshot
+      if (latestCfo) {
+        setCfoSnapshot(latestCfo);
+      } else {
+        // Capture initial CFO snapshot
+        const newCfo = await InvestmentService.captureCFOSnapshot({
+          ownershipMode: 'PERSONAL'
+        });
+        setCfoSnapshot(newCfo);
+      }
+    } catch (err) {
+      console.error('[InvestmentsScreen] Error loading authoritative data:', err);
+      setErrorMessage(err.message || 'Failed to load investments ledger.');
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    loadData();
+  }, [loadData]);
+
+  // Explicit development-only fixture seeder (strictly blocked in production unless demo mode)
+  const handleSeedDevelopmentFixtures = useCallback(async () => {
+    const isDemoPermitted = Boolean(__DEV__) || process.env.EXPO_PUBLIC_ENABLE_DEMO_MODE === 'true';
+    if (!isDemoPermitted) {
+      return; // Absolute production guard
+    }
+    setIsLoading(true);
+    try {
+      await InvestmentService.seedDemoPortfolio();
+      await loadData();
+    } catch (err) {
+      console.error('[InvestmentsScreen] Seed fixtures error:', err);
+      setErrorMessage(err.message);
+      setIsLoading(false);
+    }
+  }, [loadData]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Hardware Back-Handler Support (Two-Tier Navigation)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const onBackPress = () => {
+      // Tier 1: If Holding Detail modal is open, close it
+      if (selectedHoldingId) {
+        setSelectedHoldingId(null);
+        return true;
+      }
+      // Tier 2: If active tab is not OVERVIEW, return to OVERVIEW
+      if (activeTab !== INVESTMENTS_TABS.OVERVIEW) {
+        setActiveTab(INVESTMENTS_TABS.OVERVIEW);
+        return true;
+      }
+      // Otherwise, allow default navigation / exit
+      return false;
     };
 
-    const handleSell = async (id) => {
-        Alert.alert(
-            "Sell Holding",
-            "Liquidate this position?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Sell",
-                    style: "destructive",
-                    onPress: async () => {
-                        await InvestmentsService.deleteInvestment(id);
-                        fetchData();
-                        Alert.alert("Sold", "Funds added to cash balance (simulated)");
-                    }
-                }
-            ]
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [selectedHoldingId, activeTab]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Pure Presentation View Models (Zero BigInt, Zero Math in React)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const overviewVM = useMemo(() => {
+    return getInvestmentsOverviewViewModel({
+      portfolioValuation,
+      asOfDate: portfolioValuation?.asOfDate,
+      uiState: isLoading ? UI_STATE.LOADING : (portfolioValuation ? UI_STATE.AVAILABLE : UI_STATE.EMPTY)
+    });
+  }, [portfolioValuation, isLoading]);
+
+  const holdingsVM = useMemo(() => {
+    return getHoldingsListViewModel({
+      portfolioValuation,
+      instruments,
+      accounts,
+      selectedFilter
+    });
+  }, [portfolioValuation, instruments, accounts, selectedFilter]);
+
+  const holdingDetailVM = useMemo(() => {
+    if (!selectedHoldingId) return null;
+    return getHoldingDetailViewModel({
+      holdingId: selectedHoldingId,
+      portfolioValuation,
+      taxLots,
+      instruments,
+      accounts
+    });
+  }, [selectedHoldingId, portfolioValuation, taxLots, instruments, accounts]);
+
+  const cfoVM = useMemo(() => {
+    return getCFOIntegrationViewModel({
+      cfoSnapshot,
+      ownershipMode
+    });
+  }, [cfoSnapshot, ownershipMode]);
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Sub-Tab Rendering Logic
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading authoritative investment ledgers...</Text>
+        </View>
+      );
+    }
+
+    if (errorMessage) {
+      return (
+        <View style={styles.centerContainer}>
+          <AlertTriangle size={36} color="#EF4444" style={{ marginBottom: 12 }} />
+          <Text style={styles.errorTitle}>Ledger Verification Error</Text>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={loadData}>
+            <RefreshCw size={14} color="#F9FAFB" style={{ marginRight: 6 }} />
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // EMPTY State across all views if no holdings exist
+    const hasHoldings = portfolioValuation && portfolioValuation.holdingsCount > 0;
+
+    switch (activeTab) {
+      case INVESTMENTS_TABS.OVERVIEW:
+        return (
+          <ScrollView
+            style={styles.tabContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+          >
+            <InvestmentHeroCard
+              hero={overviewVM.hero}
+              freshnessBanner={overviewVM.freshnessBanner}
+            />
+
+            {overviewVM.assetAllocation?.length > 0 && (
+              <InvestmentAssetAllocationCard allocation={overviewVM.assetAllocation} />
+            )}
+
+            {!hasHoldings && (
+              <View style={styles.emptyCard}>
+                <Briefcase size={32} color="#6B7280" style={{ marginBottom: 10 }} />
+                <Text style={styles.emptyCardTitle}>No Securities Recorded</Text>
+                <Text style={styles.emptyCardDesc}>
+                  Your investment ledger is currently empty. Authoritative buys, SIP purchases, and holdings will appear here once booked.
+                </Text>
+                {(Boolean(__DEV__) || process.env.EXPO_PUBLIC_ENABLE_DEMO_MODE === 'true') && (
+                  <TouchableOpacity style={styles.devSeedBtn} onPress={handleSeedDevelopmentFixtures}>
+                    <Plus size={14} color="#3B82F6" style={{ marginRight: 6 }} />
+                    <Text style={styles.devSeedText}>Seed Demo Portfolio</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
         );
-    };
 
-    return (
-        <AnimatedScreen style={styles.container}>
-            <ScrollView
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} progressBackgroundColor="#18181B" />}
-            >
-                {/* Header */}
-                <StackHeader title="Investments" subtitle="Wealth Command Center">
-                    {/* Crisis Mode Toggle */}
-                    <TouchableOpacity
-                        onPress={() => {
-                            setIsCrisisMode(!isCrisisMode);
-                            alert(isCrisisMode ? '😌 Market Normalizing...' : '🚨 CRISIS MODE ACTIVATED!\n\nSimulating -20% Market Crash. Hedging protocols initiated.');
-                        }}
-                        style={{ backgroundColor: isCrisisMode ? '#EF444420' : '#18181B', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: isCrisisMode ? '#EF4444' : '#FFFFFF10' }}
-                    >
-                        <AlertTriangle size={24} color={isCrisisMode ? '#EF4444' : '#71717A'} />
-                    </TouchableOpacity>
-                </StackHeader>
-
-                {/* Net Worth Hero Card */}
-                <View style={styles.heroCardWrapper}>
-                    <View style={styles.heroCard}>
-                        <LinearGradient
-                            pointerEvents="none"
-                            colors={['#4F46E560', '#00000000']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.heroGlow}
-                        />
-                        <View style={styles.heroContent}>
-                            <Text style={styles.heroLabel}>TOTAL NET WORTH</Text>
-                            <Text style={styles.heroAmount}>₹{netWorth.toLocaleString('en-IN')}</Text>
-                            <View style={styles.heroFooter}>
-                                <View style={[styles.heroIconBadge, { backgroundColor: '#4F46E5' }]}>
-                                    <Globe size={14} color="#FFF" />
-                                </View>
-                                <Text style={styles.heroSubtext}>Across all assets & liabilities</Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Market Pulse Ticker */}
-                <View style={styles.tickerContainer}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 24 }}>
-                        {marketData.map((item, index) => (
-                            <View key={index} style={styles.tickerItem}>
-                                <Text style={styles.tickerSymbol}>{item.symbol}</Text>
-                                <Text style={styles.tickerPrice}>
-                                    {['BTC', 'ETH'].includes(item.symbol) ? '$' : '₹'}
-                                    {item.price.toLocaleString(undefined, { maximumFractionDigits: item.symbol.includes('BTC') ? 0 : 0 })}
-                                </Text>
-                                <Text style={[styles.tickerChange, { color: item.isUp ? '#10B981' : '#EF4444' }]}>
-                                    {item.isUp ? '▲' : '▼'}{Math.abs(item.change).toFixed(2)}%
-                                </Text>
-                            </View>
-                        ))}
-                    </ScrollView>
-                </View>
-
-                {/* Metal Analytics Module */}
-                <View style={styles.section}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                        <Text style={styles.sectionTitle}>Precision Metals</Text>
-                        <View style={{ backgroundColor: '#F59E0B20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
-                            <Text style={{ color: '#F59E0B', fontSize: 10, fontWeight: '800' }}>LIVE TRACKING</Text>
-                        </View>
-                    </View>
-
-                    {/* Gold Cards Row */}
-                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                        <LuxuryCard style={{ flex: 1, padding: 16 }}>
-                            <Text style={{ color: '#71717A', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>GOLD 24K</Text>
-                            <Text style={{ color: '#9CA3AF', fontSize: 9, marginBottom: 8 }}>per 10 grams</Text>
-                            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>₹{marketData.find(m => m.symbol === 'GOLD')?.price.toLocaleString()}</Text>
-                            <Text style={{ color: '#71717A', fontSize: 10, marginTop: 4 }}>₹{Math.round(marketData.find(m => m.symbol === 'GOLD')?.price / 10).toLocaleString()}/g</Text>
-                            <View style={{ height: 2, backgroundColor: '#FFFFFF10', marginVertical: 12 }} />
-                            <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>+8.4% YTD</Text>
-                        </LuxuryCard>
-                        <LuxuryCard style={{ flex: 1, padding: 16 }}>
-                            <Text style={{ color: '#71717A', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>GOLD 22K</Text>
-                            <Text style={{ color: '#9CA3AF', fontSize: 9, marginBottom: 8 }}>per 10 grams</Text>
-                            <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '900' }}>₹{Math.round((marketData.find(m => m.symbol === 'GOLD')?.price || 160000) * 0.9167).toLocaleString()}</Text>
-                            <Text style={{ color: '#71717A', fontSize: 10, marginTop: 4 }}>₹{Math.round((marketData.find(m => m.symbol === 'GOLD')?.price || 160000) * 0.9167 / 10).toLocaleString()}/g</Text>
-                            <View style={{ height: 2, backgroundColor: '#FFFFFF10', marginVertical: 12 }} />
-                            <Text style={{ color: '#10B981', fontSize: 12, fontWeight: '700' }}>+7.9% YTD</Text>
-                        </LuxuryCard>
-                    </View>
-
-                    {/* Silver Card */}
-                    <LuxuryCard style={{ padding: 16 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: '#71717A', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>SILVER 999</Text>
-                                <Text style={{ color: '#9CA3AF', fontSize: 9, marginBottom: 8 }}>per kilogram</Text>
-                                <Text style={{ color: '#FFF', fontSize: 20, fontWeight: '900' }}>₹{marketData.find(m => m.symbol === 'SILVER')?.price.toLocaleString()}</Text>
-                                <Text style={{ color: '#71717A', fontSize: 10, marginTop: 4 }}>₹{Math.round((marketData.find(m => m.symbol === 'SILVER')?.price || 350000) / 1000).toLocaleString()}/g</Text>
-                            </View>
-                            <View style={{ alignItems: 'flex-end' }}>
-                                <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>-1.2% YTD</Text>
-                            </View>
-                        </View>
-                    </LuxuryCard>
-                </View>
-
-                {/* Stage C.5.1 Executive Portfolio Dashboard */}
-                <View style={styles.section}>
-                    <PortfolioHeader
-                        selectedPortfolioId={selectedPortfolioId}
-                        availablePortfolios={availablePortfolios}
-                        onSelectPortfolio={handleSelectPortfolio}
-                        lastRefreshTime={lastRefreshTime}
-                    />
-
-                    <PortfolioOverviewCard
-                        portfolioSummary={portfolioSummary}
-                        loading={loading}
-                        refreshing={refreshing}
-                        onAddHolding={() => setModalVisible(true)}
-                        onRefresh={onRefresh}
-                    />
-
-                    {/* Stage C.5.2 Asset Allocation & Risk Concentration Visualizer */}
-                    <AssetAllocationCard
-                        allocationSummary={allocationSummary}
-                        loading={loading}
-                    />
-
-                    {/* Stage C.5.3 Performance & XIRR Growth Timeline Visualizer */}
-                    <PerformanceGrowthTimelineCard
-                        performanceMetrics={performanceMetrics}
-                        timeline={performanceTimeline}
-                        loading={loading}
-                    />
-
-                    {/* Stage C.6.4 Rebalancing Visualizer & Decision Support Card */}
-                    <RebalancingVisualizerCard
-                        portfolioId={selectedPortfolioId}
-                        asOfDate={lastRefreshTime ? new Date(lastRefreshTime) : new Date()}
-                        availableLiquidity={0}
-                        onOpenOrderPreview={async () => {
-                            const evalDate = lastRefreshTime ? new Date(lastRefreshTime) : new Date();
-                            try {
-                                const summary = await TaxOptimizedRebalancingService.calculateTaxOptimizedRebalancing({
-                                    portfolioId: selectedPortfolioId,
-                                    asOfDate: evalDate,
-                                    availableLiquidity: 0
-                                });
-                                if (summary) {
-                                    setRebalancingSummary(summary);
-                                    setOrderModalVisible(true);
-                                }
-                            } catch (err) {
-                                Alert.alert('Preview Unavailable', 'Unable to calculate rebalancing order preview. Please refresh quotes and try again.');
-                            }
-                        }}
-                    />
-
-                    {/* Stage C.5.4 Master Statement & Tax Report View / Export Engine */}
-                    <MasterStatementCard
-                        statement={portfolioStatement}
-                        selectedPeriod={selectedPeriod}
-                        onSelectPeriod={(p) => {
-                            setSelectedPeriod(p);
-                            fetchData(selectedPortfolioId, p);
-                        }}
-                        loading={loading}
-                    />
-
-                    {/* Stage C.7.8 Risk Intelligence Dashboard & Stress UI */}
-                    <RiskIntelligenceDashboard
-                        healthDTO={riskHealthDTO}
-                        stressDTO={riskStressDTO}
-                        isLoading={loading}
-                        onRefresh={onRefresh}
-                    />
-
-                    {/* Stage C.8.8 Goal & Financial Action Command Center */}
-                    <FinancialCommandCenter
-                        healthScoreDTO={riskHealthDTO}
-                        isLoading={loading}
-                        onRefresh={onRefresh}
-                        asOfDate={lastRefreshTime ? lastRefreshTime.toISOString() : '2026-08-16T00:00:00.000Z'}
-                    />
-                </View>
-
-                {/* Stage C.6.4 Order Preview Modal */}
-                <OrderPreviewModal
-                    visible={orderModalVisible}
-                    onClose={() => setOrderModalVisible(false)}
-                    rebalancingSummary={rebalancingSummary}
-                    onRefreshQuotes={onRefresh}
-                />
-
-
-
-
-
-                {/* Quick Actions */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Actions</Text>
-                    <View style={styles.actionRow}>
-                        <TouchableOpacity style={styles.actionButton} onPress={() => setModalVisible(true)}>
-                            <View pointerEvents="none" style={{ alignItems: 'center', gap: 8 }}>
-                                <View style={[styles.actionIcon, { backgroundColor: '#10B98120' }]}>
-                                    <ArrowDownLeft size={24} color="#10B981" />
-                                </View>
-                                <Text style={styles.actionText}>Buy</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionButton} onPress={() => Alert.alert('Sell', 'Long press any holding in your portfolio to sell it.')}>
-                            <View pointerEvents="none" style={{ alignItems: 'center', gap: 8 }}>
-                                <View style={[styles.actionIcon, { backgroundColor: '#EF444420' }]}>
-                                    <ArrowUpRight size={24} color="#EF4444" />
-                                </View>
-                                <Text style={styles.actionText}>Sell</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.actionButton}>
-                            <View pointerEvents="none" style={{ alignItems: 'center', gap: 8 }}>
-                                <View style={[styles.actionIcon, { backgroundColor: '#3B82F620' }]}>
-                                    <Activity size={24} color="#3B82F6" />
-                                </View>
-                                <Text style={styles.actionText}>Analyze</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
+      case INVESTMENTS_TABS.HOLDINGS:
+        return (
+          <ScrollView
+            style={styles.tabContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+          >
+            {/* Filter Chips Row */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersRow}>
+              {HOLDING_FILTERS.map(f => {
+                const isSelected = selectedFilter === f.id;
+                return (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[styles.filterChip, isSelected && styles.filterChipActive]}
+                    onPress={() => setSelectedFilter(f.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.filterText, isSelected && styles.filterTextActive]}>
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
-            {/* Buy Modal */}
-            <Modal
-                animationType="slide"
-                transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+            {/* Holdings Cards */}
+            {holdingsVM.holdings?.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyCardTitle}>No Matching Securities</Text>
+                <Text style={styles.emptyCardDesc}>
+                  No holdings found under filter: {selectedFilter}.
+                </Text>
+              </View>
+            ) : (
+              holdingsVM.holdings.map(h => (
+                <InvestmentHoldingCard
+                  key={h.holdingId}
+                  holding={h}
+                  onPress={(item) => setSelectedHoldingId(item.holdingId)}
+                />
+              ))
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        );
+
+      case INVESTMENTS_TABS.TAX_LOTS:
+        return (
+          <ScrollView
+            style={styles.tabContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+          >
+            <InvestmentTaxLotsAuditView
+              holdings={holdingsVM.holdings || []}
+              taxLots={taxLots}
+            />
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        );
+
+      case INVESTMENTS_TABS.PERSONAL_CFO:
+        return (
+          <ScrollView
+            style={styles.tabContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#3B82F6" />}
+          >
+            <InvestmentCFOCard
+              cfo={cfoVM}
+              ownershipMode={ownershipMode}
+              onToggleOwnership={(mode) => setOwnershipMode(mode)}
+              onRefresh={loadData}
+            />
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#12141A" />
+
+      {/* Top Navigation Bar */}
+      <View style={styles.topNav}>
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => setIsDrawerOpen && setIsDrawerOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Open Navigation Drawer"
+        >
+          <Menu size={22} color="#F9FAFB" />
+        </TouchableOpacity>
+
+        <View style={styles.titleContainer}>
+          <Text style={styles.appTitle}>WealthWise</Text>
+          <Text style={styles.screenSubtitle}>INVESTMENTS</Text>
+        </View>
+
+        <View style={styles.rightPlaceholder} />
+      </View>
+
+      {/* Sub-Tabs Selector */}
+      <View style={styles.subTabsContainer}>
+        {Object.values(INVESTMENTS_TABS).map(tab => {
+          const isActive = activeTab === tab;
+          return (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.subTabItem, isActive && styles.subTabItemActive]}
+              onPress={() => setActiveTab(tab)}
+              activeOpacity={0.8}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>New Investment</Text>
-                            <TouchableOpacity onPress={() => setModalVisible(false)}>
-                                <X size={24} color="#A1A1AA" />
-                            </TouchableOpacity>
-                        </View>
+              <Text style={[styles.subTabText, isActive && styles.subTabTextActive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Asset Name</Text>
-                            <TextInput
-                                style={styles.input}
-                                placeholder="e.g., Tata Motors"
-                                placeholderTextColor="#52525B"
-                                value={newInv.name}
-                                onChangeText={(text) => setNewInv({ ...newInv, name: text })}
-                            />
-                        </View>
+      {/* Tab Content Body */}
+      {renderContent()}
 
-                        <View style={styles.inputContainer}>
-                            <Text style={styles.inputLabel}>Type</Text>
-                            <View style={styles.categoryRow}>
-                                {['Stock', 'Crypto', 'MF', 'Gold'].map((cat) => (
-                                    <TouchableOpacity
-                                        key={cat}
-                                        style={[
-                                            styles.categoryChip,
-                                            newInv.type === cat && { backgroundColor: COLORS.primary, borderColor: COLORS.primary }
-                                        ]}
-                                        onPress={() => setNewInv({ ...newInv, type: cat })}
-                                    >
-                                        <Text style={[
-                                            styles.categoryText,
-                                            newInv.type === cat && { color: '#000' }
-                                        ]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        </View>
-
-                        <View style={styles.row}>
-                            <View style={[styles.inputContainer, { flex: 1 }]}>
-                                <Text style={styles.inputLabel}>Amount Invested (₹)</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="0"
-                                    placeholderTextColor="#52525B"
-                                    keyboardType="numeric"
-                                    value={newInv.investedAmount}
-                                    onChangeText={(text) => setNewInv({ ...newInv, investedAmount: text })}
-                                />
-                            </View>
-                            <View style={{ width: 16 }} />
-                            <View style={[styles.inputContainer, { flex: 1 }]}>
-                                <Text style={styles.inputLabel}>Quantity</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="0"
-                                    placeholderTextColor="#52525B"
-                                    keyboardType="numeric"
-                                    value={newInv.quantity}
-                                    onChangeText={(text) => setNewInv({ ...newInv, quantity: text })}
-                                />
-                            </View>
-                        </View>
-
-                        <TouchableOpacity style={[styles.saveButton, { backgroundColor: COLORS.primary }]} onPress={handleBuy}>
-                            <Save size={20} color="#000000" />
-                            <Text style={styles.saveButtonText}>Execute Order</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-        </AnimatedScreen>
-    );
+      {/* Holding & Tax Lots Drilldown Modal */}
+      <InvestmentHoldingDetailModal
+        visible={Boolean(selectedHoldingId)}
+        detail={holdingDetailVM}
+        onClose={() => setSelectedHoldingId(null)}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000000' },
-    scrollContent: { paddingBottom: 100 },
-    header: { padding: 24, paddingTop: 60, paddingBottom: 16 },
-    headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-    title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
-
-    heroCardWrapper: { marginHorizontal: 24, marginBottom: 24 },
-    heroCard: { position: 'relative', borderRadius: 32, overflow: 'hidden', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#FFFFFF08' },
-    heroGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.6 },
-    heroContent: { padding: 32 },
-    heroLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 16, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
-    heroAmount: { fontSize: 48, fontWeight: '900', color: '#FFFFFF', marginBottom: 24, letterSpacing: -2 },
-    heroFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    heroIconBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFFFFF20' },
-    heroSubtext: { fontSize: 13, color: '#FFFFFF80', fontWeight: '600', letterSpacing: 0.5 },
-
-    tickerContainer: { marginBottom: 32 },
-    tickerItem: { backgroundColor: '#18181B', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: '#FFFFFF08', flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 0 },
-    tickerSymbol: { color: '#FFF', fontWeight: '700', fontSize: 13 },
-    tickerPrice: { color: '#A1A1AA', fontSize: 13 },
-    tickerChange: { fontSize: 12, fontWeight: '600' },
-
-    section: { paddingHorizontal: 24, marginBottom: 32 },
-    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#71717A', marginBottom: 20, letterSpacing: 2, textTransform: 'uppercase' },
-
-    portfolioCard: { padding: 20, backgroundColor: '#18181B', borderRadius: 24, borderWidth: 1, borderColor: '#FFFFFF08' },
-    portfolioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-    portfolioLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 4 },
-    portfolioValue: { fontSize: 32, fontWeight: '800', color: '#FFFFFF' },
-    pnlBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 },
-
-    holdingsList: { gap: 16 },
-    holdingItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    holdingLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    holdingIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    holdingName: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-    holdingQty: { color: '#71717A', fontSize: 12 },
-    holdingRight: { alignItems: 'flex-end' },
-    holdingValue: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-    holdingPnl: { fontSize: 12, fontWeight: '600' },
-
-    actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-    actionButton: { flex: 1, alignItems: 'center', gap: 8 },
-    actionIcon: { width: 56, height: 56, borderRadius: 20, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFFFFF10' },
-    actionText: { color: '#A1A1AA', fontSize: 12, fontWeight: '600' },
-
-    // Modal Styles
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#18181B', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, minHeight: 400, borderTopWidth: 1, borderColor: '#FFFFFF10' },
-    modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
-    inputContainer: { marginBottom: 20 },
-    inputLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 1 },
-    input: { backgroundColor: '#000000', borderRadius: 16, padding: 16, color: '#FFFFFF', fontSize: 16, borderWidth: 1, borderColor: '#FFFFFF10' },
-    row: { flexDirection: 'row' },
-    categoryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-    categoryChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#FFFFFF20', backgroundColor: '#000000' },
-    categoryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-    saveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 20, borderRadius: 24, marginTop: 20, gap: 10 },
-    saveButtonText: { color: '#000000', fontSize: 16, fontWeight: '800' }
+  container: {
+    flex: 1,
+    backgroundColor: '#12141A'
+  },
+  topNav: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)'
+  },
+  menuButton: {
+    padding: 6,
+    borderRadius: 8
+  },
+  titleContainer: {
+    alignItems: 'center'
+  },
+  appTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#F9FAFB',
+    letterSpacing: 0.5
+  },
+  screenSubtitle: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    color: '#60A5FA'
+  },
+  rightPlaceholder: {
+    width: 32
+  },
+  subTabsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
+    backgroundColor: '#161920',
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)'
+  },
+  subTabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8
+  },
+  subTabItemActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)'
+  },
+  subTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF'
+  },
+  subTabTextActive: {
+    color: '#60A5FA',
+    fontWeight: '800'
+  },
+  tabContent: {
+    flex: 1,
+    padding: SPACING.md
+  },
+  centerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.lg
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginTop: 12
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginBottom: 6
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 16
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8
+  },
+  retryBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF'
+  },
+  emptyCard: {
+    backgroundColor: '#1E222B',
+    borderRadius: 16,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    marginVertical: SPACING.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)'
+  },
+  emptyCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#F9FAFB',
+    marginBottom: 6
+  },
+  emptyCardDesc: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 12
+  },
+  devSeedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.3)'
+  },
+  devSeedText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#60A5FA'
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#1E222B',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)'
+  },
+  filterChipActive: {
+    backgroundColor: '#2A2F3D',
+    borderColor: '#3B82F6'
+  },
+  filterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF'
+  },
+  filterTextActive: {
+    color: '#F9FAFB',
+    fontWeight: '700'
+  }
 });

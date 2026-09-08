@@ -15,6 +15,7 @@ import {
     CommitmentStatus,
     PaymentOccurrenceStatus,
     FinancialNature,
+    AmountMode,
     createMoneyPaise,
     moneyToBigInt
 } from './commitmentContracts.js';
@@ -141,6 +142,11 @@ export function computeCommitmentMetrics(commitments = [], occurrences = [], asO
     let debtMonthlySum = 0n;
     let investmentMonthlySum = 0n;
 
+    // Breakdown by amount mode
+    let fixedMonthlySum = 0n;
+    let estimatedMonthlySum = 0n;
+    let variableMonthlySum = 0n;
+
     for (const c of activeCommitments) {
         const monthly = moneyToBigInt(normalizeToMonthlyPaise(c.amount, c.frequency));
         const yearly = moneyToBigInt(normalizeToYearlyPaise(c.amount, c.frequency));
@@ -154,6 +160,15 @@ export function computeCommitmentMetrics(commitments = [], occurrences = [], asO
             investmentMonthlySum += monthly;
         } else {
             expenseMonthlySum += monthly;
+        }
+
+        const mode = c.amountMode || AmountMode.FIXED;
+        if (mode === AmountMode.VARIABLE) {
+            variableMonthlySum += monthly;
+        } else if (mode === AmountMode.ESTIMATED) {
+            estimatedMonthlySum += monthly;
+        } else {
+            fixedMonthlySum += monthly;
         }
     }
 
@@ -216,6 +231,11 @@ export function computeCommitmentMetrics(commitments = [], occurrences = [], asO
             debt: createMoneyPaise(debtMonthlySum),
             investment: createMoneyPaise(investmentMonthlySum)
         },
+        breakdownByMode: {
+            fixed: createMoneyPaise(fixedMonthlySum),
+            estimated: createMoneyPaise(estimatedMonthlySum),
+            variable: createMoneyPaise(variableMonthlySum)
+        },
         nextDue: nearestUpcomingOccurrence ? {
             occurrenceId: nearestUpcomingOccurrence.id,
             commitmentId: nearestUpcomingOccurrence.commitmentId,
@@ -224,5 +244,70 @@ export function computeCommitmentMetrics(commitments = [], occurrences = [], asO
             amount: nearestUpcomingOccurrence.expectedAmount,
             daysRemaining: nearestDaysRemaining
         } : null
+    };
+}
+
+/**
+ * Authoritative calculation of normalized monthly committed outflow for Emergency Runway and Budget planning.
+ * Distinguishes:
+ * - FIXED: included directly.
+ * - ESTIMATED: included with assumptionStatus: 'ESTIMATED'.
+ * - VARIABLE: excluded from strict committed baseline (or reported in conservative projection).
+ * 
+ * @param {Array<object>} commitments
+ * @param {object} options
+ * @param {boolean} options.includeEstimated default true
+ * @param {boolean} options.includeVariable default false
+ * @returns {object}
+ */
+export function calculateMonthlyCommittedOutflow(commitments = [], options = {}) {
+    const { includeEstimated = true, includeVariable = false } = options;
+    const activeList = (Array.isArray(commitments) ? commitments : []).filter(c => c.status === CommitmentStatus.ACTIVE);
+
+    let fixedPaise = 0n;
+    let estimatedPaise = 0n;
+    let variablePaise = 0n;
+
+    let activeFixedCount = 0;
+    let activeEstimatedCount = 0;
+    let activeVariableCount = 0;
+
+    for (const c of activeList) {
+        if (!c.amount) continue;
+        const monthly = moneyToBigInt(normalizeToMonthlyPaise(c.amount, c.frequency));
+        const mode = c.amountMode || AmountMode.FIXED;
+
+        if (mode === AmountMode.VARIABLE) {
+            variablePaise += monthly;
+            activeVariableCount++;
+        } else if (mode === AmountMode.ESTIMATED) {
+            estimatedPaise += monthly;
+            activeEstimatedCount++;
+        } else {
+            fixedPaise += monthly;
+            activeFixedCount++;
+        }
+    }
+
+    let effectiveMonthlyPaise = fixedPaise;
+    if (includeEstimated) {
+        effectiveMonthlyPaise += estimatedPaise;
+    }
+    if (includeVariable) {
+        effectiveMonthlyPaise += variablePaise;
+    }
+
+    return {
+        strictCommittedPaise: fixedPaise,
+        estimatedPaise,
+        variablePaise,
+        totalCommittedPaise: effectiveMonthlyPaise,
+        conservativeOutflowPaise: fixedPaise + estimatedPaise + variablePaise,
+        activeCount: activeList.length,
+        activeFixedCount,
+        activeEstimatedCount,
+        activeVariableCount,
+        hasOnlyVariable: activeVariableCount > 0 && activeFixedCount === 0 && activeEstimatedCount === 0,
+        assumptionStatus: estimatedPaise > 0n ? 'ESTIMATED' : 'EXACT'
     };
 }

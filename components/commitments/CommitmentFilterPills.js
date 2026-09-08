@@ -15,6 +15,7 @@ export default function CommitmentFilterPills({
 }) {
     const filters = [
         { id: CommitmentFilterPill.ALL, label: 'All', count: counts.all || 0 },
+        { id: CommitmentFilterPill.FAMILY, label: 'Family Obligations', count: counts.family || 0 },
         { id: CommitmentFilterPill.SUBSCRIPTIONS, label: 'Subscriptions', count: counts.subscriptions || 0 },
         { id: CommitmentFilterPill.LOANS, label: 'Loans & EMIs', count: counts.loans || 0 },
         { id: CommitmentFilterPill.BILLS, label: 'Bills & Rent', count: counts.bills || 0 },

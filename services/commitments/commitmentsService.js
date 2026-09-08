@@ -18,15 +18,29 @@ import {
     RecurrenceFrequency,
     CommitmentStatus,
     PaymentOccurrenceStatus,
+    CashbookReconciliationStatus,
+    EmergencyRunwayStatus,
     AppMode,
     createMoneyPaise,
     rupeesToMoneyPaise,
     moneyToBigInt,
     validateCommitment
 } from './commitmentContracts.js';
-import { normalizeToMonthlyPaise, normalizeToYearlyPaise } from './commitmentCalculator.js';
-import { generateOccurrences, recordPaymentOccurrence, cancelCommitmentWithOccurrences } from './commitmentEngine.js';
+import { normalizeToMonthlyPaise, normalizeToYearlyPaise, calculateMonthlyCommittedOutflow } from './commitmentCalculator.js';
+import {
+    generateOccurrences,
+    recordPaymentOccurrence,
+    preparePaymentOccurrence,
+    failReconciliationOccurrence,
+    reversePaymentOccurrence,
+    cancelCommitmentWithOccurrences
+} from './commitmentEngine.js';
 import { createAuditEvent, AuditEventType, AuditSource } from './commitmentAuditTrail.js';
+import { CashbookRepository } from '../cashbook/cashbookRepository.js';
+import { TransactionType } from '../cashbook/cashbookContracts.js';
+import { generateRecurringPaymentIdempotencyKey } from '../cashbook/cashbookIdempotency.js';
+import { FamilyRepository } from '../family/familyRepository.js';
+import { validateFamilyContext } from './familyCommitmentBridge.js';
 
 const STORAGE_KEY_COMMITMENTS = 'FINLIFE_COMMITMENTS_V2';
 const STORAGE_KEY_OCCURRENCES = 'FINLIFE_OCCURRENCES_V2';
@@ -447,49 +461,123 @@ export const CommitmentsService = {
      * Creates or updates a commitment in production storage.
      */
     saveCommitment: async (commitment, options = {}) => {
-        validateCommitment(commitment);
+        const normalizedCommitment = {
+            ...commitment,
+            id: commitment?.id || `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            status: commitment?.status || CommitmentStatus.ACTIVE,
+            version: commitment?.version || 1,
+            nextDueDate: commitment?.nextDueDate || commitment?.startDate
+        };
+        validateCommitment(normalizedCommitment);
         const activeMode = options.mode || await CommitmentsService.getMode();
 
-        if (activeMode === AppMode.DEMO) {
-            // In demo mode, do not write to production storage
-            return commitment;
-        }
-
-        const commitments = await StorageService.load(STORAGE_KEY_COMMITMENTS) || [];
-        const index = commitments.findIndex(c => c.id === commitment.id);
-
-        let previousState = null;
-        let eventType = AuditEventType.COMMITMENT_CREATED;
-
-        if (index >= 0) {
-            previousState = commitments[index];
-            commitments[index] = {
-                ...commitment,
-                version: (previousState.version || 1) + 1,
-                updatedAt: new Date().toISOString()
-            };
-            eventType = AuditEventType.COMMITMENT_UPDATED;
-        } else {
-            commitments.push({
-                ...commitment,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+        // Validate familyContext against Family Hub if present
+        if (normalizedCommitment.familyContext) {
+            const familyEnvelope = await FamilyRepository.loadFamilyEnvelope();
+            validateFamilyContext(normalizedCommitment.familyContext, familyEnvelope?.data || {}, {
+                allowArchivedHistorical: false
             });
         }
 
-        await StorageService.save(STORAGE_KEY_COMMITMENTS, commitments);
+        if (activeMode === AppMode.DEMO) {
+            // In demo mode, do not write to production storage
+            return normalizedCommitment;
+        }
+
+        const commitments = await StorageService.load(STORAGE_KEY_COMMITMENTS) || [];
+        const index = commitments.findIndex(c => c.id === normalizedCommitment.id);
+
+        let previousState = null;
+        let eventType = AuditEventType.COMMITMENT_CREATED;
+        let savedCommitment = null;
+
+        if (normalizedCommitment.status === CommitmentStatus.CANCELLED) {
+            // Handle cancellation cascade
+            previousState = index >= 0 ? commitments[index] : null;
+            const existingOccurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES) || [];
+            const asOfDate = options.asOfDate || new Date().toISOString().split('T')[0];
+            const { updatedCommitment, updatedOccurrences } = cancelCommitmentWithOccurrences(
+                normalizedCommitment,
+                existingOccurrences,
+                asOfDate
+            );
+            savedCommitment = updatedCommitment;
+            if (index >= 0) {
+                commitments[index] = updatedCommitment;
+            } else {
+                commitments.push(updatedCommitment);
+            }
+            await StorageService.save(STORAGE_KEY_COMMITMENTS, commitments);
+            await StorageService.save(STORAGE_KEY_OCCURRENCES, updatedOccurrences);
+            eventType = AuditEventType.COMMITMENT_CANCELLED;
+        } else {
+            if (index >= 0) {
+                previousState = commitments[index];
+                savedCommitment = {
+                    ...normalizedCommitment,
+                    version: (previousState.version || 1) + 1,
+                    updatedAt: new Date().toISOString()
+                };
+                commitments[index] = savedCommitment;
+                eventType = AuditEventType.COMMITMENT_UPDATED;
+            } else {
+                savedCommitment = {
+                    ...normalizedCommitment,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                };
+                commitments.push(savedCommitment);
+            }
+
+            await StorageService.save(STORAGE_KEY_COMMITMENTS, commitments);
+
+            // Auto-generate occurrences for scheduling window (startDate to 3 months ahead)
+            const existingOccurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES) || [];
+            const asOfDate = options.asOfDate || new Date().toISOString().split('T')[0];
+            const futureDate = new Date();
+            futureDate.setMonth(futureDate.getMonth() + 3);
+            const endDate = futureDate.toISOString().split('T')[0];
+
+            const generated = generateOccurrences({
+                commitment: savedCommitment,
+                existingOccurrences,
+                startDate: savedCommitment.startDate,
+                endDate,
+                asOfDate
+            });
+
+            const otherOccurrences = existingOccurrences.filter(o => o.commitmentId !== savedCommitment.id);
+            const mergedOccurrences = [...otherOccurrences, ...generated];
+            await StorageService.save(STORAGE_KEY_OCCURRENCES, mergedOccurrences);
+        }
 
         // Record audit event
         const auditEvent = createAuditEvent({
             eventType,
-            commitmentId: commitment.id,
+            commitmentId: savedCommitment.id,
             previousState,
-            newState: commitment,
+            newState: savedCommitment,
             source: AuditSource.USER
         });
         await CommitmentsService.appendAuditEvent(auditEvent);
 
-        return commitment;
+        return savedCommitment;
+    },
+
+    /**
+     * Cancels a commitment and all its future upcoming occurrences.
+     */
+    cancelCommitment: async (commitmentId, options = {}) => {
+        const activeMode = options.mode || await CommitmentsService.getMode();
+        const data = await CommitmentsService.load({ mode: activeMode });
+        const commitment = (data.commitments || []).find(c => c.id === commitmentId);
+        if (!commitment) {
+            throw new Error(`Commitment not found: ${commitmentId}`);
+        }
+        return await CommitmentsService.saveCommitment({
+            ...commitment,
+            status: CommitmentStatus.CANCELLED
+        }, options);
     },
 
     /**
@@ -534,11 +622,425 @@ export const CommitmentsService = {
     },
 
     /**
+     * Executes atomic and idempotent occurrence payment against the Cashbook ledger.
+     * State machine: UPCOMING -> PAID_PENDING_RECONCILIATION -> PAID
+     * Failure machine: PAID_PENDING_RECONCILIATION -> FAILED_RECONCILIATION (RETRYABLE)
+     * 
+     * Invariants:
+     * - Exactly one Cashbook transaction created.
+     * - Store cashbookTransactionId on occurrence.
+     * - Occurrence marked PAID only after successful Cashbook persistence.
+     * - Replaying same request returns existing transaction idempotently.
+     * - Failed Cashbook write NEVER marks occurrence as PAID.
+     * 
+     * @param {string} occurrenceId
+     * @param {object} paymentDetails { actualAmount, actualPaidDate, accountId, category, description, paymentOperationId, notes }
+     * @param {object} options { mode }
+     */
+    executeOccurrencePayment: async (occurrenceId, paymentDetails = {}, options = {}) => {
+        const activeMode = options.mode || await CommitmentsService.getMode();
+
+        if (activeMode === AppMode.DEMO) {
+            const demoData = buildDemoFixtures();
+            const occ = (demoData.occurrences || []).find(o => o.id === occurrenceId) || {
+                id: occurrenceId,
+                commitmentId: 'demo_commitment',
+                commitmentName: 'Demo Obligation',
+                expectedAmount: rupeesToMoneyPaise(1000),
+                status: PaymentOccurrenceStatus.UPCOMING
+            };
+            const updated = recordPaymentOccurrence(occ, {
+                ...paymentDetails,
+                cashbookTransactionId: `demo_tx_${Date.now()}`
+            });
+            return {
+                success: true,
+                occurrence: updated,
+                cashbookTransactionId: updated.cashbookTransactionId,
+                replayed: false
+            };
+        }
+
+        const occurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES) || [];
+        const index = occurrences.findIndex(o => o.id === occurrenceId);
+        if (index < 0) {
+            throw new Error(`Occurrence not found: ${occurrenceId}`);
+        }
+
+        const currentOcc = occurrences[index];
+
+        // Idempotency check: if already PAID, return existing transaction idempotently
+        if (currentOcc.status === PaymentOccurrenceStatus.PAID) {
+            return {
+                success: true,
+                occurrence: currentOcc,
+                cashbookTransactionId: currentOcc.cashbookTransactionId || currentOcc.transactionId,
+                replayed: true
+            };
+        }
+
+        // 1. Transition UPCOMING/OVERDUE/FAILED -> PAID_PENDING_RECONCILIATION
+        const paymentOpId = paymentDetails.paymentOperationId || `pop_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        const idempotencyKey = generateRecurringPaymentIdempotencyKey(currentOcc.commitmentId, currentOcc.id, paymentOpId);
+
+        const preparedOcc = preparePaymentOccurrence(currentOcc, {
+            paymentOperationId: paymentOpId,
+            idempotencyKey
+        });
+        occurrences[index] = preparedOcc;
+        await StorageService.save(STORAGE_KEY_OCCURRENCES, occurrences);
+
+        // 2. Prepare Cashbook transaction payload
+        const paiseVal = paymentDetails.actualAmount ? paymentDetails.actualAmount.paise : preparedOcc.expectedAmount.paise;
+        if (!paiseVal || typeof paiseVal !== 'string' || !/^\d+$/.test(paiseVal.trim())) {
+            throw new Error(`Invalid payment amount paise string: "${paiseVal}". Must be positive integer string.`);
+        }
+        const bigPaise = BigInt(paiseVal.trim());
+        if (bigPaise <= 0n) {
+            throw new Error(`Payment amount must be greater than zero. Received: ${paiseVal}`);
+        }
+        if (bigPaise > 10000000000000n) {
+            throw new Error('Payment amount exceeds maximum supported transaction limit (₹100 Crore).');
+        }
+        const expectedPaise = BigInt(preparedOcc.expectedAmount.paise);
+        if (bigPaise < expectedPaise && !paymentDetails.allowPartial) {
+            throw new Error(`Partial payment not enabled. Expected ${expectedPaise} paise, received ${bigPaise} paise.`);
+        }
+
+        const txDate = paymentDetails.actualPaidDate || new Date().toISOString().split('T')[0];
+
+        let accountId = paymentDetails.accountId;
+        const envelope = await CashbookRepository.load({ mode: activeMode });
+        if (accountId) {
+            const accountExists = (envelope.accounts || []).some(a => a.id === accountId);
+            if (!accountExists) {
+                throw new Error(`Cashbook account "${accountId}" does not exist in authoritative Cashbook repository`);
+            }
+        } else {
+            accountId = envelope.accounts?.[0]?.id || 'acc_primary_checking';
+        }
+
+        const cashbookTxn = {
+            id: `tx_rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            transactionType: TransactionType.EXPENSE,
+            accountId,
+            sourceAccountId: accountId,
+            amount: createMoneyPaise(paiseVal),
+            amountPaise: paiseVal,
+            date: txDate,
+            category: paymentDetails.category || preparedOcc.commitmentType || 'Bills & Utilities',
+            description: paymentDetails.description || `Recurring: ${preparedOcc.commitmentName || 'Obligation'}`,
+            idempotencyKey,
+            status: 'POSTED',
+            metadata: {
+                recurringCommitmentId: preparedOcc.commitmentId,
+                occurrenceId: preparedOcc.id,
+                paymentOperationId: paymentOpId
+            }
+        };
+
+        // 3. Post to Cashbook with error safety
+        let savedTxn;
+        try {
+            savedTxn = await CashbookRepository.saveTransaction(cashbookTxn, { mode: activeMode });
+        } catch (err) {
+            // Cashbook write failed! Invariant: NEVER mark occurrence as PAID.
+            const failedOcc = failReconciliationOccurrence(preparedOcc, err.message, {
+                errorCode: err.code || 'CASHBOOK_POST_FAILED',
+                paymentOperationId: paymentOpId,
+                attemptCount: (currentOcc.reconciliationAttempts || 0) + 1,
+                idempotencyKey
+            });
+            occurrences[index] = failedOcc;
+            await StorageService.save(STORAGE_KEY_OCCURRENCES, occurrences);
+
+            throw new Error(`CASHBOOK_RECONCILIATION_FAILED: ${err.message}`);
+        }
+
+        // 4. Mark occurrence as confirmed PAID with cashbookTransactionId
+        const confirmedOcc = recordPaymentOccurrence(preparedOcc, {
+            ...paymentDetails,
+            cashbookTransactionId: savedTxn.id,
+            transactionId: savedTxn.id,
+            actualPaidDate: txDate,
+            actualAmount: createMoneyPaise(paiseVal)
+        });
+        occurrences[index] = confirmedOcc;
+        await StorageService.save(STORAGE_KEY_OCCURRENCES, occurrences);
+
+        // 5. Append Audit Event
+        const auditEvent = createAuditEvent({
+            eventType: AuditEventType.PAYMENT_RECORDED,
+            commitmentId: confirmedOcc.commitmentId,
+            occurrenceId: confirmedOcc.id,
+            previousState: currentOcc,
+            newState: confirmedOcc,
+            source: AuditSource.USER
+        });
+        await CommitmentsService.appendAuditEvent(auditEvent);
+
+        return {
+            success: true,
+            occurrence: confirmedOcc,
+            cashbookTransactionId: savedTxn.id,
+            transaction: savedTxn,
+            replayed: false
+        };
+    },
+
+    /**
+     * Reverses a paid occurrence by posting a linked Cashbook REFUND / REVERSAL transaction.
+     */
+    reverseOccurrencePayment: async (occurrenceId, reversalDetails = {}, options = {}) => {
+        const activeMode = options.mode || await CommitmentsService.getMode();
+        const occurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES) || [];
+        const index = occurrences.findIndex(o => o.id === occurrenceId);
+        if (index < 0) {
+            throw new Error(`Occurrence not found: ${occurrenceId}`);
+        }
+
+        const currentOcc = occurrences[index];
+        if (currentOcc.status !== PaymentOccurrenceStatus.PAID) {
+            throw new Error(`Only PAID occurrences can be reversed. Current status: ${currentOcc.status}`);
+        }
+
+        const originalTxId = currentOcc.cashbookTransactionId || currentOcc.transactionId;
+        const reversalTxId = `tx_rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const paiseVal = currentOcc.actualAmount?.paise || currentOcc.expectedAmount?.paise || '0';
+
+        let reversalTxn = null;
+        if (activeMode !== AppMode.DEMO && originalTxId) {
+            const envelope = await CashbookRepository.load({ mode: activeMode });
+            const origTx = envelope.transactions?.find(t => t.id === originalTxId);
+            const accountId = origTx?.accountId || envelope.accounts?.[0]?.id || 'acc_primary_checking';
+
+            reversalTxn = await CashbookRepository.saveTransaction({
+                id: reversalTxId,
+                transactionType: TransactionType.REFUND,
+                accountId,
+                destinationAccountId: accountId,
+                amount: createMoneyPaise(paiseVal),
+                amountPaise: paiseVal,
+                date: reversalDetails.reversalDate || new Date().toISOString().split('T')[0],
+                category: origTx?.category || 'Refunds',
+                description: `Reversal of: ${currentOcc.commitmentName} (Tx: ${originalTxId})`,
+                idempotencyKey: `reversal:${originalTxId}:${currentOcc.id}`,
+                status: 'POSTED',
+                metadata: {
+                    originalTransactionId: originalTxId,
+                    reversalOfOccurrenceId: currentOcc.id
+                }
+            }, { mode: activeMode });
+        }
+
+        const updatedOcc = reversePaymentOccurrence(currentOcc, {
+            reversalTransactionId: reversalTxn?.id || reversalTxId,
+            reason: reversalDetails.reason || 'Manual user reversal'
+        });
+        occurrences[index] = updatedOcc;
+        await StorageService.save(STORAGE_KEY_OCCURRENCES, occurrences);
+
+        // Record audit event using canonical event name PAYMENT_CORRECTED
+        const auditEvent = createAuditEvent({
+            eventType: AuditEventType.PAYMENT_CORRECTED,
+            commitmentId: updatedOcc.commitmentId,
+            occurrenceId: updatedOcc.id,
+            previousState: currentOcc,
+            newState: updatedOcc,
+            source: AuditSource.USER
+        });
+        await CommitmentsService.appendAuditEvent(auditEvent);
+
+        return {
+            success: true,
+            occurrence: updatedOcc,
+            reversalTransactionId: updatedOcc.reversalTransactionId
+        };
+    },
+
+    /**
+     * Authoritative calculation of normalized monthly committed outflow for Emergency Runway and planning.
+     * Distinguishes:
+     * - AVAILABLE: active commitments exist and committed outflow > 0n
+     * - EMPTY: commitments configured but total committed outflow is 0n
+     * - NOT_CONFIGURED: zero commitments configured
+     * - UNAVAILABLE: error reading commitments
+     */
+    getMonthlyCommittedOutflowPaise: async (options = {}) => {
+        try {
+            const data = await CommitmentsService.load(options);
+            const commitments = data.commitments || [];
+            
+            if (commitments.length === 0) {
+                return {
+                    status: EmergencyRunwayStatus.NOT_CONFIGURED,
+                    monthlyCommittedOutflowPaise: 0n,
+                    strictCommittedPaise: 0n,
+                    estimatedPaise: 0n,
+                    variablePaise: 0n,
+                    activeCount: 0,
+                    hasOnlyVariable: false,
+                    reason: 'No recurring obligations configured'
+                };
+            }
+
+            const outflow = calculateMonthlyCommittedOutflow(commitments, options);
+
+            if (outflow.totalCommittedPaise === 0n) {
+                return {
+                    status: EmergencyRunwayStatus.EMPTY,
+                    monthlyCommittedOutflowPaise: 0n,
+                    strictCommittedPaise: 0n,
+                    estimatedPaise: 0n,
+                    variablePaise: 0n,
+                    activeCount: outflow.activeCount,
+                    hasOnlyVariable: outflow.hasOnlyVariable,
+                    reason: 'Commitments are configured with zero total committed outflow'
+                };
+            }
+
+            return {
+                status: EmergencyRunwayStatus.AVAILABLE,
+                monthlyCommittedOutflowPaise: outflow.totalCommittedPaise,
+                strictCommittedPaise: outflow.strictCommittedPaise,
+                estimatedPaise: outflow.estimatedPaise,
+                variablePaise: outflow.variablePaise,
+                activeCount: outflow.activeCount,
+                hasOnlyVariable: outflow.hasOnlyVariable,
+                assumptionStatus: outflow.assumptionStatus
+            };
+        } catch (err) {
+            return {
+                status: EmergencyRunwayStatus.UNAVAILABLE,
+                monthlyCommittedOutflowPaise: 0n,
+                error: err.message,
+                reason: 'Commitments source cannot be read'
+            };
+        }
+    },
+
+    /**
+     * Consumed by Budgets and Reports to project commitments for a given period.
+     * Prevents double counting:
+     * - unpaidPaise: future unpaid commitment occurrences in period (plus overdue if includeOverdue)
+     * - paidPaise: occurrences in period that were already paid (accounted for in Cashbook spending)
+     * - committedPaise: total scheduled in period (unpaidPaise + paidPaise)
+     * - overduePaise: unpaid occurrences prior to period or asOfDate
+     * 
+     * @param {object} options { periodKey, includeOverdue = true, mode, asOfDate }
+     * @returns {object} Typed projection
+     */
+    getCommittedObligationProjection: async (options = {}) => {
+        const {
+            periodKey,
+            includeOverdue = true,
+            asOfDate = new Date().toISOString().split('T')[0]
+        } = options;
+
+        try {
+            const data = await CommitmentsService.load(options);
+            const occurrences = data.occurrences || [];
+
+            let startDate, endDate;
+            if (periodKey && /^\d{4}-\d{2}$/.test(periodKey)) {
+                startDate = `${periodKey}-01`;
+                const [year, month] = periodKey.split('-').map(Number);
+                const lastDay = new Date(year, month, 0).getDate();
+                endDate = `${periodKey}-${String(lastDay).padStart(2, '0')}`;
+            } else {
+                const asOfMonth = asOfDate.substring(0, 7);
+                startDate = `${asOfMonth}-01`;
+                const [year, month] = asOfMonth.split('-').map(Number);
+                const lastDay = new Date(year, month, 0).getDate();
+                endDate = `${asOfMonth}-${String(lastDay).padStart(2, '0')}`;
+            }
+
+            let committedPaise = 0n;
+            let paidPaise = 0n;
+            let unpaidPaise = 0n;
+            let overduePaise = 0n;
+            const sourceRecords = [];
+
+            for (const occ of occurrences) {
+                if (occ.status === PaymentOccurrenceStatus.CANCELLED) continue;
+                const occDate = occ.scheduledDate;
+                const amount = occ.actualAmount ? moneyToBigInt(occ.actualAmount) : (occ.expectedAmount ? moneyToBigInt(occ.expectedAmount) : 0n);
+
+                const inPeriod = occDate >= startDate && occDate <= endDate;
+                const isOverdue = occDate < asOfDate && occ.status !== PaymentOccurrenceStatus.PAID && occ.status !== PaymentOccurrenceStatus.SKIPPED;
+
+                if (isOverdue) {
+                    overduePaise += amount;
+                }
+
+                if (inPeriod) {
+                    committedPaise += amount;
+                    if (occ.status === PaymentOccurrenceStatus.PAID) {
+                        paidPaise += amount;
+                    } else if (occ.status !== PaymentOccurrenceStatus.SKIPPED) {
+                        unpaidPaise += amount;
+                    }
+                    sourceRecords.push(occ);
+                }
+            }
+
+            const effectiveUnpaidPaise = includeOverdue ? (unpaidPaise + overduePaise) : unpaidPaise;
+
+            return {
+                status: 'AVAILABLE',
+                committedPaise,
+                paidPaise,
+                unpaidPaise: effectiveUnpaidPaise,
+                overduePaise,
+                sourceRecords,
+                unavailableSources: [],
+                asOfDate,
+                periodKey: periodKey || asOfDate.substring(0, 7)
+            };
+        } catch (err) {
+            return {
+                status: 'UNAVAILABLE',
+                committedPaise: 0n,
+                paidPaise: 0n,
+                unpaidPaise: 0n,
+                overduePaise: 0n,
+                sourceRecords: [],
+                unavailableSources: ['Commitments'],
+                asOfDate,
+                error: err.message
+            };
+        }
+    },
+
+    /**
      * Appends an audit event to the persistent audit log.
      */
     appendAuditEvent: async (event) => {
         const log = await StorageService.load(STORAGE_KEY_AUDIT_LOG) || [];
         log.push(event);
         await StorageService.save(STORAGE_KEY_AUDIT_LOG, log);
+    },
+
+    /**
+     * Loads all commitments for active mode.
+     */
+    loadCommitments: async (options = {}) => {
+        const data = await CommitmentsService.load(options);
+        return data.commitments || [];
+    },
+
+    /**
+     * Loads all occurrences for active mode.
+     */
+    loadOccurrences: async (options = {}) => {
+        const data = await CommitmentsService.load(options);
+        return data.occurrences || [];
+    },
+
+    /**
+     * Loads complete audit log.
+     */
+    loadAuditLog: async () => {
+        return await StorageService.load(STORAGE_KEY_AUDIT_LOG) || [];
     }
 };

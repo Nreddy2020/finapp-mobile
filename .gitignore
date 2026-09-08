@@ -81,10 +81,14 @@ expo-env.d.ts
 # Native
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+android/app/finlife-release.keystore
+android/keystore.properties
+keystore.properties
 
 # Metro
 .metro-health-check*
@@ -106,7 +110,11 @@ yarn-error.*
 
 # Build & temp archives
 tmp/
+base/
 *.zip
 tests/check_bundle.js
+/*.png
+scratch/*.png
+scratch/*.xml
 
 # @end expo-cli

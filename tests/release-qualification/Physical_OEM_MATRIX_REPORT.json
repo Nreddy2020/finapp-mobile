@@ -1,0 +1,29 @@
+{
+  "status": "PENDING_PHYSICAL_HARDWARE",
+  "message": "Physical OEM Hardware Matrix execution is queued pending physical device connection via USB debugging.",
+  "timestamp": "2026-09-08T11:34:47.146Z",
+  "connectedEmulators": [
+    "emulator-5554"
+  ],
+  "connectedPhysicalDevices": [],
+  "targetMatrix": [
+    {
+      "tier": "OEM-1",
+      "manufacturer": "Google",
+      "family": "Pixel (Stock AOSP)",
+      "focus": "Pure AOSP reference, 120Hz, BiometricPrompt, gesture nav"
+    },
+    {
+      "tier": "OEM-2",
+      "manufacturer": "Samsung",
+      "family": "Galaxy (One UI)",
+      "focus": "Aggressive app sleep, Knox container, proprietary mem management"
+    },
+    {
+      "tier": "OEM-3",
+      "manufacturer": "Xiaomi",
+      "family": "Xiaomi / Redmi (HyperOS)",
+      "focus": "MIUI battery restrictions, autostart killing, broadcast delays"
+    }
+  ]
+}

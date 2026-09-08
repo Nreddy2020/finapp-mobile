@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, ScrollView, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import React, { useCallback, useEffect } from 'react';
+import { View, ScrollView, Text, StyleSheet, Pressable, Dimensions, TouchableOpacity, BackHandler } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
-    Wallet, Calendar, Bell, Building2, Users, Repeat, DollarSign,
+    ArrowLeft, Wallet, Calendar, Bell, Building2, Users, Repeat, DollarSign,
     Home, Gem, TrendingUp, Plane, Clock, FileText,
     CheckSquare, Users as UsersIcon, BarChart3, Sparkles, Shield, Brain,
     LayoutGrid, ChevronRight, Target, Building, PieChart, Settings, Music, Pill, Calculator, Eye, Globe, MessageSquare
@@ -20,6 +20,23 @@ export default function MoreScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { currency, currencyCode, toggleCurrency, privacyMode, setPrivacyMode } = useGlobalFinance();
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     const modules = [
         {
@@ -155,9 +172,21 @@ export default function MoreScreen() {
                 >
                     {/* Header */}
                     <View style={styles.header}>
-                        <View>
-                            <Text style={styles.headerLabel}>ENTIRE ECOSYSTEM</Text>
-                            <Text style={styles.title}>All Modules</Text>
+                        <View style={styles.headerLeft}>
+                            <TouchableOpacity
+                                onPress={handleBack}
+                                style={styles.backBtn}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                accessibilityLabel="Go back"
+                                accessibilityRole="button"
+                            >
+                                <ArrowLeft size={20} color="#F8FAFC" />
+                            </TouchableOpacity>
+                            <View>
+                                <Text style={styles.headerLabel}>ENTIRE ECOSYSTEM</Text>
+                                <Text style={styles.title}>All Modules</Text>
+                            </View>
                         </View>
                         <View style={styles.iconCircle}>
                             <LayoutGrid size={24} color="#FFFFFF" strokeWidth={2} />
@@ -212,6 +241,8 @@ const styles = StyleSheet.create({
 
     // Header
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
     headerLabel: { fontSize: 11, color: '#71717A', fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 6 },
     title: { fontSize: 32, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
     iconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#18181B', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#27272A' },

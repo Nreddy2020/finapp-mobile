@@ -12,3 +12,6 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+# FinLife Native Modules & JNI Cryptographic Bridges
+-keep class com.nirwas20.wealthwise.sms.** { *; }
+-keepclassmembers class com.nirwas20.wealthwise.sms.** { *; }

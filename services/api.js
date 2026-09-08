@@ -1,7 +1,9 @@
+import { Platform } from 'react-native';
 import { AuthService } from './auth';
 import { getDeviceFingerprint } from './device';
 import { loadData, saveData, STORAGE_KEYS } from './storage';
 import { API_BASE_URL } from './runtimeConfig';
+import { FinlifeIntelligenceEngine } from './intelligence/finlifeIntelligenceEngine.js';
 
 const isNonEmptyArray = (value) => Array.isArray(value) && value.length > 0;
 
@@ -97,7 +99,7 @@ export const api = {
         }
 
         const { API_ORIGIN, DEMO_MODE_ENABLED } = require('./runtimeConfig');
-        if (!API_ORIGIN && DEMO_MODE_ENABLED) {
+        if (!API_ORIGIN && (DEMO_MODE_ENABLED || (Platform && Platform.OS !== 'web'))) {
             console.log(`[API Interceptor] Simulating response for endpoint: ${endpoint}`);
             return simulateApiResponse(endpoint, options);
         }
@@ -540,7 +542,23 @@ export const getValidityItems = async () => {
  * Financial Health Metrics — returns AI insights / health score
  */
 export const getFinancialHealthMetrics = async () => {
-    return mockAIInsights || { health_score: 75, recommendations: [] };
+    try {
+        const snap = await FinlifeIntelligenceEngine.loadFinancialSnapshot();
+        const score = FinlifeIntelligenceEngine.computeHealthScore(snap);
+        const alerts = FinlifeIntelligenceEngine.generateIntelligenceAlerts(snap);
+        const persona = FinlifeIntelligenceEngine.computeSpendingDNA(snap);
+        return {
+            health_score: score,
+            recommendations: alerts.map(a => a.msg),
+            spending_persona: persona.title,
+            net_worth: snap.netWorthPaise / 100,
+            monthly_burn: snap.monthlyExpensePaise / 100,
+            liquid_cash: snap.liquidCashPaise / 100,
+            ...(mockAIInsights || {})
+        };
+    } catch {
+        return mockAIInsights || { health_score: 75, recommendations: [] };
+    }
 };
 
 /**

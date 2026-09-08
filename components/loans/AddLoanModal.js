@@ -1,174 +1,200 @@
+/**
+ * components/loans/AddLoanModal.js
+ * 
+ * Formal Bank Loans V1 — Add New Loan Facility Modal.
+ * Collects facility details, provides live preview of reducing-balance EMI,
+ * and persists via LoanRepository.
+ */
+
 import React, { useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import { X, Check, Building2, User, Calendar, DollarSign, Percent } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../../constants/theme';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
+import { LOAN_TYPES, RATE_TYPES, LOAN_STATUS, toPaise, toRupeesFormatted } from '../../services/loans/loanContracts.js';
+import { calculateMonthlyEmiPaise } from '../../services/loans/loanEngine.js';
+import { LoanRepository } from '../../services/loans/loanRepository.js';
 
-export default function AddLoanModal({ visible, onClose, onSave }) {
-    const [type, setType] = useState('borrowing'); // 'borrowing' | 'lending'
-
-    // Form State
+export default function AddLoanModal({ visible, onClose, onLoanAdded }) {
     const [name, setName] = useState('');
-    const [provider, setProvider] = useState(''); // Bank name or Person name
-    const [amount, setAmount] = useState('');
-    const [interestRate, setInterestRate] = useState('');
-    const [tenure, setTenure] = useState('');
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [lender, setLender] = useState('');
+    const [loanType, setLoanType] = useState(LOAN_TYPES.PERSONAL);
+    const [principalStr, setPrincipalStr] = useState('');
+    const [rateStr, setRateStr] = useState('10.5');
+    const [tenureStr, setTenureStr] = useState('36');
+    const [dueDayStr, setDueDayStr] = useState('5');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSave = () => {
-        if (!name || !amount) return;
+    if (!visible) return null;
 
-        const loanData = {
-            id: Date.now().toString(),
-            name,
-            provider,
-            outstanding_amount: parseFloat(amount),
-            original_amount: parseFloat(amount),
-            interest_rate: parseFloat(interestRate) || 0,
-            tenure_months: parseFloat(tenure) || 12,
-            start_date: startDate,
-            is_lending: type === 'lending',
-            status: 'active',
-            type: 'Personal' // Default type for now
-        };
+    // Calculate live preview EMI
+    let liveEmiFormatted = '—';
+    try {
+        const p = toPaise(Number(principalStr || 0));
+        const r = Number(rateStr || 0);
+        const t = Number(tenureStr || 0);
+        if (p > 0n && r >= 0 && t > 0) {
+            const emi = calculateMonthlyEmiPaise(p, r, t);
+            liveEmiFormatted = toRupeesFormatted(emi);
+        }
+    } catch (e) {
+        liveEmiFormatted = '—';
+    }
 
-        // Auto-calculate EMI if borrowing
-        if (type === 'borrowing' && loanData.interest_rate > 0) {
-            const r = loanData.interest_rate / 12 / 100;
-            const n = loanData.tenure_months;
-            const emi = (loanData.original_amount * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-            loanData.emi_amount = emi.toFixed(2);
+    const handleSave = async () => {
+        if (!name.trim()) {
+            Alert.alert('Validation Error', 'Please enter a loan facility name');
+            return;
+        }
+        if (!lender.trim()) {
+            Alert.alert('Validation Error', 'Please enter the lender name or bank');
+            return;
         }
 
-        onSave(loanData);
-        resetForm();
-    };
+        try {
+            setIsSubmitting(true);
+            const principalPaise = toPaise(Number(principalStr));
+            const annualRatePercent = Number(rateStr);
+            const tenureMonths = Number(tenureStr);
+            const emiDueDayOfMonth = Number(dueDayStr) || 5;
 
-    const resetForm = () => {
-        setName('');
-        setProvider('');
-        setAmount('');
-        setInterestRate('');
-        setTenure('');
-        setType('borrowing');
-    };
+            const facility = {
+                id: `LN_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                name: name.trim(),
+                lender: lender.trim(),
+                loanType,
+                rateType: RATE_TYPES.FIXED,
+                status: LOAN_STATUS.ACTIVE,
+                principalPaise,
+                outstandingPrincipalPaise: principalPaise,
+                annualRatePercent,
+                tenureMonths,
+                emiDueDayOfMonth,
+                startDate: new Date().toISOString().split('T')[0]
+            };
 
-    const THEME_COLOR = type === 'lending' ? COLORS.success : COLORS.primary;
+            await LoanRepository.saveFacility(facility);
+            if (onLoanAdded) onLoanAdded(facility);
+            onClose();
+        } catch (e) {
+            Alert.alert('Error', e.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={styles.overlay}>
-                <View style={styles.container}>
+        <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.title}>Add New {type === 'lending' ? 'Asset' : 'Liability'}</Text>
-                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                            <X size={24} color="#FFF" />
+                        <Text style={styles.title}>Add Bank Loan Facility</Text>
+                        <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+                            <Text style={styles.closeBtnText}>✕</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* Type Toggle */}
-                    <View style={styles.toggleRow}>
-                        <TouchableOpacity
-                            style={[styles.toggleBtn, type === 'borrowing' && { backgroundColor: COLORS.primary + '20', borderColor: COLORS.primary }]}
-                            onPress={() => setType('borrowing')}
-                        >
-                            <Building2 size={16} color={type === 'borrowing' ? COLORS.primary : '#71717A'} />
-                            <Text style={[styles.toggleText, type === 'borrowing' && { color: COLORS.primary }]}>Borrowing</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.toggleBtn, type === 'lending' && { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }]}
-                            onPress={() => setType('lending')}
-                        >
-                            <User size={16} color={type === 'lending' ? COLORS.success : '#71717A'} />
-                            <Text style={[styles.toggleText, type === 'lending' && { color: COLORS.success }]}>Lending</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <ScrollView style={styles.scrollArea}>
+                        {/* Name & Lender */}
+                        <Text style={styles.inputLabel}>FACILITY NAME</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={name}
+                            onChangeText={setName}
+                            placeholder="e.g. HDFC Home Loan"
+                            placeholderTextColor="#555C75"
+                        />
 
-                    <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>{type === 'lending' ? 'Borrower Name' : 'Loan Name'}</Text>
-                            <TextInput
-                                style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                placeholder={type === 'lending' ? "e.g. John Doe" : "e.g. Home Loan"}
-                                placeholderTextColor="#52525B"
-                                value={name}
-                                onChangeText={setName}
-                            />
+                        <Text style={styles.inputLabel}>LENDER / BANK</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={lender}
+                            onChangeText={setLender}
+                            placeholder="e.g. HDFC Bank"
+                            placeholderTextColor="#555C75"
+                        />
+
+                        {/* Loan Type Selector */}
+                        <Text style={styles.inputLabel}>LOAN TYPE</Text>
+                        <View style={styles.typeRow}>
+                            {Object.values(LOAN_TYPES).map((type) => (
+                                <TouchableOpacity
+                                    key={type}
+                                    style={[styles.typeChip, loanType === type && styles.typeChipActive]}
+                                    onPress={() => setLoanType(type)}
+                                >
+                                    <Text style={[styles.typeText, loanType === type && styles.typeTextActive]}>
+                                        {type}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
 
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>{type === 'lending' ? 'Relation/Note' : 'Bank/Lender'}</Text>
-                            <TextInput
-                                style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                placeholder={type === 'lending' ? "e.g. Friend" : "e.g. HDFC Bank"}
-                                placeholderTextColor="#52525B"
-                                value={provider}
-                                onChangeText={setProvider}
-                            />
-                        </View>
+                        {/* Principal Amount */}
+                        <Text style={styles.inputLabel}>SANCTIONED PRINCIPAL (₹)</Text>
+                        <TextInput
+                            style={styles.input}
+                            keyboardType="numeric"
+                            value={principalStr}
+                            onChangeText={setPrincipalStr}
+                            placeholder="e.g. 2500000"
+                            placeholderTextColor="#555C75"
+                        />
 
-                        <View style={styles.row}>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Amount (₹)</Text>
+                        {/* Rate & Tenure */}
+                        <View style={styles.splitRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.inputLabel}>ANNUAL RATE (% p.a.)</Text>
                                 <TextInput
-                                    style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                    placeholder="0.00"
-                                    placeholderTextColor="#52525B"
+                                    style={styles.input}
                                     keyboardType="numeric"
-                                    value={amount}
-                                    onChangeText={setAmount}
+                                    value={rateStr}
+                                    onChangeText={setRateStr}
+                                    placeholder="8.5"
+                                    placeholderTextColor="#555C75"
                                 />
                             </View>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Interest Rate (%)</Text>
+
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                                <Text style={styles.inputLabel}>TENURE (MONTHS)</Text>
                                 <TextInput
-                                    style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                    placeholder="0%"
-                                    placeholderTextColor="#52525B"
+                                    style={styles.input}
                                     keyboardType="numeric"
-                                    value={interestRate}
-                                    onChangeText={setInterestRate}
+                                    value={tenureStr}
+                                    onChangeText={setTenureStr}
+                                    placeholder="240"
+                                    placeholderTextColor="#555C75"
                                 />
                             </View>
                         </View>
 
-                        <View style={styles.row}>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Tenure (Months)</Text>
-                                <TextInput
-                                    style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                    placeholder="12"
-                                    placeholderTextColor="#52525B"
-                                    keyboardType="numeric"
-                                    value={tenure}
-                                    onChangeText={setTenure}
-                                />
-                            </View>
-                            <View style={[styles.inputGroup, { flex: 1 }]}>
-                                <Text style={styles.label}>Start Date</Text>
-                                <TextInput
-                                    style={[styles.input, { borderColor: THEME_COLOR + '40' }]}
-                                    placeholder="YYYY-MM-DD"
-                                    placeholderTextColor="#52525B"
-                                    value={startDate}
-                                    onChangeText={setStartDate}
-                                />
-                            </View>
+                        {/* Due Day */}
+                        <Text style={styles.inputLabel}>EMI DUE DAY OF MONTH (1 - 31)</Text>
+                        <TextInput
+                            style={styles.input}
+                            keyboardType="numeric"
+                            value={dueDayStr}
+                            onChangeText={setDueDayStr}
+                            placeholder="5"
+                            placeholderTextColor="#555C75"
+                        />
+
+                        {/* Live EMI Preview */}
+                        <View style={styles.previewBox}>
+                            <Text style={styles.previewLabel}>CALCULATED MONTHLY EMI</Text>
+                            <Text style={styles.previewAmount}>{liveEmiFormatted}</Text>
+                            <Text style={styles.previewNote}>Mode A: Standard Reducing Balance</Text>
                         </View>
-
-                        <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-                            <LinearGradient
-                                colors={[THEME_COLOR, THEME_COLOR + '80']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={styles.saveGradient}
-                            >
-                                <Text style={styles.saveText}>Save Record</Text>
-                                <Check size={20} color="#FFF" />
-                            </LinearGradient>
-                        </TouchableOpacity>
-
                     </ScrollView>
+
+                    {/* Footer Submit */}
+                    <View style={styles.footer}>
+                        <TouchableOpacity 
+                            style={[styles.submitButton, isSubmitting && { opacity: 0.6 }]} 
+                            onPress={handleSave}
+                            disabled={isSubmitting}
+                        >
+                            <Text style={styles.submitText}>Save Loan Facility</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
         </Modal>
@@ -176,23 +202,135 @@ export default function AddLoanModal({ visible, onClose, onSave }) {
 }
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-    container: { backgroundColor: '#18181B', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, height: '85%', borderWidth: 1, borderColor: '#FFFFFF10' },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    title: { fontSize: 24, fontWeight: '800', color: '#FFF' },
-    closeBtn: { padding: 4, backgroundColor: '#FFFFFF10', borderRadius: 20 },
-
-    toggleRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-    toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#FFFFFF10', gap: 8 },
-    toggleText: { fontWeight: '700', color: '#71717A' },
-
-    form: { flex: 1 },
-    inputGroup: { marginBottom: 20 },
-    label: { color: '#A1A1AA', fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 4 },
-    input: { backgroundColor: '#000', borderRadius: 16, padding: 16, color: '#FFF', fontSize: 16, borderWidth: 1 },
-    row: { flexDirection: 'row', gap: 16 },
-
-    saveBtn: { marginTop: 12, marginBottom: 40, overflow: 'hidden', borderRadius: 20 },
-    saveGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, gap: 8 },
-    saveText: { color: '#FFF', fontSize: 18, fontWeight: '700' }
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.75)',
+        justifyContent: 'flex-end'
+    },
+    modalContent: {
+        backgroundColor: '#0E101D',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        height: '85%',
+        borderWidth: 1,
+        borderColor: '#1E2337'
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 20,
+        borderBottomWidth: 1,
+        borderBottomColor: '#171A2B'
+    },
+    title: {
+        color: '#FFFFFF',
+        fontSize: 17,
+        fontWeight: '800'
+    },
+    closeBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#1E2337',
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    closeBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700'
+    },
+    scrollArea: {
+        padding: 20
+    },
+    inputLabel: {
+        color: '#717B9E',
+        fontSize: 11,
+        fontWeight: '700',
+        marginBottom: 6,
+        letterSpacing: 0.5
+    },
+    input: {
+        backgroundColor: '#121422',
+        borderRadius: 10,
+        padding: 12,
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 14,
+        borderWidth: 1,
+        borderColor: '#242A42'
+    },
+    typeRow: {
+        flexDirection: 'row',
+        gap: 6,
+        flexWrap: 'wrap',
+        marginBottom: 14
+    },
+    typeChip: {
+        paddingVertical: 6,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        backgroundColor: '#151829',
+        borderWidth: 1,
+        borderColor: '#242A42'
+    },
+    typeChipActive: {
+        backgroundColor: '#6C5CE7',
+        borderColor: '#6C5CE7'
+    },
+    typeText: {
+        color: '#8A92B2',
+        fontSize: 11,
+        fontWeight: '700'
+    },
+    typeTextActive: {
+        color: '#FFFFFF'
+    },
+    splitRow: {
+        flexDirection: 'row',
+        marginBottom: 4
+    },
+    previewBox: {
+        backgroundColor: 'rgba(108, 92, 231, 0.1)',
+        borderRadius: 12,
+        padding: 14,
+        alignItems: 'center',
+        marginVertical: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(108, 92, 231, 0.3)'
+    },
+    previewLabel: {
+        color: '#A29BFE',
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.5
+    },
+    previewAmount: {
+        color: '#FFFFFF',
+        fontSize: 22,
+        fontWeight: '800',
+        marginVertical: 4
+    },
+    previewNote: {
+        color: '#717B9E',
+        fontSize: 10
+    },
+    footer: {
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#171A2B'
+    },
+    submitButton: {
+        backgroundColor: '#6C5CE7',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center'
+    },
+    submitText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700'
+    }
 });

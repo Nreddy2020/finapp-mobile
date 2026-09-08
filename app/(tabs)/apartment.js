@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, Modal, TextInput, TouchableOpacity } from 'react-native';
-import { Building, Plus, Receipt, Sparkles, AlertCircle, Calculator, Zap, FileText, CheckCircle, X } from 'lucide-react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, RefreshControl, Text, StyleSheet, Modal, TextInput, TouchableOpacity, BackHandler, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Building, Plus, Receipt, Sparkles, AlertCircle, Calculator, Zap, FileText, CheckCircle, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable } from 'react-native';
 
 // New Components
 import RentVsBuy from '../../components/housing/RentVsBuy';
@@ -13,6 +14,8 @@ import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import LuxuryCard from '../../components/ui/LuxuryCard';
 
 export default function ApartmentScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [maintenance, setMaintenance] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
 
@@ -21,6 +24,27 @@ export default function ApartmentScreen() {
     const [showUtility, setShowUtility] = useState(false);
     const [showLease, setShowLease] = useState(false);
     const [showAddLog, setShowAddLog] = useState(false);
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            if (showRentVsBuy) { setShowRentVsBuy(false); return true; }
+            if (showUtility) { setShowUtility(false); return true; }
+            if (showLease) { setShowLease(false); return true; }
+            if (showAddLog) { setShowAddLog(false); return true; }
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [showRentVsBuy, showUtility, showLease, showAddLog, handleBack]);
 
     // Form
     const [month, setMonth] = useState('');
@@ -77,10 +101,22 @@ export default function ApartmentScreen() {
                 }
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerLabel}>Society Dues</Text>
-                        <Text style={styles.title}>Apartment</Text>
+                <View style={[styles.header, { paddingTop: Math.max(insets.top, 24) + 12 }]}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            onPress={handleBack}
+                            style={styles.backBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityLabel="Go back"
+                            accessibilityRole="button"
+                        >
+                            <ArrowLeft size={20} color="#F8FAFC" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerLabel}>Society Dues</Text>
+                            <Text style={styles.title}>Apartment</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -228,6 +264,8 @@ const styles = StyleSheet.create({
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: 24 },
     header: { padding: 24, paddingTop: 60, paddingBottom: 24 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
     headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
     title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
     heroCardWrapper: { marginHorizontal: 24, marginBottom: 24 },

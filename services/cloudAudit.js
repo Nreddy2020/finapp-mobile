@@ -33,7 +33,7 @@ export const CloudAuditService = {
      */
     uploadEntry: async (entry) => {
         if (Platform.OS === 'web') {
-            console.log('[CLOUD_AUDIT] Web - would upload:', entry);
+            // Web simulation: suppress logging of raw audit entry
             return { success: true, cloudId: `web_${Date.now()}` };
         }
 

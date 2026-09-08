@@ -28,8 +28,17 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
         }
     }
 
+    companion object {
+        private const val MAX_PAYLOAD_BYTES = 65536 // 64 KB max payload size
+        private const val MAX_MESSAGE_ID_LENGTH = 128
+    }
+
     @ReactMethod
-    fun acknowledgeOfflineMessage(messageId: String, promise: Promise) {
+    fun acknowledgeOfflineMessage(messageId: String?, promise: Promise) {
+        if (messageId.isNullOrBlank() || messageId.length > MAX_MESSAGE_ID_LENGTH) {
+            promise.reject("INVALID_ARGUMENT", "messageId must be a non-empty string <= $MAX_MESSAGE_ID_LENGTH characters")
+            return
+        }
         try {
             val success = FinlifeSmsBroadcastReceiver.acknowledgeOfflineMessage(reactApplicationContext, messageId)
             promise.resolve(success)
@@ -39,7 +48,15 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
     }
 
     @ReactMethod
-    fun encryptPayload(plainText: String, promise: Promise) {
+    fun encryptPayload(plainText: String?, promise: Promise) {
+        if (plainText == null) {
+            promise.reject("INVALID_ARGUMENT", "plainText cannot be null")
+            return
+        }
+        if (plainText.length > MAX_PAYLOAD_BYTES) {
+            promise.reject("PAYLOAD_SIZE_EXCEEDED", "Payload exceeds maximum allowed size of $MAX_PAYLOAD_BYTES characters")
+            return
+        }
         try {
             val cipherText = FinlifeCryptoEngine.encrypt(plainText)
             promise.resolve(cipherText)
@@ -49,7 +66,15 @@ class FinlifeSmsModule(reactContext: ReactApplicationContext) : ReactContextBase
     }
 
     @ReactMethod
-    fun decryptPayload(cipherText: String, promise: Promise) {
+    fun decryptPayload(cipherText: String?, promise: Promise) {
+        if (cipherText == null) {
+            promise.reject("INVALID_ARGUMENT", "cipherText cannot be null")
+            return
+        }
+        if (cipherText.length > MAX_PAYLOAD_BYTES) {
+            promise.reject("PAYLOAD_SIZE_EXCEEDED", "Payload exceeds maximum allowed size of $MAX_PAYLOAD_BYTES characters")
+            return
+        }
         try {
             val plainText = FinlifeCryptoEngine.decrypt(cipherText)
             promise.resolve(plainText)

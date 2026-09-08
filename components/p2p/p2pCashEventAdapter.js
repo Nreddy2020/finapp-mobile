@@ -5,6 +5,8 @@
  */
 
 import { JOURNAL_EVENT_TYPES, LOAN_DIRECTION } from './p2pDomainModel.js';
+import { toBigIntPaise, rupeesToPaise, paiseToRupees } from './p2pContracts.js';
+
 
 /**
  * Converts a single P2P Journal Entry into one or more Money Flow Transaction records
@@ -323,10 +325,41 @@ export function mapP2PJournalToMoneyFlowTransactions(journalEntries = [], person
 }
 
 export function adaptJournalEntryToMoneyFlowTx(journalEntry) {
+    if (!journalEntry) return null;
     const txs = convertJournalEntryToMoneyFlowTransactions(journalEntry);
-    return txs.length > 0 ? txs[0] : null;
+    if (!txs.length) return null;
+
+    // Provide legacy single-record representation if requested
+    if (journalEntry.eventType === JOURNAL_EVENT_TYPES.P2P_REPAYMENT_RECEIVED || journalEntry.eventType === 'REPAYMENT_RECEIVED') {
+        const pLine = (journalEntry.lines || []).find(l => l.accountId === 'ASSET_P2P_RECEIVABLE');
+        const iLine = (journalEntry.lines || []).find(l => l.accountId === 'INCOME_P2P_INTEREST');
+        const pCredit = (journalEntry.credits || []).find(c => c.account === 'ASSET_P2P_RECEIVABLE');
+        const iCredit = (journalEntry.credits || []).find(c => c.account === 'INCOME_P2P_INTEREST');
+        const pAmt = pLine ? (pLine.debit || pLine.credit) : (pCredit ? pCredit.amount : 0);
+        const iAmt = iLine ? (iLine.debit || iLine.credit) : (iCredit ? iCredit.amount : 0);
+        const total = pAmt + iAmt;
+
+        return {
+            ...txs[0],
+            amount: total,
+            amountPaise: rupeesToPaise(total),
+            type: 'INCOME',
+            category: 'P2P_REPAYMENT_RECEIVED',
+            principalAmount: pAmt,
+            principalAmountPaise: rupeesToPaise(pAmt),
+            interestAmount: iAmt,
+            interestAmountPaise: rupeesToPaise(iAmt),
+            isOrdinaryIncome: false
+        };
+    }
+
+    return {
+        ...txs[0],
+        category: journalEntry.eventType || txs[0].category
+    };
 }
 
 export function generateMoneyFlowTransactionsForLoan(journalEntries = []) {
-    return mapP2PJournalToMoneyFlowTransactions(journalEntries);
+    return (journalEntries || []).map(je => adaptJournalEntryToMoneyFlowTx(je)).filter(Boolean);
 }
+

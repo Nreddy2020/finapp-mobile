@@ -163,7 +163,8 @@ class FinlifeSmsBroadcastReceiver : BroadcastReceiver() {
             }
             val completeBody = bodyBuilder.toString()
 
-            Log.d(TAG, "Received incoming SMS from: $sender")
+            val maskedSender = if (sender.length > 4) "****" + sender.takeLast(4) else "****"
+            Log.d(TAG, "Received incoming SMS from: $maskedSender")
 
             // Send event to React Native JavaScript context or persist to native offline queue
             sendEventOrQueue(context, sender, completeBody, timestamp)

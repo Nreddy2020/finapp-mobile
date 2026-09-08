@@ -18,6 +18,10 @@ import AddBudgetModal from '../../components/budget/AddBudgetModal';
 
 import { buildBudgetControlCenterViewModel } from '../../services/budget/budgetViewModel.js';
 import { BudgetService } from '../../services/budgets.js';
+import { CashbookRepository } from '../../services/cashbook/cashbookRepository.js';
+import { BankingService } from '../../services/bankingService.js';
+import { CommitmentsService } from '../../services/commitments/commitmentsService.js';
+import { parsePaise } from '../../services/budget/budgetContracts.js';
 
 export default function BudgetsScreen() {
     const insets = useSafeAreaInsets();
@@ -29,15 +33,41 @@ export default function BudgetsScreen() {
     const [calendarVisible, setCalendarVisible] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [addBudgetVisible, setAddBudgetVisible] = useState(false);
+    const [editingBudget, setEditingBudget] = useState(null);
     
     const [refreshing, setRefreshing] = useState(false);
-    const [userBudgets, setUserBudgets] = useState([]);
+    const [actualsData, setActualsData] = useState(null);
+    const [liquidCash, setLiquidCash] = useState(0);
+    const [commitments, setCommitments] = useState([]);
 
     const loadData = async () => {
         try {
-            const storedBudgets = await BudgetService.getBudgets();
-            if (storedBudgets && storedBudgets.length > 0) {
-                setUserBudgets(storedBudgets);
+            const [report, cb, bankingAccounts, commitmentsRes] = await Promise.all([
+                BudgetService.getBudgetsWithActuals(selectedMonth),
+                CashbookRepository.load().catch(() => null),
+                BankingService.getAccounts().catch(() => []),
+                CommitmentsService.load().catch(() => ({ commitments: [] }))
+            ]);
+
+            setActualsData(report);
+
+            // Calculate liquid cash across Cashbook and Banking accounts
+            let totalPaise = 0n;
+            if (cb && Array.isArray(cb.accounts) && cb.accounts.length > 0) {
+                totalPaise += cb.accounts.reduce((acc, a) => acc + parsePaise(a.balancePaise, a.balance), 0n);
+            }
+            if (Array.isArray(bankingAccounts) && bankingAccounts.length > 0) {
+                const cbAccountIds = new Set((cb?.accounts || []).map(a => a.id));
+                for (const bAcc of bankingAccounts) {
+                    if (!cbAccountIds.has(bAcc.id)) {
+                        totalPaise += parsePaise(bAcc.balancePaise, bAcc.balance);
+                    }
+                }
+            }
+            setLiquidCash(Number(totalPaise / 100n));
+
+            if (commitmentsRes && Array.isArray(commitmentsRes.commitments)) {
+                setCommitments(commitmentsRes.commitments);
             }
         } catch (e) {
             console.warn('Error loading budgets:', e);
@@ -48,34 +78,44 @@ export default function BudgetsScreen() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [selectedMonth]);
 
     const onRefresh = () => {
         setRefreshing(true);
         loadData();
     };
 
-    // Construct unified view model
+    // Construct unified view model with authoritative data (no synthetic fallback)
     const vm = buildBudgetControlCenterViewModel({
-        budgets: userBudgets,
+        budgets: actualsData?.categories || [],
         selectedMonth,
-        selectedStrategyId
+        selectedStrategyId,
+        currentCash: liquidCash,
+        commitments,
+        allowSyntheticFallback: false
     });
 
     const handleSaveBudget = async (newBudgetData) => {
         try {
-            let updated;
-            const exists = userBudgets.some(b => b.id === newBudgetData.id);
-            if (exists) {
-                updated = await BudgetService.updateBudget(newBudgetData);
-            } else {
-                updated = await BudgetService.createBudget(newBudgetData);
-            }
-            setUserBudgets(updated);
+            await BudgetService.saveBudget(newBudgetData);
+            await loadData();
         } catch (e) {
             console.error('Error saving budget:', e);
         } finally {
             setAddBudgetVisible(false);
+            setEditingBudget(null);
+        }
+    };
+
+    const handleDeleteBudget = async (budgetId) => {
+        try {
+            await BudgetService.deleteBudget(budgetId);
+            await loadData();
+        } catch (e) {
+            console.error('Error deleting budget:', e);
+        } finally {
+            setAddBudgetVisible(false);
+            setEditingBudget(null);
         }
     };
 
@@ -90,6 +130,7 @@ export default function BudgetsScreen() {
         }
         if (addBudgetVisible) {
             setAddBudgetVisible(false);
+            setEditingBudget(null);
             return true;
         }
         if (router.canGoBack()) {
@@ -105,6 +146,7 @@ export default function BudgetsScreen() {
         const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
         return () => subscription.remove();
     }, [selectedCategory, calendarVisible, addBudgetVisible]);
+
 
     return (
         <AnimatedScreen style={styles.container}>
@@ -223,7 +265,10 @@ export default function BudgetsScreen() {
                         <BudgetCategoriesList
                             categories={vm.categories}
                             onSelectCategory={(cat) => setSelectedCategory(cat)}
-                            onAddBudget={() => setAddBudgetVisible(true)}
+                            onAddBudget={() => {
+                                setEditingBudget(null);
+                                setAddBudgetVisible(true);
+                            }}
                         />
                     )}
                 </ScrollView>
@@ -236,6 +281,7 @@ export default function BudgetsScreen() {
                 onClose={() => setSelectedCategory(null)}
                 onAdjustBudget={(cat) => {
                     setSelectedCategory(null);
+                    setEditingBudget(cat);
                     setAddBudgetVisible(true);
                 }}
                 onViewTransactions={() => {
@@ -255,8 +301,13 @@ export default function BudgetsScreen() {
             {/* Add / Edit Budget Modal */}
             <AddBudgetModal
                 visible={addBudgetVisible}
-                onClose={() => setAddBudgetVisible(false)}
+                editingBudget={editingBudget}
+                onClose={() => {
+                    setAddBudgetVisible(false);
+                    setEditingBudget(null);
+                }}
                 onSave={handleSaveBudget}
+                onDelete={handleDeleteBudget}
             />
         </AnimatedScreen>
     );

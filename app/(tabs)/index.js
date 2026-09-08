@@ -85,6 +85,7 @@ import { prioritizeNextBestActions } from '../../services/actionPrioritizationEn
 import { simulateActionImpact } from '../../services/actionImpactSimulator';
 import { aggregateMultiGoalSolvency } from '../../services/wealthProjectionEngine';
 import { loadData, STORAGE_KEYS, loadHoldings, loadInvestmentEvents } from '../../services/storage';
+import { P2PService } from '../../services/p2pService';
 
 const { width } = Dimensions.get('window');
 
@@ -137,14 +138,16 @@ export default function Dashboard() {
                 incomeList,
                 accounts,
                 loans,
-                savingsGoals
+                savingsGoals,
+                p2pProjection
             ] = await Promise.all([
                 InvestingAnalyticsEngine.getPortfolioSummary(),
                 loadData(STORAGE_KEYS.TRANSACTIONS, []),
                 loadData(STORAGE_KEYS.INCOME, []),
                 loadData(STORAGE_KEYS.ACCOUNTS, []),
                 loadData(STORAGE_KEYS.LOANS, []),
-                loadData(STORAGE_KEYS.SAVINGS_GOALS, [])
+                loadData(STORAGE_KEYS.SAVINGS_GOALS, []),
+                P2PService.getNetWorthProjection().catch(() => ({ p2pAssetRupees: 0, p2pLiabilityRupees: 0, p2pNetWorthContributionRupees: 0 }))
             ]);
 
             if (requestIdRef.current !== currentReqId) return;
@@ -169,16 +172,25 @@ export default function Dashboard() {
                 liquidCash = Math.max(totalIncomeSum - totalSpendSum, 150000);
             }
 
-            // Liabilities from loans
-            const totalDebt = Array.isArray(loans)
+            // Formal & P2P Liabilities
+            const formalDebt = Array.isArray(loans)
                 ? loans.reduce((sum, ln) => sum + Number(ln.principal || ln.outstandingAmount || 0), 0)
                 : 0;
+            const p2pLiabilities = Number(p2pProjection?.p2pLiabilityRupees || 0);
+            const totalDebt = formalDebt + p2pLiabilities;
 
-            const netWorthVal = (liquidCash + totalInvestments) - totalDebt;
+            // P2P Receivables as Assets
+            const p2pReceivables = Number(p2pProjection?.p2pAssetRupees || 0);
+            const totalAssets = liquidCash + totalInvestments + p2pReceivables;
+
+            const netWorthVal = totalAssets - totalDebt;
 
             setBalanceSheet({
                 totalLiquidCash: liquidCash,
                 totalInvestments,
+                p2pReceivables,
+                p2pLiabilities,
+                p2pNet: p2pReceivables - p2pLiabilities,
                 totalLiabilities: totalDebt,
                 netWorth: netWorthVal,
                 monthlyIncome: totalIncomeSum > 0 ? totalIncomeSum : 165000,
@@ -348,6 +360,13 @@ export default function Dashboard() {
                             <Text style={styles.statMiniLabel}>INVESTMENTS</Text>
                             <Text style={[styles.statMiniValue, { color: '#38BDF8' }]}>
                                 {formatCompactCurrencyINR(balanceSheet.totalInvestments)}
+                            </Text>
+                        </View>
+
+                        <View style={styles.balanceStatCol}>
+                            <Text style={styles.statMiniLabel}>P2P NET</Text>
+                            <Text style={[styles.statMiniValue, { color: (balanceSheet.p2pNet || 0) >= 0 ? '#10B981' : '#F87171' }]}>
+                                {formatCompactCurrencyINR(balanceSheet.p2pNet || 0)}
                             </Text>
                         </View>
 

@@ -1,8 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, BackHandler } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { TrendingDown, Building2, ShoppingBag, Utensils, Briefcase, Plus, TrendingUp, Hotel, Factory, Truck } from 'lucide-react-native';
+import { ArrowLeft, TrendingDown, Building2, ShoppingBag, Utensils, Briefcase, Plus, TrendingUp, Hotel, Factory, Truck } from 'lucide-react-native';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import BusinessCard from '../../components/business/BusinessCard';
 import MarketShockSimulator from '../../components/business/MarketShockSimulator';
@@ -10,6 +11,24 @@ import LuxuryCard from '../../components/ui/LuxuryCard';
 
 export default function BusinessDashboard() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     const businesses = [
         {
@@ -96,14 +115,26 @@ export default function BusinessDashboard() {
 
             <ScrollView
                 style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 24) + 12 }]}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerLabel}>Management</Text>
-                        <Text style={styles.title}>My Businesses</Text>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            onPress={handleBack}
+                            style={styles.backBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityLabel="Go back"
+                            accessibilityRole="button"
+                        >
+                            <ArrowLeft size={20} color="#F8FAFC" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerLabel}>Management</Text>
+                            <Text style={styles.title}>My Businesses</Text>
+                        </View>
                     </View>
                     <TouchableOpacity style={styles.addButton}>
                         <Plus size={24} color="#000000" />
@@ -160,6 +191,21 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center'
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+    },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#18181B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A',
     },
     headerLabel: {
         fontSize: 13,

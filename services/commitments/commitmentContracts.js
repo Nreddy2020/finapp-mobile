@@ -25,7 +25,18 @@ export const CommitmentType = Object.freeze({
     EDUCATION: 'EDUCATION',
     MEMBERSHIP: 'MEMBERSHIP',
     INVESTMENT_SIP: 'INVESTMENT_SIP',
+    PARENT_SUPPORT: 'PARENT_SUPPORT',
+    MEDICAL_CARE: 'MEDICAL_CARE',
     OTHER: 'OTHER'
+});
+
+export const FamilyObligationCategory = Object.freeze({
+    PARENT_SUPPORT: 'PARENT_SUPPORT',
+    CHILD_EDUCATION: 'CHILD_EDUCATION',
+    HEALTH_AND_CARE: 'HEALTH_AND_CARE',
+    FAMILY_PROTECTION: 'FAMILY_PROTECTION',
+    HOUSEHOLD_SHARED: 'HOUSEHOLD_SHARED',
+    OTHER_FAMILY: 'OTHER_FAMILY'
 });
 
 export const AmountMode = Object.freeze({
@@ -53,11 +64,30 @@ export const CommitmentStatus = Object.freeze({
 
 export const PaymentOccurrenceStatus = Object.freeze({
     UPCOMING: 'UPCOMING',
+    OVERDUE: 'OVERDUE',
+    PAID_PENDING_RECONCILIATION: 'PAID_PENDING_RECONCILIATION',
     PAID: 'PAID',
     SKIPPED: 'SKIPPED',
     FAILED: 'FAILED',
-    OVERDUE: 'OVERDUE',
+    FAILED_RECONCILIATION: 'FAILED_RECONCILIATION',
     CANCELLED: 'CANCELLED'
+});
+
+export const CashbookReconciliationStatus = Object.freeze({
+    UNMATCHED: 'UNMATCHED',
+    MATCHED: 'MATCHED',
+    PARTIAL: 'PARTIAL',
+    CONFLICT: 'CONFLICT',
+    NOT_REQUIRED: 'NOT_REQUIRED'
+});
+
+export const EmergencyRunwayStatus = Object.freeze({
+    AVAILABLE: 'AVAILABLE',
+    EMPTY: 'EMPTY',
+    NO_COMMITTED_OUTFLOW: 'NO_COMMITTED_OUTFLOW',
+    NOT_CONFIGURED: 'NOT_CONFIGURED',
+    UNAVAILABLE: 'UNAVAILABLE',
+    PARTIAL: 'PARTIAL'
 });
 
 export const LedgerMatchConfidence = Object.freeze({
@@ -81,6 +111,8 @@ export const TYPE_NATURE_MAPPING = Object.freeze({
     [CommitmentType.INSURANCE]: FinancialNature.EXPENSE,
     [CommitmentType.EDUCATION]: FinancialNature.EXPENSE,
     [CommitmentType.MEMBERSHIP]: FinancialNature.EXPENSE,
+    [CommitmentType.PARENT_SUPPORT]: FinancialNature.EXPENSE,
+    [CommitmentType.MEDICAL_CARE]: FinancialNature.EXPENSE,
     [CommitmentType.OTHER]: FinancialNature.EXPENSE,
     [CommitmentType.LOAN_EMI]: FinancialNature.DEBT,
     [CommitmentType.INVESTMENT_SIP]: FinancialNature.INVESTMENT
@@ -242,5 +274,68 @@ export function validateCommitment(commitment) {
         throw new Error('Commitment must have integer version >= 1');
     }
 
+    // Validate family context if provided
+    if (commitment.familyContext !== undefined && commitment.familyContext !== null) {
+        const fc = commitment.familyContext;
+        if (typeof fc !== 'object') {
+            throw new Error('familyContext must be an object');
+        }
+        if (!fc.personId || typeof fc.personId !== 'string' || !fc.personId.trim()) {
+            throw new Error('familyContext must have a valid non-empty string personId');
+        }
+        if (!fc.familyRole || typeof fc.familyRole !== 'string' || !fc.familyRole.trim()) {
+            throw new Error('familyContext must have a valid non-empty string familyRole');
+        }
+        if (!fc.obligationCategory || !Object.values(FamilyObligationCategory).includes(fc.obligationCategory)) {
+            throw new Error(`Invalid familyContext obligationCategory: ${fc.obligationCategory}`);
+        }
+
+        // Domain link mutual exclusivity check: cannot link to multiple distinct family sub-domains
+        const domainLinks = [fc.policyId, fc.educationGoalId, fc.elderCarePlanId].filter(Boolean);
+        if (domainLinks.length > 1) {
+            throw new Error('Commitment cannot simultaneously link to conflicting family domain targets');
+        }
+
+        // Check compatibility between category and domain link
+        if (fc.educationGoalId && fc.obligationCategory !== FamilyObligationCategory.CHILD_EDUCATION) {
+            throw new Error(`educationGoalId requires CHILD_EDUCATION category, got ${fc.obligationCategory}`);
+        }
+        if (fc.elderCarePlanId && fc.obligationCategory !== FamilyObligationCategory.PARENT_SUPPORT && fc.obligationCategory !== FamilyObligationCategory.HEALTH_AND_CARE) {
+            throw new Error(`elderCarePlanId requires PARENT_SUPPORT or HEALTH_AND_CARE category, got ${fc.obligationCategory}`);
+        }
+        if (fc.policyId && fc.obligationCategory !== FamilyObligationCategory.FAMILY_PROTECTION && fc.obligationCategory !== FamilyObligationCategory.HEALTH_AND_CARE) {
+            throw new Error(`policyId requires FAMILY_PROTECTION or HEALTH_AND_CARE category, got ${fc.obligationCategory}`);
+        }
+    }
+
     return true;
+}
+
+/**
+ * Creates canonical five-field financial projection object for cross-domain consumers.
+ * Preserves compatibility with Family Hub Financial Reference architecture.
+ * 
+ * @param {object} params
+ * @param {object} params.occurrence 
+ * @param {object} params.commitment 
+ * @param {string} params.asOfDate 
+ * @returns {object} Canonical financial projection
+ */
+export function createCommitmentFinancialProjection({ occurrence, commitment, asOfDate }) {
+    const recordId = occurrence?.id || commitment?.id || '';
+    const paise = occurrence?.actualAmount?.paise || occurrence?.expectedAmount?.paise || commitment?.amount?.paise || '0';
+    const currency = occurrence?.actualAmount?.currency || occurrence?.expectedAmount?.currency || commitment?.amount?.currency || 'INR';
+
+    return {
+        reference: {
+            sourceType: 'COMMITMENT',
+            sourceRecordId: recordId,
+            sourceDomain: 'Commitments',
+            linkStatus: 'LINKED_VERIFIED',
+            lastVerifiedAt: new Date().toISOString()
+        },
+        amountPaise: paise,
+        currency,
+        asOfDate: asOfDate || new Date().toISOString().split('T')[0]
+    };
 }

@@ -1,0 +1,83 @@
+{
+  "gate": "Financial Command Center & Reports V1 Qualification",
+  "timestamp": "2026-09-08T10:32:00.000Z",
+  "classification": "FINLIFE FINANCIAL COMMAND CENTER & REPORTS V1 — FUNCTIONALLY QUALIFIED, REGRESSION-VERIFIED, AND FROZEN AS A RELEASE-CANDIDATE BASELINE — READ-ONLY, NON-FABRICATING, AND CROSS-MODULE RECONCILED.",
+  "navigationArchitecture": {
+    "groupLabel": "Financial Command Center",
+    "legacyLabel": "Money Flow & Cash",
+    "subsections": [
+      { "title": "DAILY MONEY", "moduleCount": 5, "modules": ["Money Flow", "Cashbooks", "Budget", "Recurring Commitments", "Group Expenses"] },
+      { "title": "CREDIT & LENDING", "moduleCount": 2, "modules": ["Banking & Credit", "P2P Network"] },
+      { "title": "WEALTH & PROPERTY", "moduleCount": 3, "modules": ["Assets", "Property", "Investments"] },
+      { "title": "REPORTS", "moduleCount": 1, "modules": ["Reports"] }
+    ],
+    "totalModules": 11,
+    "lastModule": "Reports"
+  },
+  "reportStatusContract": {
+    "states": [
+      "AVAILABLE",
+      "STALE",
+      "PARTIAL",
+      "UNAVAILABLE",
+      "CORRUPT",
+      "ERROR",
+      "EMPTY",
+      "LOADING"
+    ],
+    "definitions": {
+      "AVAILABLE": "Authoritative data loaded and reconciled with zero errors",
+      "STALE": "Cached data available; background sync pending or network offline",
+      "PARTIAL": "Some data items missing or in-flight; calculation withheld or marked partial",
+      "UNAVAILABLE": "Domain data temporarily unreachable, missing required keys, or failed to resolve",
+      "CORRUPT": "Unparseable records, tampered checksums, or schema violation detected",
+      "ERROR": "System exception, storage locked, or unhandled query failure",
+      "EMPTY": "Zero records exist for this domain (valid clean Day-0 state)",
+      "LOADING": "Asynchronous query/computation in flight before status determination (transient presentation state)"
+    }
+  },
+  "reportSourceGroups": {
+    "totalSourceGroups": 7,
+    "sourceGroups": [
+      { 
+        "identifier": "CASHBOOK", 
+        "logicalBooks": ["Personal Savings", "Daily Expenses", "Business Operations", "Emergency Buffer", "Tax Reserve"],
+        "underlyingDomains": ["Cashbooks (5 Logical Books partitioned across unified storage collections)"], 
+        "keys": [
+          "finlife_cashbook_accounts_v2", 
+          "finlife_cashbook_transactions_v2",
+          "finlife_cashbook_daily_closings_v2",
+          "finlife_cashbook_audit_log_v2"
+        ] 
+      },
+      { "identifier": "BANKING_AND_LOANS", "underlyingDomains": ["Banking Accounts", "Formal Loans", "Cards"], "keys": ["finlife_banking_accounts_v1", "finlife_banking_formal_loans_v1", "finlife_banking_cards_v1"] },
+      { "identifier": "SHARED_COSTS", "underlyingDomains": ["Shared Costs & Group Expenses"], "keys": ["finlife_shared_groups_v1", "finlife_shared_splits_v1"] },
+      { "identifier": "P2P", "underlyingDomains": ["P2P Network"], "keys": ["finlife_p2p_contacts_v1", "finlife_p2p_transactions_v1"] },
+      { "identifier": "COMMITMENTS_AND_BUDGETS", "underlyingDomains": ["Recurring Commitments", "Budgets"], "keys": ["finlife_recurring_commitments_v1", "finlife_budgets_v1"] },
+      { "identifier": "ASSETS_AND_PROPERTIES", "underlyingDomains": ["Physical Assets", "Properties"], "keys": ["finlife_assets_v1", "finlife_properties_v1"] },
+      { "identifier": "INVESTMENTS", "underlyingDomains": ["Investments"], "keys": ["finlife_investment_holdings_v1", "finlife_investment_trades_v1"] }
+    ],
+    "totalUnderlyingDomainModels": 9
+  },
+  "totals": {
+    "ecosystemBaseline": 847,
+    "gateR1": 8,
+    "gateR2Emulator": 9,
+    "gateR3": 24,
+    "gateR4": 41,
+    "gateR5": 29,
+    "baselineSubtotal": 958,
+    "reportsArchitectureAssertions": 21,
+    "reportsCanonicalAssertions": 76,
+    "reportsSubtotal": 97,
+    "grandTotalAssertions": 1055,
+    "grandTotalPassed": 1055,
+    "grandTotalFailed": 0,
+    "passRate": "100%"
+  },
+  "environmentScope": {
+    "targetDevice": "emulator-5554 (Google sdk_gphone64_x86_64, Android 16, API 36, x86_64)",
+    "package": "com.nirwas20.wealthwise",
+    "boundary": "Automated emulator qualification verified. Physical Android devices, OEM-specific behavior, production security, store packaging, physical hardware backup/restore, and Doze/OEM process resuscitation remain pending in subsequent gates."
+  }
+}

@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
-import { Clock, Target, AlertTriangle, TrendingUp, Calendar } from 'lucide-react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Clock, Target, AlertTriangle, TrendingUp, Calendar } from 'lucide-react-native';
 import DailyScheduleCard from '../../components/time/DailyScheduleCard';
 import ProcrastinationAlertCard from '../../components/time/ProcrastinationAlertCard';
 import GoalProgressCard from '../../components/time/GoalProgressCard';
@@ -10,12 +12,31 @@ import procrastinationDetector from '../../services/procrastinationDetector';
 import { getMockTasks, getMockUserActivity, getMockLifeGoals } from '../../services/timeManagementData';
 
 export default function TimeManagementScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [loading, setLoading] = useState(true);
     const [tasks, setTasks] = useState([]);
     const [schedule, setSchedule] = useState(null);
     const [procrastinationData, setProcrastinationData] = useState(null);
     const [lifeGoals, setLifeGoals] = useState(null);
     const [activeTab, setActiveTab] = useState('schedule'); // schedule, alerts, goals
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     useEffect(() => {
         // Auto-load data when component mounts
@@ -73,13 +94,22 @@ export default function TimeManagementScreen() {
         <View style={{ flex: 1 }}>
             <ScrollView
                 style={styles.container}
-                contentContainerStyle={styles.contentContainer}
+                contentContainerStyle={[styles.contentContainer, { paddingTop: Math.max(insets.top, 16) + 8 }]}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header */}
                 <View style={styles.header}>
+                    <Pressable
+                        onPress={handleBack}
+                        style={styles.backBtn}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Go back"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={20} color="#F8FAFC" />
+                    </Pressable>
                     <View style={styles.headerIcon}>
-                        <Clock size={32} color="#10B981" strokeWidth={2.5} />
+                        <Clock size={28} color="#10B981" strokeWidth={2.5} />
                     </View>
                     <View style={styles.headerText}>
                         <Text style={styles.title}>Time Management</Text>
@@ -315,6 +345,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 20,
+    },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#18181B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A',
+        marginRight: 12,
     },
     headerIcon: {
         width: 64,

@@ -5,6 +5,9 @@
 
 import { LOAN_DIRECTION, LOAN_STATUS } from './p2pDomainModel.js';
 import { calculateLoanDNA, calculateInterestTimeline } from './p2pAccountingEngine.js';
+import { formatPaiseToINR, toBigIntPaise, rupeesToPaise, paiseToRupees } from './p2pContracts.js';
+import { computePortfolioHealth, sortCounterpartiesDeterministically } from './p2pHealthEngine.js';
+
 
 export function formatINR(val, compact = false) {
     const num = Number(val) || 0;
@@ -31,17 +34,26 @@ export function formatPercent(val) {
  * Computes global P2P position metrics across all loans
  */
 export function computeP2POverviewMetrics(loans = [], advances = [], repayments = [], schedules = {}, asOfDate = new Date().toISOString().split('T')[0]) {
-    let totalReceivable = 0;
-    let totalPayable = 0;
-    let upcomingReceipts = 0;
-    let upcomingPayments = 0;
-    let overdueAmount = 0;
-    let dueNext30Days = 0;
+    let totalReceivablePaise = 0n;
+    let totalPayablePaise = 0n;
+    let upcomingReceiptsPaise = 0n;
+    let upcomingPaymentsPaise = 0n;
+    let overdueAmountPaise = 0n;
+    let dueNext30DaysPaise = 0n;
     let activeGivenCount = 0;
     let activeTakenCount = 0;
     let settledCount = 0;
+    let originalPrincipalPaise = 0n;
+    let accruedInterestPaise = 0n;
+    let unallocatedOverpaymentPaise = 0n;
 
+    const safeAdvances = Array.isArray(advances) ? advances : [];
+    const safeRepayments = Array.isArray(repayments) ? repayments : [];
+    const safeSchedules = (schedules && typeof schedules === 'object') ? schedules : {};
     const next30Date = addDaysToDate(asOfDate, 30);
+    const peopleGivenSet = new Set();
+    const peopleTakenSet = new Set();
+    const overdueLoansSet = new Set();
 
     loans.forEach(loan => {
         if (loan.status === LOAN_STATUS.CANCELLED) return;
@@ -53,54 +65,94 @@ export function computeP2POverviewMetrics(loans = [], advances = [], repayments 
         const isGiven = (loan.direction === LOAN_DIRECTION.GIVEN || loan.type === 'GIVEN');
         if (isGiven) {
             activeGivenCount++;
+            if (loan.personId) peopleGivenSet.add(loan.personId);
         } else {
             activeTakenCount++;
+            if (loan.personId) peopleTakenSet.add(loan.personId);
         }
 
-        const loanAdvances = advances.filter(a => a.loanId === loan.id);
-        const loanRepayments = repayments.filter(r => r.loanId === loan.id);
-        const loanSchedule = schedules[loan.id] || [];
+        const loanAdvances = safeAdvances.filter(a => a.loanId === loan.id);
+        const loanRepayments = safeRepayments.filter(r => r.loanId === loan.id);
+        const loanSchedule = safeSchedules[loan.id] || [];
 
-        const totalAdv = loanAdvances.reduce((s, a) => s + (Number(a.amount) || 0), 0) || Number(loan.principal) || 0;
-        const principalPaid = loanRepayments.reduce((s, r) => s + (Number(r.principalComponent || r.principalPaid) || 0), 0);
-        const outstandingPrincipal = loan.outstandingPrincipal !== undefined && loan.outstandingPrincipal !== null
-            ? Number(loan.outstandingPrincipal)
-            : Math.max(0, totalAdv - principalPaid);
+        const totalAdvPaise = loanAdvances.reduce((s, a) => s + toBigIntPaise(a.amountPaise !== undefined ? a.amountPaise : rupeesToPaise(a.amount)), 0n) 
+            || toBigIntPaise(loan.principalPaise !== undefined ? loan.principalPaise : rupeesToPaise(loan.principal));
 
-        if (outstandingPrincipal <= 0.01) {
+        originalPrincipalPaise += totalAdvPaise;
+
+        const principalPaidPaise = loanRepayments.reduce((s, r) => s + toBigIntPaise(r.principalComponentPaise !== undefined ? r.principalComponentPaise : (r.principalPaidPaise !== undefined ? r.principalPaidPaise : rupeesToPaise(r.principalComponent || r.principalPaid || 0))), 0n);
+
+        const outstandingPrincipalPaise = loanRepayments.length > 0
+            ? (totalAdvPaise > principalPaidPaise ? totalAdvPaise - principalPaidPaise : 0n)
+            : (loan.outstandingPrincipalPaise !== undefined && loan.outstandingPrincipalPaise !== null
+                ? toBigIntPaise(loan.outstandingPrincipalPaise)
+                : (loan.outstandingPrincipal !== undefined && loan.outstandingPrincipal !== null
+                    ? rupeesToPaise(loan.outstandingPrincipal)
+                    : (totalAdvPaise > principalPaidPaise ? totalAdvPaise - principalPaidPaise : 0n)));
+
+        if (loan.unallocatedOverpaymentPaise) {
+            unallocatedOverpaymentPaise += toBigIntPaise(loan.unallocatedOverpaymentPaise);
+        }
+        if (loan.accruedInterestPaise) {
+            accruedInterestPaise += toBigIntPaise(loan.accruedInterestPaise);
+        }
+
+        if (outstandingPrincipalPaise <= 0n) {
             return;
         }
 
-        const timeline = calculateInterestTimeline({ loan, advances: loanAdvances, repayments: loanRepayments, asOfDate });
-        const outstandingTotal = outstandingPrincipal;
-
         if (isGiven) {
-            totalReceivable += outstandingTotal;
+            totalReceivablePaise += outstandingPrincipalPaise;
         } else {
-            totalPayable += outstandingTotal;
+            totalPayablePaise += outstandingPrincipalPaise;
         }
 
         // Schedule check for upcoming & overdue
         loanSchedule.forEach(item => {
             if (item.status === 'PAID') return;
-            const remainingItemAmt = Math.max(0, item.expectedAmount - (item.paidAmount || 0));
+            const expPaise = toBigIntPaise(item.expectedAmountPaise !== undefined ? item.expectedAmountPaise : (item.expectedTotalPaise !== undefined ? item.expectedTotalPaise : rupeesToPaise(item.expectedAmount || item.expectedTotal || 0)));
+            const paidPaise = toBigIntPaise(item.paidAmountPaise !== undefined ? item.paidAmountPaise : (item.paidTotalPaise !== undefined ? item.paidTotalPaise : rupeesToPaise(item.paidAmount || item.paidTotal || 0)));
+            const remainingItemPaise = expPaise > paidPaise ? expPaise - paidPaise : 0n;
 
             if (item.dueDate < asOfDate) {
-                overdueAmount += remainingItemAmt;
+                overdueAmountPaise += remainingItemPaise;
+                overdueLoansSet.add(loan.id);
             } else if (item.dueDate <= next30Date) {
-                dueNext30Days += remainingItemAmt;
+                dueNext30DaysPaise += remainingItemPaise;
                 if (isGiven) {
-                    upcomingReceipts += remainingItemAmt;
+                    upcomingReceiptsPaise += remainingItemPaise;
                 } else {
-                    upcomingPayments += remainingItemAmt;
+                    upcomingPaymentsPaise += remainingItemPaise;
                 }
             }
         });
     });
 
-    const netPosition = totalReceivable - totalPayable;
+    const netPositionPaise = totalReceivablePaise - totalPayablePaise;
+    const totalReceivable = paiseToRupees(totalReceivablePaise);
+    const totalPayable = paiseToRupees(totalPayablePaise);
+    const netPosition = paiseToRupees(netPositionPaise);
+    const upcomingReceipts = paiseToRupees(upcomingReceiptsPaise);
+    const upcomingPayments = paiseToRupees(upcomingPaymentsPaise);
+    const overdueAmount = paiseToRupees(overdueAmountPaise);
+    const dueNext30Days = paiseToRupees(dueNext30DaysPaise);
+
+    const plainLanguageNetText = netPositionPaise > 0n 
+        ? 'You are owed more than you owe' 
+        : (netPositionPaise < 0n ? 'You owe more than you are owed' : 'All obligations are balanced');
 
     return {
+        totalReceivablePaise,
+        totalPayablePaise,
+        originalPrincipalPaise,
+        outstandingPrincipalPaise: totalReceivablePaise,
+        accruedInterestPaise,
+        unallocatedOverpaymentPaise,
+        netPositionPaise,
+        upcomingReceiptsPaise,
+        upcomingPaymentsPaise,
+        overdueAmountPaise,
+        dueNext30DaysPaise,
         totalReceivable,
         totalReceivableFormatted: formatINR(totalReceivable, true),
         totalReceivableFullFormatted: formatINR(totalReceivable),
@@ -110,21 +162,43 @@ export function computeP2POverviewMetrics(loans = [], advances = [], repayments 
         netPosition,
         netPositionFormatted: `${netPosition >= 0 ? '+' : '-'}${formatINR(Math.abs(netPosition), true)}`,
         netPositionColor: netPosition >= 0 ? '#10B981' : '#EF4444',
+        plainLanguageNetText,
         upcomingReceipts,
         upcomingReceiptsFormatted: formatINR(upcomingReceipts, true),
         upcomingPayments,
         upcomingPaymentsFormatted: formatINR(upcomingPayments, true),
         overdueAmount,
         overdueAmountFormatted: formatINR(overdueAmount),
+        overdueCount: overdueLoansSet.size,
         dueNext30Days,
         dueNext30DaysFormatted: formatINR(dueNext30Days),
         activeGivenCount,
         activeTakenCount,
-        settledCount
+        peopleGivenCount: peopleGivenSet.size,
+        peopleTakenCount: peopleTakenSet.size,
+        settledCount,
+        activePeopleCount: new Set([...peopleGivenSet, ...peopleTakenSet]).size,
+        atRiskCount: overdueLoansSet.size,
+        needFollowUpCount: (overdueLoansSet.size > 0 ? 1 : 0) + (dueNext30DaysPaise > 0n ? 1 : 0),
+        relationshipHealthPct: (() => {
+            const h = computePortfolioHealth(loans, safeRepayments, safeSchedules, asOfDate);
+            return h.score !== null ? h.score : 100;
+        })(),
+        relationshipHealthState: (() => {
+            const h = computePortfolioHealth(loans, safeRepayments, safeSchedules, asOfDate);
+            return h.state;
+        })(),
+        relationshipHealthDisplay: (() => {
+            const h = computePortfolioHealth(loans, safeRepayments, safeSchedules, asOfDate);
+            return h.displayPct;
+        })(),
+        relationshipHealthReport: computePortfolioHealth(loans, safeRepayments, safeSchedules, asOfDate)
     };
 }
 
 export const computeP2PPositionMetrics = computeP2POverviewMetrics;
+export { sortCounterpartiesDeterministically };
+
 
 /**
  * Computes aggregate summary for a single Person

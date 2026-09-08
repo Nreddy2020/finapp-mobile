@@ -28,6 +28,7 @@ import {
 
 export const FilterPill = Object.freeze({
     ALL: 'All',
+    FAMILY: 'Family',
     SUBSCRIPTIONS: 'Subscriptions',
     LOANS: 'Loans',
     BILLS: 'Bills',
@@ -158,6 +159,7 @@ export function buildRecurringCommitmentsViewModel({
     const activeList = commitments.filter(c => c.status === CommitmentStatus.ACTIVE);
     const filterCounts = {
         all: activeList.length,
+        family: activeList.filter(c => c.familyContext || c.type === CommitmentType.PARENT_SUPPORT || c.type === CommitmentType.EDUCATION || c.type === CommitmentType.MEDICAL_CARE).length,
         subscriptions: activeList.filter(c => c.type === CommitmentType.SUBSCRIPTION).length,
         loans: activeList.filter(c => c.type === CommitmentType.LOAN_EMI).length,
         bills: activeList.filter(c => c.type === CommitmentType.UTILITY_BILL || c.type === CommitmentType.RENT).length,
@@ -166,7 +168,9 @@ export function buildRecurringCommitmentsViewModel({
 
     // 4. Filter active commitments by Pill
     let filteredCommitments = activeList;
-    if (activeFilter === FilterPill.SUBSCRIPTIONS) {
+    if (activeFilter === FilterPill.FAMILY) {
+        filteredCommitments = filteredCommitments.filter(c => c.familyContext || c.type === CommitmentType.PARENT_SUPPORT || c.type === CommitmentType.EDUCATION || c.type === CommitmentType.MEDICAL_CARE);
+    } else if (activeFilter === FilterPill.SUBSCRIPTIONS) {
         filteredCommitments = filteredCommitments.filter(c => c.type === CommitmentType.SUBSCRIPTION);
     } else if (activeFilter === FilterPill.LOANS) {
         filteredCommitments = filteredCommitments.filter(c => c.type === CommitmentType.LOAN_EMI);
@@ -221,6 +225,10 @@ export function buildRecurringCommitmentsViewModel({
             isNormalizedDifferent: c.frequency !== RecurrenceFrequency.MONTHLY,
             progressPercent,
             status: c.status,
+            familyContext: c.familyContext || null,
+            familyMemberLabel: c.familyMemberName || c.familyContext?.familyMemberName || c.familyContext?.familyRole || null,
+            isFamilyLinked: Boolean(c.familyContext),
+            isOrphaned: Boolean(c.isOrphaned),
             rawCommitment: c
         };
     });
@@ -300,6 +308,59 @@ export function buildRecurringCommitmentsViewModel({
         };
     });
 
+    // 8. Adapt Failed Reconciliation list
+    const failedOccurrences = occurrences
+        .filter(o => o.status === PaymentOccurrenceStatus.FAILED_RECONCILIATION)
+        .sort((a, b) => (b.failedAt || '').localeCompare(a.failedAt || ''));
+
+    const failedVM = failedOccurrences.map(occ => {
+        const matchingCommitment = commitments.find(c => c.id === occ.commitmentId) || {};
+        const visual = getCommitmentVisualMeta({ ...matchingCommitment, name: occ.commitmentName });
+        return {
+            id: occ.id,
+            commitmentId: occ.commitmentId,
+            commitmentName: occ.commitmentName,
+            name: occ.commitmentName,
+            visual,
+            visualMeta: visual,
+            scheduledDate: occ.scheduledDate,
+            status: occ.status,
+            expectedAmount: occ.expectedAmount,
+            amountFormatted: formatMoneyPaise(occ.expectedAmount),
+            errorMessage: occ.lastReconciliationError || 'Cashbook reconciliation failed',
+            reconciliationErrorCode: occ.reconciliationErrorCode || 'CASHBOOK_WRITE_FAILED',
+            reconciliationAttempts: occ.reconciliationAttempts || 1,
+            rawOccurrence: occ
+        };
+    });
+
+    // 9. Adapt Recent Paid Occurrences
+    const recentPaidOccurrences = occurrences
+        .filter(o => o.status === PaymentOccurrenceStatus.PAID)
+        .sort((a, b) => (b.paidAt || b.actualPaidDate || '').localeCompare(a.paidAt || a.actualPaidDate || ''))
+        .slice(0, 10);
+
+    const recentPaidVM = recentPaidOccurrences.map(occ => {
+        const matchingCommitment = commitments.find(c => c.id === occ.commitmentId) || {};
+        const visual = getCommitmentVisualMeta({ ...matchingCommitment, name: occ.commitmentName });
+        const amount = occ.actualAmount || occ.expectedAmount;
+        return {
+            id: occ.id,
+            commitmentId: occ.commitmentId,
+            commitmentName: occ.commitmentName,
+            name: occ.commitmentName,
+            visual,
+            visualMeta: visual,
+            scheduledDate: occ.scheduledDate,
+            paidDate: occ.actualPaidDate || occ.scheduledDate,
+            cashbookTransactionId: occ.cashbookTransactionId || occ.transactionId,
+            status: occ.status,
+            isPaid: true,
+            amountFormatted: formatMoneyPaise(amount),
+            rawOccurrence: occ
+        };
+    });
+
     return {
         hero: heroVM,
         activeFilter,
@@ -308,8 +369,14 @@ export function buildRecurringCommitmentsViewModel({
         upcomingOccurrences: upcomingVM,
         overdue: overdueVM,
         overdueOccurrences: overdueVM,
+        failed: failedVM,
+        failedOccurrences: failedVM,
+        recentPaid: recentPaidVM,
+        recentPaidOccurrences: recentPaidVM,
         activeCommitments: activeCommitmentsVM,
         filterCounts,
-        isEmpty: commitments.length === 0
+        isEmpty: commitments.length === 0,
+        hasOverdue: overdueVM.length > 0,
+        hasFailed: failedVM.length > 0
     };
 }

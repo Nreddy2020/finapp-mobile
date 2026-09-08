@@ -107,16 +107,13 @@ class SMSTransactionParser {
                 box: 'inbox',
             };
 
-            console.log('Listing SMS with filter:', JSON.stringify(filter));
-
             SmsAndroid.list(
                 JSON.stringify(filter),
                 (fail) => {
-                    console.error('SMS List failed:', fail);
+                    console.error('SMS List failed');
                     reject(fail);
                 },
                 (count, smsList) => {
-                    console.log('SMS List success, count:', count);
                     try {
                         const messages = JSON.parse(smsList);
                         const transactions = this.parseMessages(messages);

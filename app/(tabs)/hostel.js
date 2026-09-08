@@ -1,14 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, Pressable } from 'react-native';
-import { Home, Users, UtensilsCrossed, Wrench, UserPlus, CalendarDays as Calendar, Shield } from 'lucide-react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, RefreshControl, Text, StyleSheet, Pressable, TouchableOpacity, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Home, Users, UtensilsCrossed, Wrench, UserPlus, CalendarDays as Calendar, Shield } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { HostelService } from '../../services/hostel';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import LuxuryCard from '../../components/ui/LuxuryCard';
 
 export default function HostelScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [refreshing, setRefreshing] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
     const [hostelData, setHostelData] = useState({
         nextPayment: { amount: 0, dueDate: '', daysLeft: 0 },
         messUtilization: 0,
@@ -61,10 +82,22 @@ export default function HostelScreen() {
                 }
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerLabel}>Student Living</Text>
-                        <Text style={styles.title}>Hostel Management</Text>
+                <View style={[styles.header, { paddingTop: Math.max(insets.top, 24) + 12 }]}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            onPress={handleBack}
+                            style={styles.backBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityLabel="Go back"
+                            accessibilityRole="button"
+                        >
+                            <ArrowLeft size={20} color="#F8FAFC" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerLabel}>Student Living</Text>
+                            <Text style={styles.title}>Hostel</Text>
+                        </View>
                     </View>
                     <View style={styles.roomBadge}>
                         <Text style={styles.roomText}>{hostelData.roomNumber}</Text>
@@ -171,7 +204,9 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#000000' },
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: 24 },
-    header: { padding: 24, paddingTop: 60, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    header: { padding: 24, paddingTop: 60, paddingBottom: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
     headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
     title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
     roomBadge: { backgroundColor: '#8B5CF615', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: '#8B5CF630' },

@@ -1,0 +1,209 @@
+{
+  "gate": "Gate R6 — Security & Privacy Release Audit Qualification",
+  "timestamp": "2026-09-08T10:47:13.704Z",
+  "classification": "FINLIFE RELEASE QUALIFICATION — GATE R6: SECURITY & PRIVACY AUDITED, CRYPTOGRAPHICALLY AUTHENTICATED, AND CERTIFIED AS A RELEASE-CANDIDATE BASELINE — FAIL-CLOSED WITHIN TESTED BOUNDARIES, NO OBSERVED SENSITIVE LOG LEAKAGE, AND THREAT-MODELED.",
+  "accounting": {
+    "coreFinancialEcosystem": 847,
+    "gateR1Signing": 8,
+    "gateR2DeviceMatrixEmulator": 9,
+    "gateR3FreshInstallMigration": 24,
+    "gateR4BackupRestore": 41,
+    "gateR5OfflineRecoveryWal": 29,
+    "frozenReleaseBaselineSubtotal": 958,
+    "reportsV1Architecture": 21,
+    "reportsV1CanonicalIntelligence": 76,
+    "reportsV1Subtotal": 97,
+    "previousReleaseCandidateTotal": 1055,
+    "gateR6SecurityPrivacy": 28,
+    "grandCumulativeTotalAssertions": 1083,
+    "grandCumulativeTotalPassed": 1083,
+    "passRate": "100%"
+  },
+  "totals": {
+    "totalAssertions": 28,
+    "passedAssertions": 28,
+    "failedAssertions": 0,
+    "passRate": "100%"
+  },
+  "sections": {
+    "section1_staticSecrets": {
+      "count": 3,
+      "passed": 3
+    },
+    "section2_platformPermissions": {
+      "count": 4,
+      "passed": 4
+    },
+    "section3_storageSandboxing": {
+      "count": 3,
+      "passed": 3
+    },
+    "section4_encryptionHygiene": {
+      "count": 5,
+      "passed": 5
+    },
+    "section5_loggingPrivacy": {
+      "count": 5,
+      "passed": 5
+    },
+    "section6_injectionSanitization": {
+      "count": 4,
+      "passed": 4
+    },
+    "section7_runtimeDynamicSecurity": {
+      "count": 3,
+      "passed": 3
+    },
+    "section8_threatModel": {
+      "count": 1,
+      "passed": 1
+    }
+  },
+  "assertions": {
+    "R6-SEC-01": {
+      "description": "Static code analysis: Zero hardcoded live API keys, private keys, or tokens in source files",
+      "passed": true,
+      "evidence": "Scanned 558 source files across app/, services/, components/, constants/. Zero hardcoded credentials found."
+    },
+    "R6-SEC-02": {
+      "description": "Production build configs and Gradle properties contain zero embedded plaintext signing secrets",
+      "passed": true,
+      "evidence": "Gradle properties and build.gradle verified: Signing credentials injected via secure environment/keystore properties."
+    },
+    "R6-SEC-03": {
+      "description": "Test fixtures and fault injections unconditionally rejected when NODE_ENV === \"production\"",
+      "passed": true,
+      "evidence": "Production guards reject all debug/test fault injection hooks with FAULT_INJECTION_REJECTED."
+    },
+    "R6-PERM-01": {
+      "description": "AndroidManifest.xml specifies android:allowBackup=\"false\" to disable application backup participation",
+      "passed": true,
+      "evidence": "Disables application backup participation for the release application and reduces unauthorized backup extraction exposure. Verified non-debuggable release configuration."
+    },
+    "R6-PERM-02": {
+      "description": "Dangerous and unnecessary Android OS permissions pruned from AndroidManifest.xml",
+      "passed": true,
+      "evidence": "Unnecessary high-risk permissions (Audio, Camera, External Storage, Alert Window, Location) pruned."
+    },
+    "R6-PERM-03": {
+      "description": "FinlifeSmsBroadcastReceiver guarded with signature-level android.permission.BROADCAST_SMS",
+      "passed": true,
+      "evidence": "SMS receiver explicitly protected with BROADCAST_SMS permission; rogue applications cannot spoof SMS broadcasts."
+    },
+    "R6-PERM-04": {
+      "description": "Deep link schemes validated against open intent vulnerabilities with custom-scheme interception caveats",
+      "passed": true,
+      "evidence": "Dangerous URI schemes are rejected and the approved custom scheme is validated; custom-scheme interception risk remains subject to Android intent and physical-device qualification."
+    },
+    "R6-STOR-01": {
+      "description": "Financial persistence strictly confined to app-private internal sandbox",
+      "passed": true,
+      "evidence": "StorageService operates strictly within app-private internal sandbox."
+    },
+    "R6-STOR-02": {
+      "description": "Native Android codebase contains zero MODE_WORLD_READABLE or MODE_WORLD_WRITEABLE references",
+      "passed": true,
+      "evidence": "Zero world-accessible file mode flags found in native Android source tree."
+    },
+    "R6-STOR-03": {
+      "description": "Strict DEMO vs PRODUCTION namespace and storage key isolation prevents cross-contamination",
+      "passed": true,
+      "evidence": "Namespace isolation verified: DEMO (FINLIFE_CASHBOOK_DEMO_V1) and PROD (FINLIFE_CASHBOOK_PROD_V1) keys strictly partitioned."
+    },
+    "R6-CRYPTO-01": {
+      "description": "Authenticated AES-256-GCM encryption enforced with 128-bit tag and 96-bit IV",
+      "passed": true,
+      "evidence": "AES-256-GCM verified: 96-bit randomized IV, 128-bit authentication tag, 128-bit random salt."
+    },
+    "R6-CRYPTO-02": {
+      "description": "PBKDF2-HMAC-SHA256 derivation benchmark meets required work factor (>= 100,000 iterations)",
+      "passed": true,
+      "evidence": "PBKDF2-HMAC-SHA256 calibrated: 100,000 iterations completed in 44ms with 256-bit output."
+    },
+    "R6-CRYPTO-03": {
+      "description": "Native FinlifeCryptoEngine implements StrongBox HSM with AndroidKeyStore TEE fallback",
+      "passed": true,
+      "evidence": "StrongBox is requested where supported, with Android Keystore/TEE fallback; actual hardware-backed capability is device-dependent. Verified native contract in FinlifeCryptoEngine.kt."
+    },
+    "R6-CRYPTO-04": {
+      "description": "In-memory cryptographic hygiene: Mutable key material actively zeroed after use",
+      "passed": true,
+      "evidence": "Cryptographic key buffer memory hygiene verified: zeroed via fill(0) in export and restore."
+    },
+    "R6-CRYPTO-05": {
+      "description": "Key rotation and re-encryption protocol: Changing passphrase re-encrypts with new salt, IV, and tag",
+      "passed": true,
+      "evidence": "Key rotation verified: New credentials generate distinct cryptographic material; old passphrase fails closed."
+    },
+    "R6-LOG-01": {
+      "description": "services/secureLogger.js enforces allow-list logging and sanitizes payload structures",
+      "passed": true,
+      "evidence": "Payload sanitization verified: allow-listed fields preserved while safeguarding object structures."
+    },
+    "R6-LOG-02": {
+      "description": "Mandatory redaction: Passwords, PINs, CVVs, tokens, and keys always sanitized as [REDACTED]",
+      "passed": true,
+      "evidence": "Sensitive credentials (password, pin, cvv, token, key, accountNumber) redacted as [REDACTED]."
+    },
+    "R6-LOG-03": {
+      "description": "Secondary regex masking sanitizes PAN cards, phone numbers, bearer tokens, bank accounts, and Aadhaar/UAN",
+      "passed": true,
+      "evidence": "Regex masking verified: PAN cards, phone numbers, Bearer tokens, bank accounts, and Aadhaar/UAN sanitized."
+    },
+    "R6-LOG-04": {
+      "description": "Production suppression: debug and info logging silenced in production environment",
+      "passed": true,
+      "evidence": "Production suppression verified: secureLogger debug/info silenced when in production environment."
+    },
+    "R6-LOG-05": {
+      "description": "Error normalization strips absolute file paths from stack traces",
+      "passed": true,
+      "evidence": "Error normalization verified: local filesystem paths stripped and masked in stack snippets."
+    },
+    "R6-INJ-01": {
+      "description": "Path traversal prevention: Backup and file operations reject \"../\" and absolute path injections",
+      "passed": true,
+      "evidence": "Path traversal attempts (../, ..\\, absolute paths) prevented via strict path.basename isolation."
+    },
+    "R6-INJ-02": {
+      "description": "Prototype pollution defense: assertSafeObject rejects objects with __proto__, constructor, or prototype",
+      "passed": true,
+      "evidence": "Prototype pollution defense verified: __proto__, constructor, and prototype keys throw SecurityError."
+    },
+    "R6-INJ-03": {
+      "description": "Storage key injection prevention: Control characters and null bytes rejected in storage keys",
+      "passed": true,
+      "evidence": "Storage key injection prevention verified: null bytes, newlines, and quotes fail closed."
+    },
+    "R6-INJ-04": {
+      "description": "Monetary validation: Unsigned monetary inputs reject negative amounts; signed derived calculations permitted; malformed values fail closed",
+      "passed": true,
+      "evidence": "Monetary boundary verified: Unsigned monetary inputs reject negative amounts; signed derived calculations permit negative BigInts; NaN, Infinity, and malformed strings rejected everywhere."
+    },
+    "R6-DYN-01": {
+      "description": "Live Android logcat inspection: Zero unredacted credit cards, PINs, or raw balances logged by app",
+      "passed": true,
+      "evidence": "Active logcat buffer inspected: Zero unredacted PANs, PINs, or plaintext passwords emitted."
+    },
+    "R6-DYN-02": {
+      "description": "Process isolation verification: App executes under private sandboxed Linux UID on emulator-5554",
+      "passed": true,
+      "evidence": "Sandboxed process verified: UID u0_a227, PID 23647 running in isolated Linux container."
+    },
+    "R6-DYN-03": {
+      "description": "Cryptographic tamper rejection: Single bit flip in ciphertext fails closed with AUTHENTICATION_FAILED",
+      "passed": true,
+      "evidence": "Tamper resistance verified: 1-bit ciphertext modification triggers AUTHENTICATION_TAG_VERIFICATION_FAILED."
+    },
+    "R6-THREAT-01": {
+      "description": "Threat model boundaries explicitly separate protected defenses from kernel/hardware compromise",
+      "passed": true,
+      "evidence": "Formal Threat Model boundaries declared: 5 in-scope mitigations documented with qualified transport security; 3 out-of-scope boundaries documented."
+    }
+  },
+  "environmentScope": {
+    "targetDevice": "emulator-5554 (Google sdk_gphone64_x86_64, Android 16, API 36, x86_64)",
+    "package": "com.nirwas20.wealthwise",
+    "boundary": "Automated emulator qualification verified. Physical Android devices, OEM-specific behavior, and hardware penetration testing remain pending in subsequent gates."
+  }
+}

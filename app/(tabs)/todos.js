@@ -1,15 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, TextInput, Modal } from 'react-native';
-import { CheckSquare, Plus, CalendarDays as Calendar, Sparkles, Circle, Trash2, X } from 'lucide-react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, TextInput, Modal, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, CheckSquare, Plus, CalendarDays as Calendar, Sparkles, Circle, Trash2, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TodoService } from '../../services/todos';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import LuxuryCard from '../../components/ui/LuxuryCard';
 
 export default function TodosScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [todos, setTodos] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
     const [modalVisible, setModalVisible] = useState(false);
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            if (modalVisible) {
+                setModalVisible(false);
+                return true;
+            }
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [modalVisible, handleBack]);
 
     // Form State
     const [task, setTask] = useState('');
@@ -71,10 +96,22 @@ export default function TodosScreen() {
                 }
                 showsVerticalScrollIndicator={false}
             >
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerLabel}>Productivity</Text>
-                        <Text style={styles.title}>Tasks</Text>
+                <View style={[styles.header, { paddingTop: Math.max(insets.top, 24) + 12 }]}>
+                    <View style={styles.headerLeft}>
+                        <TouchableOpacity
+                            onPress={handleBack}
+                            style={styles.backBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                            accessibilityLabel="Go back"
+                            accessibilityRole="button"
+                        >
+                            <ArrowLeft size={20} color="#F8FAFC" />
+                        </TouchableOpacity>
+                        <View>
+                            <Text style={styles.headerLabel}>Productivity</Text>
+                            <Text style={styles.title}>Tasks</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -233,6 +270,8 @@ const styles = StyleSheet.create({
     scrollView: { flex: 1 },
     scrollContent: { paddingBottom: 24 },
     header: { padding: 24, paddingTop: 60, paddingBottom: 24 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
     headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
     title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
     heroCardWrapper: { marginHorizontal: 24, marginBottom: 40 },

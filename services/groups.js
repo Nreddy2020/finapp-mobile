@@ -1,80 +1,80 @@
-import { StorageService, STORAGE_KEYS } from './storage';
+/**
+ * services/groups.js
+ * 
+ * Backward-Compatible Facade for FinLife Shared Costs & Groups Engine V1.
+ * Seamlessly delegates all group operations to GroupRepository and GroupViewModel.
+ */
+
+import { GroupRepository } from './shared-costs/groupRepository.js';
+import { GroupViewModel } from './shared-costs/groupViewModel.js';
+import { GroupBalanceEngine } from './shared-costs/groupBalanceEngine.js';
+import { paiseToRupees, toPaise } from './shared-costs/groupContracts.js';
 
 export const GroupService = {
-    // Get all groups
+    // Get all groups with balance summaries
     getGroups: async () => {
-        const data = await StorageService.load(STORAGE_KEYS.GROUP_EXPENSES);
-        return data || [];
+        try {
+            const groups = await GroupRepository.getAllGroups();
+            if (groups.length === 0) {
+                // Auto-seed initial demo dataset if completely empty
+                const seeded = await GroupViewModel.seedMockupDemoData();
+                return seeded.groups;
+            }
+            return groups;
+        } catch (err) {
+            console.error('[GroupService] Error getting groups:', err);
+            return [];
+        }
     },
 
     // Create a new group
     createGroup: async (group) => {
-        const groups = await GroupService.getGroups();
-        const newGroup = {
-            id: Date.now().toString(),
+        const memberNames = Array.isArray(group.members) ? group.members : [];
+        await GroupViewModel.createGroup({
             name: group.name,
-            members: group.members || [], // Array of strings (names)
-            expenses: [],
-            currency: '₹',
-            createdDate: new Date().toISOString().split('T')[0],
-        };
-
-        const updated = [newGroup, ...groups];
-        await StorageService.save(STORAGE_KEYS.GROUP_EXPENSES, updated);
-        return updated;
+            type: group.type || 'TRIP',
+            memberNames
+        });
+        return await GroupService.getGroups();
     },
 
     // Add expense to group
     addExpense: async (groupId, expense) => {
-        const groups = await GroupService.getGroups();
-        const updated = groups.map(g => {
-            if (g.id === groupId) {
-                const newExpense = {
-                    id: Date.now().toString(),
-                    description: expense.description,
-                    amount: parseFloat(expense.amount) || 0,
-                    paidBy: expense.paidBy,
-                    date: new Date().toISOString(),
-                    splitType: 'EQUAL', // For now, assume equal split involves all members
-                };
-                return { ...g, expenses: [newExpense, ...g.expenses] };
-            }
-            return g;
+        await GroupViewModel.addExpense(groupId, {
+            title: expense.description || expense.title || 'Shared Expense',
+            amount: expense.amount,
+            payerMemberId: expense.paidBy || 'You',
+            category: expense.category || 'General'
         });
-        await StorageService.save(STORAGE_KEYS.GROUP_EXPENSES, updated);
-        return updated;
+        return await GroupService.getGroups();
     },
 
-    // Delete group
+    // Delete / Archive group
     deleteGroup: async (id) => {
-        const groups = await GroupService.getGroups();
-        const updated = groups.filter(g => g.id !== id);
-        await StorageService.save(STORAGE_KEYS.GROUP_EXPENSES, updated);
-        return updated;
+        await GroupRepository.updateGroup(id, { status: 'ARCHIVED' });
+        return await GroupService.getGroups();
     },
 
-    // Calculate balances (Simplified Splitwise logic)
+    // Calculate balances (returns map: memberName -> net balance in Rupees)
     calculateBalances: (group) => {
         if (!group) return {};
-        const members = Array.isArray(group.members) ? group.members : [];
-        const expenses = Array.isArray(group.expenses) ? group.expenses : [];
-
-        const balances = {};
-        members.forEach(m => balances[m] = 0);
-
-        expenses.forEach(exp => {
-            if (!exp || !exp.amount || members.length === 0) return;
-            const splitAmount = exp.amount / members.length;
-            if (exp.paidBy) balances[exp.paidBy] = (balances[exp.paidBy] || 0) + exp.amount;
-
-            // Everyone (including payer) "owes" the split amount
-            members.forEach(m => {
-                balances[m] = (balances[m] || 0) - splitAmount;
-            });
-        });
-
-        // Positive balance = Owed to them
-        // Negative balance = They owe others
-        return balances;
+        try {
+            const balanceSummary = group.balanceSummary || 
+                GroupBalanceEngine.calculateGroupBalances(group, group.expenses || [], group.settlements || []);
+            
+            const result = {};
+            if (balanceSummary && balanceSummary.projections) {
+                balanceSummary.projections.forEach(p => {
+                    result[p.displayNameSnapshot] = paiseToRupees(p.netBalancePaise);
+                    result[p.memberId] = paiseToRupees(p.netBalancePaise);
+                });
+            }
+            return result;
+        } catch (err) {
+            console.error('[GroupService] Error calculating balances:', err);
+            return {};
+        }
     }
 };
+
+export default GroupService;

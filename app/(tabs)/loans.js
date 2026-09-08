@@ -1,20 +1,27 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import BankingMainView from '../../components/banking/BankingMainView';
-import StackHeader from '../../components/ui/StackHeader';
+/**
+ * app/(tabs)/loans.js
+ * 
+ * Backward-Compatible Route Wrapper for Formal Loans.
+ * Canonical home: /(tabs)/banking-credit?tab=loans
+ * 
+ * Preserves existing deep links, route parameters, and test selectors.
+ */
+
+import React, { useEffect } from 'react';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { resolveBankingCreditRoute } from '../../services/banking-credit/bankingCreditContracts.js';
+import BankingCreditScreen from './banking-credit.js';
 
 export default function LoansScreen() {
-    return (
-        <View style={styles.container}>
-            <StackHeader title="Formal Bank Loans & Debt" />
-            <BankingMainView />
-        </View>
-    );
-}
+    const router = useRouter();
+    const params = useLocalSearchParams();
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#090A14'
-    }
-});
+    useEffect(() => {
+        const resolved = resolveBankingCreditRoute('/loans', params);
+        if (resolved.isRedirect) {
+            router.replace(`${resolved.canonicalRoute}?tab=${resolved.targetTab}`);
+        }
+    }, [params, router]);
+
+    return <BankingCreditScreen initialTab="loans" />;
+}

@@ -8,7 +8,7 @@
     "releaseParentCommit": "58e2bd26dcbcb54f6f590b90ddcbf74dd6e5be24",
     "releaseTree": "8daa3cbc1183958b51871f55c23c16a04408bd4c",
     "releaseParentTree": "e0fdfaef48c5b2148b201503eb0094da0b72f35e",
-    "workingTreeClean": true,
+    "workingTreeClean": false,
     "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
   },
   "failClosedContract": {
@@ -19,13 +19,13 @@
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-09-04T21:46:10.949Z",
+  "timestamp": "2026-09-08T13:00:44.020Z",
   "exitCode": 0,
   "overallStatus": "PASS",
-  "totalSuites": 21,
-  "passedSuites": 21,
-  "totalAssertions": 453,
-  "passedAssertions": 453,
+  "totalSuites": 26,
+  "passedSuites": 26,
+  "totalAssertions": 508,
+  "passedAssertions": 508,
   "deviceVerification": {
     "emulatorSerial": "emulator-5554",
     "platform": "Android 16 (API 36)",
@@ -105,8 +105,8 @@
   },
   "breakdown": {
     "p2pCore": {
-      "passed": 143,
-      "total": 143,
+      "passed": 173,
+      "total": 173,
       "status": "PASS"
     },
     "p2pPresentation": {
@@ -182,6 +182,24 @@
     },
     {
       "group": "P2P Frozen Baseline",
+      "name": "P2P Unified 23-Invariant Certification",
+      "file": "test_p2p_unified_invariants.mjs",
+      "passed": 24,
+      "total": 24,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
+      "name": "P2P Regression & Burn Protection",
+      "file": "test_p2p_regression.mjs",
+      "passed": 6,
+      "total": 6,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Frozen Baseline",
       "name": "P2P Presentation Adapter & ViewModel",
       "file": "test_p2p_ui.mjs",
       "passed": 14,
@@ -195,6 +213,33 @@
       "file": "test_p2p_ui_financial_truth.mjs",
       "passed": 17,
       "total": 17,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Release-Hardening Baseline",
+      "name": "P2P Persistence, Storage & Migration",
+      "file": "test_p2p_persistence_and_migration.mjs",
+      "passed": 6,
+      "total": 6,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Release-Hardening Baseline",
+      "name": "P2P Fixed-Point Health Mathematics",
+      "file": "test_p2p_health_mathematics.mjs",
+      "passed": 8,
+      "total": 8,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Release-Hardening Baseline",
+      "name": "P2P Adversarial & Negative Invariants",
+      "file": "test_p2p_adversarial_and_negative.mjs",
+      "passed": 11,
+      "total": 11,
       "status": "PASS",
       "error": null
     },

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Dimensions, BackHandler } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, TrendingUp, AlertTriangle, ShieldCheck, HelpCircle, Menu } from 'lucide-react-native';
 import { useDrawer } from './_layout';
@@ -11,6 +11,23 @@ export default function MarketsScreen() {
     const { tab } = useLocalSearchParams();
     const { setIsDrawerOpen } = useDrawer();
     const [activeTab, setActiveTab] = useState('sentiment');
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     useEffect(() => {
         if (tab) {
@@ -45,13 +62,27 @@ export default function MarketsScreen() {
             
             {/* Header */}
             <View style={styles.header}>
-                <Pressable style={styles.backBtn} onPress={() => setIsDrawerOpen(true)}>
-                    <Menu size={24} color="#FFF" />
+                <Pressable
+                    style={styles.backBtn}
+                    onPress={handleBack}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel="Go back"
+                    accessibilityRole="button"
+                >
+                    <ArrowLeft size={22} color="#FFF" />
                 </Pressable>
                 <Text style={styles.headerTitle} numberOfLines={1}>
                     {activeTab === 'sentiment' ? 'Market Sentiment Advisor' : 'Derivatives Leverage Guard'}
                 </Text>
-                <View style={{ width: 40 }} />
+                <Pressable
+                    style={styles.backBtn}
+                    onPress={() => setIsDrawerOpen(true)}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel="Open menu"
+                    accessibilityRole="button"
+                >
+                    <Menu size={22} color="#FFF" />
+                </Pressable>
             </View>
 
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false}>

@@ -104,15 +104,52 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            def keystorePropertiesFile = rootProject.file('keystore.properties')
+            def keystoreProperties = new Properties()
+            if (keystorePropertiesFile.exists() && keystorePropertiesFile.canRead()) {
+                keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+            } else if (file('keystore.properties').exists() && file('keystore.properties').canRead()) {
+                keystoreProperties.load(new FileInputStream(file('keystore.properties')))
+            }
+
+            def releaseStoreFile = System.getenv('FINLIFE_RELEASE_STORE_FILE') ?:
+                                   findProperty('FINLIFE_RELEASE_STORE_FILE') ?:
+                                   keystoreProperties['FINLIFE_RELEASE_STORE_FILE']
+            def releaseKeyAlias = System.getenv('FINLIFE_RELEASE_KEY_ALIAS') ?:
+                                  findProperty('FINLIFE_RELEASE_KEY_ALIAS') ?:
+                                  keystoreProperties['FINLIFE_RELEASE_KEY_ALIAS']
+            def releaseStorePassword = System.getenv('FINLIFE_RELEASE_STORE_PASSWORD') ?:
+                                       findProperty('FINLIFE_RELEASE_STORE_PASSWORD') ?:
+                                       keystoreProperties['FINLIFE_RELEASE_STORE_PASSWORD']
+            def releaseKeyPassword = System.getenv('FINLIFE_RELEASE_KEY_PASSWORD') ?:
+                                     findProperty('FINLIFE_RELEASE_KEY_PASSWORD') ?:
+                                     keystoreProperties['FINLIFE_RELEASE_KEY_PASSWORD']
+
+            if (releaseStoreFile && releaseKeyAlias && releaseStorePassword && releaseKeyPassword) {
+                def resolvedFile = file(releaseStoreFile)
+                if (!resolvedFile.exists()) {
+                    resolvedFile = rootProject.file(releaseStoreFile)
+                }
+                storeFile resolvedFile
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                v1SigningEnabled true
+                v2SigningEnabled true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Mandatory Gate R1 Directive: Production release builds MUST fail closed if release signing credentials are missing.
+            // Never fall back to debug signing for release builds.
+            signingConfig signingConfigs.release
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -180,3 +217,27 @@ dependencies {
         implementation jscFlavor
     }
 }
+
+// Fail-closed enforcement: Never allow release builds without explicit production signing credentials
+gradle.taskGraph.whenReady { taskGraph ->
+    def isReleaseTask = taskGraph.allTasks.any { task ->
+        task.name.contains("Release") && (
+            task.name.startsWith("assemble") || 
+            task.name.startsWith("bundle") || 
+            task.name.startsWith("package")
+        )
+    }
+    if (isReleaseTask) {
+        def releaseConfig = android.signingConfigs.findByName("release")
+        if (releaseConfig == null || releaseConfig.storeFile == null || !releaseConfig.isSigningReady()) {
+            throw new GradleException(
+                "RELEASE BUILD FAILED CLOSED: Production signing configuration is missing, incomplete, or invalid.\n" +
+                "Production release builds must NEVER fall back to debug signing.\n" +
+                "Please configure FINLIFE_RELEASE_STORE_FILE, FINLIFE_RELEASE_KEY_ALIAS, " +
+                "FINLIFE_RELEASE_STORE_PASSWORD, and FINLIFE_RELEASE_KEY_PASSWORD via environment variables " +
+                "or android/keystore.properties."
+            )
+        }
+    }
+}
+

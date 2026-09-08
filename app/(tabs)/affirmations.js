@@ -1,12 +1,33 @@
-import React, { useState } from 'react';
-import { View, ScrollView, Text, StyleSheet, Pressable, TextInput, ImageBackground, Alert } from 'react-native';
-import { Brain, Play, BookOpen, Sparkles, CheckCircle2, Lock, Heart } from 'lucide-react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { View, ScrollView, Text, StyleSheet, Pressable, TextInput, ImageBackground, Alert, TouchableOpacity, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Brain, Play, BookOpen, Sparkles, CheckCircle2, Lock, Heart } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AffirmationService } from '../../services/affirmations';
 
 export default function AffirmationsScreen() {
+    const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [journalEntry, setJournalEntry] = useState('');
     const [gratitudeList, setGratitudeList] = useState(['', '', '']);
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     const affirmations = [
         "Money flows to me easily and effortlessly.",
@@ -49,10 +70,22 @@ export default function AffirmationsScreen() {
                 style={styles.background}
             />
 
-            <ScrollView style={styles.content}>
+            <ScrollView style={[styles.content, { paddingTop: Math.max(insets.top, 24) + 12 }]}>
                 <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Rewire Your Brain</Text>
-                    <Text style={styles.headerSubtitle}>Abundance Mindset</Text>
+                    <TouchableOpacity
+                        onPress={handleBack}
+                        style={styles.backBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Go back"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={20} color="#F8FAFC" />
+                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.headerTitle}>Rewire Your Brain</Text>
+                        <Text style={styles.headerSubtitle}>Abundance Mindset</Text>
+                    </View>
                 </View>
 
                 {/* 1. Daily Affirmations */}
@@ -162,7 +195,8 @@ const styles = StyleSheet.create({
     background: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
     content: { flex: 1, padding: 24, paddingTop: 60 },
 
-    header: { marginBottom: 32 },
+    header: { marginBottom: 32, flexDirection: 'row', alignItems: 'center', gap: 16 },
+    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
     headerTitle: { fontSize: 32, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
     headerSubtitle: { fontSize: 16, color: '#A1A1AA', fontWeight: '500' },
 

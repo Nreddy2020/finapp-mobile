@@ -53,13 +53,18 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
             return;
         }
 
+        const parsedLimit = parseFloat(limit);
+        if (isNaN(parsedLimit) || parsedLimit <= 0) {
+            alert('Please enter a valid positive budget limit');
+            return;
+        }
+
         const budgetData = {
             id: editingBudget?.id || Date.now().toString(),
             category,
             type: allocationType,
-            limit: parseFloat(limit),
+            limit: parsedLimit,
             period,
-            spent: editingBudget?.spent || 0, // Preserve spent amount if editing, else 0
             updatedAt: new Date().toISOString()
         };
 

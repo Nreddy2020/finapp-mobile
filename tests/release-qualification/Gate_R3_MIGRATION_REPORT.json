@@ -1,0 +1,143 @@
+{
+  "gate": "Gate R3 — Fresh Install & V4 Migration",
+  "timestamp": "2026-09-08T10:37:26.505Z",
+  "classification": "FINLIFE RELEASE QUALIFICATION — GATE R3: FUNCTIONALLY QUALIFIED, AUTOMATION-VERIFIED, AND CERTIFIED AS A RELEASE-CANDIDATE BASELINE — BALANCE-CONSERVING, IDEMPOTENT, AND ATOMIC",
+  "domainSchemaVersions": {
+    "GLOBAL": 1,
+    "INVESTMENTS": 4,
+    "CASHBOOK": 2,
+    "ASSETS": 1,
+    "PROPERTIES": 1,
+    "LOANS": 1,
+    "P2P": 1
+  },
+  "conversionContract": "legacy amount -> decimal normalization -> paise conversion -> deterministic half-up rounding -> BigInt",
+  "totals": {
+    "totalAssertions": 24,
+    "passedAssertions": 24,
+    "failedAssertions": 0
+  },
+  "assertions": {
+    "R3-CONV-01": {
+      "description": "Exact decimal normalization to integer BigInt paise",
+      "passed": true,
+      "evidence": "100.50 -> 10050n, 2500.75 -> 250075n"
+    },
+    "R3-CONV-02": {
+      "description": "Deterministic half-up rounding at sub-paise boundary",
+      "passed": true,
+      "evidence": "100.005 -> 10001n, 100.004 -> 10000n, 123.4567 -> 12346n"
+    },
+    "R3-CONV-03": {
+      "description": "Negative, zero, and extreme boundary monetary conversion",
+      "passed": true,
+      "evidence": "Negative: -4525n, Zero: 0n, Extreme: 99999999999999n"
+    },
+    "R3-CONV-04": {
+      "description": "Scientific notation and formatted currency strings",
+      "passed": true,
+      "evidence": "Scientific 1.5e4 -> 1500000n, Currency string -> 12345675n"
+    },
+    "R3-CONV-05": {
+      "description": "Adversarial rejection of NaN, Infinity, null, and malformed strings",
+      "passed": true,
+      "evidence": "Rejected NaN, Infinity, null, undefined, empty, non-numeric strings, and objects"
+    },
+    "R3-BAL-01": {
+      "description": "Investment cost-basis conservation: Post-CostBasis - Pre-CostBasis === 0n paise",
+      "passed": true,
+      "evidence": "Pre: 8454075n paise, Post: 8454075n paise, Delta: 0n paise"
+    },
+    "R3-BAL-02": {
+      "description": "Cashbook multi-account balance conservation across books",
+      "passed": true,
+      "evidence": "Pre-Cash: 23300075n, Post-Cash: 23300075n, Delta: 0n paise"
+    },
+    "R3-BAL-03": {
+      "description": "Loan outstanding principal conservation (no synthetic interest fabrication)",
+      "passed": true,
+      "evidence": "Principal: 425000000n paise, Zero synthetic repayments fabricated"
+    },
+    "R3-BAL-04": {
+      "description": "P2P relational lending balance conservation",
+      "passed": true,
+      "evidence": "Lent Delta: 0n paise, Borrowed Delta: 0n paise"
+    },
+    "R3-SCHEMA-01": {
+      "description": "Explicit domain schema versions stamped correctly",
+      "passed": true,
+      "evidence": "INVESTMENTS=4, CASHBOOK=2, GLOBAL=1, ASSETS=1, PROPERTIES=1, LOANS=1, P2P=1"
+    },
+    "R3-PROV-01": {
+      "description": "Complete provenance retained on all migrated records",
+      "passed": true,
+      "evidence": "Instruments: 3, Tax Lots: 3 all contain full provenance"
+    },
+    "R3-QUAR-01": {
+      "description": "Corrupt or malformed legacy records quarantined without silent drop",
+      "passed": true,
+      "evidence": "1 valid migrated, 2 quarantined with explicit audit reasons in quarantineRegistry"
+    },
+    "R3-IDEM-01": {
+      "description": "Migration idempotency: f(f(x)) === f(x) with bit-for-bit state identity",
+      "passed": true,
+      "evidence": "Bit-for-bit snapshot identity verified; 0 record duplication, 0 balance drift"
+    },
+    "R3-ROLL-01": {
+      "description": "Atomic rollback on failure at Interception Point 1",
+      "passed": true,
+      "evidence": "Interception Point 1 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-02": {
+      "description": "Atomic rollback on failure at Interception Point 2",
+      "passed": true,
+      "evidence": "Interception Point 2 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-03": {
+      "description": "Atomic rollback on failure at Interception Point 3",
+      "passed": true,
+      "evidence": "Interception Point 3 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-04": {
+      "description": "Atomic rollback on failure at Interception Point 4",
+      "passed": true,
+      "evidence": "Interception Point 4 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-05": {
+      "description": "Atomic rollback on failure at Interception Point 5",
+      "passed": true,
+      "evidence": "Interception Point 5 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-06": {
+      "description": "Atomic rollback on failure at Interception Point 6",
+      "passed": true,
+      "evidence": "Interception Point 6 failed closed; verified pre-migration state restored"
+    },
+    "R3-ROLL-07": {
+      "description": "Atomic rollback on failure at Interception Point 7",
+      "passed": true,
+      "evidence": "Interception Point 7 failed closed; verified pre-migration state restored"
+    },
+    "R3-FRESH-01": {
+      "description": "Clean initial state produces EMPTY status with zero net worth",
+      "passed": true,
+      "evidence": "All 6 financial modules initialize with EMPTY status and zero balance"
+    },
+    "R3-FRESH-02": {
+      "description": "Precise UNAVAILABLE vs EMPTY distinction: missing source yields em-dash",
+      "passed": true,
+      "evidence": "Missing source flagged UNAVAILABLE; Net Worth rendered strictly as em-dash (—), never misleading ₹0.00"
+    },
+    "R3-SEC-01": {
+      "description": "Prototype pollution attempt rejected with SecurityError",
+      "passed": true,
+      "evidence": "Rejected __proto__ injection cleanly with SecurityError"
+    },
+    "R3-SEC-02": {
+      "description": "Zero credentials, passwords, or tokens in migrated structures",
+      "passed": true,
+      "evidence": "Zero passwords, secrets, private keys, or tokens in migrated payload"
+    }
+  },
+  "gateStatus": "PASS"
+}

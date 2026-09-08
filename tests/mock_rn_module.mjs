@@ -67,8 +67,36 @@ export const getItemAsync = async () => null;
 export const setItemAsync = async () => true;
 export const deleteItemAsync = async () => true;
 
+export const getItem = async (key) => storageMap.get(key) || null;
+export const setItem = async (key, val) => { storageMap.set(key, String(val)); return true; };
+export const removeItem = async (key) => { storageMap.delete(key); return true; };
+export const clear = async () => { storageMap.clear(); return true; };
+export const getAllKeys = async () => Array.from(storageMap.keys());
+export const multiSet = async (pairs) => {
+    for (const [k, v] of pairs) {
+        storageMap.set(k, String(v));
+    }
+    return true;
+};
+export const multiRemove = async (keys) => {
+    for (const k of keys) {
+        storageMap.delete(k);
+    }
+    return true;
+};
+export const multiGet = async (keys) => {
+    return keys.map(k => [k, storageMap.get(k) || null]);
+};
+
+export class UnavailabilityError extends Error {}
+export class EventEmitter {
+    addListener() { return { remove: () => {} }; }
+}
+
 export default {
     Platform,
+    UnavailabilityError,
+    EventEmitter,
     getRandomBytesAsync,
     encrypt,
     decrypt,
@@ -76,5 +104,13 @@ export default {
     requireNativeModule,
     getItemAsync,
     setItemAsync,
-    deleteItemAsync
+    deleteItemAsync,
+    getItem,
+    setItem,
+    removeItem,
+    clear,
+    getAllKeys,
+    multiSet,
+    multiRemove,
+    multiGet
 };

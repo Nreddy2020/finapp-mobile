@@ -22,18 +22,32 @@ import {
     FinancialNature,
     AmountMode,
     RecurrenceFrequency,
+    FamilyObligationCategory,
     rupeesToMoneyPaise,
     validateCommitment
 } from '../../services/commitments/commitmentContracts.js';
+import { FamilyRepository } from '../../services/family/familyRepository.js';
 
 const TYPE_OPTIONS = [
     { label: 'Subscription', value: CommitmentType.SUBSCRIPTION, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Entertainment' },
     { label: 'Loan / EMI', value: CommitmentType.LOAN_EMI, defaultNature: FinancialNature.DEBT, defaultCat: 'Debt & Loans' },
     { label: 'Rent', value: CommitmentType.RENT, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Housing' },
+    { label: 'Parent Support', value: CommitmentType.PARENT_SUPPORT, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Family' },
+    { label: 'Medical Care', value: CommitmentType.MEDICAL_CARE, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Healthcare' },
+    { label: 'Education', value: CommitmentType.EDUCATION, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Education' },
     { label: 'Insurance', value: CommitmentType.INSURANCE, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Insurance' },
     { label: 'Utility Bill', value: CommitmentType.UTILITY_BILL, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Utilities' },
     { label: 'Investment SIP', value: CommitmentType.INVESTMENT_SIP, defaultNature: FinancialNature.INVESTMENT, defaultCat: 'Investments' },
     { label: 'Other', value: CommitmentType.OTHER, defaultNature: FinancialNature.EXPENSE, defaultCat: 'General' }
+];
+
+const CATEGORY_OPTIONS = [
+    { label: 'Child Education', value: FamilyObligationCategory.CHILD_EDUCATION },
+    { label: 'Family Protection & Insurance', value: FamilyObligationCategory.FAMILY_PROTECTION },
+    { label: 'Parent Support', value: FamilyObligationCategory.PARENT_SUPPORT },
+    { label: 'Health & Care', value: FamilyObligationCategory.HEALTH_AND_CARE },
+    { label: 'Household Shared', value: FamilyObligationCategory.HOUSEHOLD_SHARED },
+    { label: 'Other Family Obligation', value: FamilyObligationCategory.OTHER_FAMILY }
 ];
 
 const FREQUENCY_OPTIONS = [
@@ -47,21 +61,81 @@ const FREQUENCY_OPTIONS = [
 export default function AddCommitmentModal({
     visible,
     onClose,
-    onSave
+    onSave,
+    initialValues = null
 }) {
     const [name, setName] = useState('');
-    const [selectedType, setSelectedType] = useState(CommitmentType.SUBSCRIPTION);
     const [amountRupees, setAmountRupees] = useState('');
+    const [selectedType, setSelectedType] = useState(CommitmentType.BILL);
+    const [nature, setNature] = useState(FinancialNature.EXPENSE);
+    const [category, setCategory] = useState('Utilities');
     const [frequency, setFrequency] = useState(RecurrenceFrequency.MONTHLY);
     const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-    const [nature, setNature] = useState(FinancialNature.EXPENSE);
-    const [category, setCategory] = useState('Entertainment');
     const [isVariable, setIsVariable] = useState(false);
+
+    // Family Linkage state
+    const [familyMembers, setFamilyMembers] = useState([]);
+    const [selectedMemberId, setSelectedMemberId] = useState(null);
+    const [obligationCategory, setObligationCategory] = useState(FamilyObligationCategory.CHILD_EDUCATION);
+
+    // Load active family members on open
+    React.useEffect(() => {
+        if (visible) {
+            FamilyRepository.loadFamilyEnvelope()
+                .then(envelope => {
+                    const rawPersons = envelope?.data?.persons || [];
+                    const active = rawPersons
+                        .filter(p => {
+                            const status = p.status || p.core?.status || 'ACTIVE';
+                            return status !== 'ARCHIVED' && status !== 'DELETED';
+                        })
+                        .map(p => ({
+                            id: p.id || p.core?.id,
+                            name: p.name || p.profile?.displayName || p.core?.fullName || 'Family Member',
+                            role: p.role || p.core?.relationship || p.profile?.relationship || 'MEMBER'
+                        }));
+                    setFamilyMembers(active);
+                })
+                .catch(() => setFamilyMembers([]));
+
+            if (initialValues) {
+                if (initialValues.name) setName(initialValues.name);
+                if (initialValues.amountRupees) setAmountRupees(initialValues.amountRupees);
+                if (initialValues.type) setSelectedType(initialValues.type);
+                if (initialValues.financialNature) setNature(initialValues.financialNature);
+                if (initialValues.category) setCategory(initialValues.category);
+                if (initialValues.frequency) setFrequency(initialValues.frequency);
+                if (initialValues.personId) setSelectedMemberId(initialValues.personId);
+                if (initialValues.obligationCategory) setObligationCategory(initialValues.obligationCategory);
+            }
+        }
+    }, [visible, initialValues]);
 
     const handleSelectType = (opt) => {
         setSelectedType(opt.value);
         setNature(opt.defaultNature);
         setCategory(opt.defaultCat);
+    };
+
+    const handleSelectFamilyCategory = (cat) => {
+        setObligationCategory(cat);
+        if (cat === FamilyObligationCategory.EDUCATION) {
+            setSelectedType(CommitmentType.EDUCATION);
+            setNature(FinancialNature.EXPENSE);
+            setCategory('Education');
+        } else if (cat === FamilyObligationCategory.INSURANCE) {
+            setSelectedType(CommitmentType.INSURANCE);
+            setNature(FinancialNature.EXPENSE);
+            setCategory('Insurance');
+        } else if (cat === FamilyObligationCategory.PARENT_SUPPORT) {
+            setSelectedType(CommitmentType.PARENT_SUPPORT);
+            setNature(FinancialNature.EXPENSE);
+            setCategory('Family');
+        } else if (cat === FamilyObligationCategory.HEALTHCARE) {
+            setSelectedType(CommitmentType.MEDICAL_CARE);
+            setNature(FinancialNature.EXPENSE);
+            setCategory('Healthcare');
+        }
     };
 
     const handleSave = () => {
@@ -93,6 +167,19 @@ export default function AddCommitmentModal({
                 category
             };
 
+            // Attach validated familyContext if selected
+            if (selectedMemberId) {
+                const member = familyMembers.find(m => m.id === selectedMemberId);
+                if (member) {
+                    newCommitment.familyContext = {
+                        personId: member.id,
+                        familyRole: member.role,
+                        obligationCategory
+                    };
+                    newCommitment.familyMemberName = member.name;
+                }
+            }
+
             validateCommitment(newCommitment);
             onSave(newCommitment);
 
@@ -101,6 +188,7 @@ export default function AddCommitmentModal({
             setAmountRupees('');
             setSelectedType(CommitmentType.SUBSCRIPTION);
             setFrequency(RecurrenceFrequency.MONTHLY);
+            setSelectedMemberId(null);
             onClose();
         } catch (error) {
             Alert.alert('Validation Error', error.message);
@@ -208,6 +296,62 @@ export default function AddCommitmentModal({
                                 />
                             </View>
                         </View>
+
+                        {/* Family Linkage (Optional) */}
+                        {familyMembers.length > 0 && (
+                            <View style={styles.familySection}>
+                                <Text style={styles.sectionLabel}>Link to Family Member (Optional)</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
+                                    <TouchableOpacity
+                                        style={[styles.typeChip, !selectedMemberId && styles.typeChipActive]}
+                                        onPress={() => setSelectedMemberId(null)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={[styles.typeChipText, !selectedMemberId && styles.typeChipTextActive]}>
+                                            None (Self)
+                                        </Text>
+                                    </TouchableOpacity>
+                                    {familyMembers.map(mem => {
+                                        const isSelected = selectedMemberId === mem.id;
+                                        return (
+                                            <TouchableOpacity
+                                                key={mem.id}
+                                                style={[styles.typeChip, isSelected && styles.typeChipActive]}
+                                                onPress={() => setSelectedMemberId(mem.id)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={[styles.typeChipText, isSelected && styles.typeChipTextActive]}>
+                                                    {mem.name} ({mem.role})
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+
+                                {selectedMemberId && (
+                                    <View style={{ marginTop: 6 }}>
+                                        <Text style={styles.subSectionLabel}>Obligation Category</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeScroll}>
+                                            {CATEGORY_OPTIONS.map(cat => {
+                                                const isSelected = obligationCategory === cat.value;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={cat.value}
+                                                        style={[styles.catChip, isSelected && styles.catChipActive]}
+                                                        onPress={() => handleSelectFamilyCategory(cat.value)}
+                                                        activeOpacity={0.7}
+                                                    >
+                                                        <Text style={[styles.catChipText, isSelected && styles.catChipTextActive]}>
+                                                            {cat.label}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </ScrollView>
+                                    </View>
+                                )}
+                            </View>
+                        )}
 
                         {/* Save Button */}
                         <TouchableOpacity
@@ -351,5 +495,40 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         color: '#FFFFFF'
+    },
+    familySection: {
+        backgroundColor: '#1E1B2E',
+        borderRadius: 14,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#2D2845'
+    },
+    subSectionLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#A78BFA',
+        marginBottom: 6
+    },
+    catChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: '#161426',
+        borderWidth: 1,
+        borderColor: '#2D2845',
+        marginRight: 6
+    },
+    catChipActive: {
+        backgroundColor: '#3B0764',
+        borderColor: '#C084FC'
+    },
+    catChipText: {
+        fontSize: 11,
+        color: '#94A3B8',
+        fontWeight: '500'
+    },
+    catChipTextActive: {
+        color: '#F3E8FF',
+        fontWeight: '600'
     }
 });

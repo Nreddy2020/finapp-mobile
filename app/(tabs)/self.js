@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Dimensions, TouchableOpacity, Modal, Linking, Image, Switch } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Dimensions, TouchableOpacity, Modal, Linking, Image, Switch, BackHandler } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Wallet, TrendingUp, Calendar, AlertTriangle, ShieldCheck, Plus, CheckSquare, Square, Trash2, Landmark, RefreshCw, Layers, CheckCircle, Menu, X, Activity, Edit2, Users, Leaf, Sun, CloudRain, Zap, Target, ArrowUpRight, ArrowDownLeft, Calculator, Bell, Building2, GraduationCap, ChevronDown } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -154,18 +154,46 @@ export default function SelfScreen() {
     const { tab } = useLocalSearchParams();
 
     const { setIsDrawerOpen } = useDrawer();
-    const [activeTab, setActiveTab] = useState(tab || 'flow');
+    const [activeTab, setActiveTab] = useState((tab && tab !== 'banking') ? tab : 'flow');
     const [activeSubTab, setActiveSubTab] = useState('renewals');
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            if (router.canGoBack()) {
+                handleBack();
+                return true;
+            }
+            return false;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack, router]);
 
     useEffect(() => {
         if (tab) {
+            if (tab === 'banking') {
+                router.replace('/(tabs)/banking-credit?tab=accounts');
+                return;
+            }
+            if (tab === 'p2p') {
+                router.replace('/(tabs)/p2p');
+                return;
+            }
             if (tab === 'sms') {
                 setActiveTab('banking');
             } else {
                 setActiveTab(tab);
             }
         }
-    }, [tab]);
+    }, [tab, router]);
 
     const { formatAmount } = useGlobalFinance();
 
@@ -2336,8 +2364,14 @@ export default function SelfScreen() {
             <View style={styles.statusBarSpacer} />
             {/* Header */}
             <View style={styles.header}>
-                <Pressable style={styles.backBtn} onPress={() => { setIsDrawerOpen(true); }}>
-                    <Menu size={24} color="#FFF" />
+                <Pressable
+                    style={styles.backBtn}
+                    onPress={handleBack}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel="Go back"
+                    accessibilityRole="button"
+                >
+                    <ArrowLeft size={22} color="#FFF" />
                 </Pressable>
                 <Text style={styles.headerTitle} numberOfLines={1}>
                     {(activeTab === 'financial_hub' || activeTab === 'sms' || activeTab === 'hub') && 'Financial Hub'}
@@ -2353,7 +2387,15 @@ export default function SelfScreen() {
                     {activeTab === 'properties' && 'Property Vault'}
                     {activeTab === 'crisis' && 'Volatility Shield'}
                 </Text>
-                <View style={{ width: 40 }} />
+                <Pressable
+                    style={styles.backBtn}
+                    onPress={() => { setIsDrawerOpen(true); }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    accessibilityLabel="Open menu"
+                    accessibilityRole="button"
+                >
+                    <Menu size={22} color="#FFF" />
+                </Pressable>
             </View>
             <ScrollView style={styles.contentScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 

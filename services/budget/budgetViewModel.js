@@ -59,12 +59,87 @@ export function buildBudgetControlCenterViewModel({
     currentCash = 37500,
     reservedForGoals = 0,
     calculationPolicy = DEFAULT_BUDGET_CALCULATION_POLICY,
+    allowSyntheticFallback = true, // Defaults to true for test suite backwards-compatibility, set to false in production UI
     now = new Date(2026, 8, 18) // Default to Sep 18, 2026 for consistent sample timeline
 } = {}) {
     // 1. Resolve unified BudgetPeriod
     const period = resolveBudgetPeriod({ selectedMonth, now });
 
-    // 2. Default Seed Budgets if empty
+    // Check if clean empty state requested
+    if (!allowSyntheticFallback && (!budgets || budgets.length === 0)) {
+        return {
+            isEmpty: true,
+            period,
+            financialHealth: {
+                status: 'EMPTY',
+                isAvailable: true,
+                isEmpty: true,
+                spent: 0,
+                formattedSpent: '₹0',
+                budget: 0,
+                formattedBudget: '₹0',
+                utilization: 0,
+                income: Number(totalIncome) || 0,
+                formattedIncome: formatCurrency(Number(totalIncome) || 0),
+                safeToSpendToday: 0,
+                formattedSafeToSpendToday: '₹0',
+                safeToSpendUntilMonthEnd: 0,
+                formattedSafeToSpendUntilMonthEnd: '₹0',
+                essentialsStatusText: 'No active budgets configured for this period.'
+            },
+            needsAttention: [],
+            categories: [],
+            reconciledTotals: {
+                totalIncome: Number(totalIncome) || 0,
+                formattedTotalIncome: formatCurrency(Number(totalIncome) || 0),
+                totalSpending: 0,
+                formattedTotalSpending: '₹0'
+            },
+            forecast: {
+                currentSpent: 0,
+                formattedCurrentSpent: '₹0',
+                projectedSpent: 0,
+                formattedProjectedSpent: '₹0',
+                recommendations: []
+            },
+            cashFlow: {
+                timelineBuckets: [],
+                events: [],
+                commitments: [],
+                totalCommitted: 0
+            },
+            allocation: {
+                strategyId: selectedStrategyId,
+                totalIncome: Number(totalIncome) || 0,
+                formattedTotalIncome: formatCurrency(Number(totalIncome) || 0),
+                needs: { targetPct: 50, actualPct: 0, amount: 0, formattedAmount: '₹0' },
+                wants: { targetPct: 30, actualPct: 0, amount: 0, formattedAmount: '₹0' },
+                future: { targetPct: 20, actualPct: 0, amount: 0, formattedAmount: '₹0' }
+            },
+            calendar: {
+                period,
+                eventsByDay: {},
+                selectedDateSummary: null
+            },
+            plannerDefaults: {
+                propertyPrice: 9000000,
+                downPayment: 2000000,
+                downPaymentPct: 22,
+                loanAmount: 7000000,
+                interestRate: 7.1,
+                tenureYears: 20,
+                currentMonthlySurplus: 0,
+                monthlyIncome: Number(totalIncome) || 0,
+                existingDebtPayments: 0,
+                estimatedEMI: 54700,
+                monthlyShortfall: 0,
+                viability: VIABILITY_STATUS.COMFORTABLE,
+                viabilityMessage: 'Configure budgets to plan life events.'
+            }
+        };
+    }
+
+    // 2. Default Seed Budgets if empty and fallback allowed
     const activeBudgets = budgets && budgets.length > 0 ? budgets : [
         { id: 'b1', category: 'Food & Dining', limit: 20000, spent: 18300, type: 'Needs', icon: 'Utensils' },
         { id: 'b2', category: 'Transportation', limit: 10000, spent: 9200, type: 'Needs', icon: 'Car' },
@@ -75,7 +150,7 @@ export function buildBudgetControlCenterViewModel({
         { id: 'b7', category: 'Travel', limit: 25000, spent: 24000, type: 'Wants', icon: 'Plane' }
     ];
 
-    // 3. Default Upcoming Commitments if empty
+    // 3. Default Upcoming Commitments if empty and fallback allowed
     const activeCommitments = commitments && commitments.length > 0 ? commitments : [
         { id: 'c1', title: 'Rent', category: 'Housing', tag: 'Mandatory', amount: 20000, dueDate: '2026-09-05', day: 5, icon: 'Home' },
         { id: 'c2', title: 'Personal EMI', category: 'Loan Payment', tag: 'Loan Payment', amount: 130000, dueDate: '2026-09-07', day: 7, icon: 'CreditCard' },
@@ -92,15 +167,17 @@ export function buildBudgetControlCenterViewModel({
     let totalSpent = 0;
     let totalBudgetLimit = 0;
     activeBudgets.forEach(b => {
-        totalSpent += Number(b.spent) || 0;
-        totalBudgetLimit += Number(b.limit) || 0;
+        const itemSpent = b.spentPaise !== undefined ? Number(b.spentPaise / 100n) : (Number(b.spent) || 0);
+        const itemLimit = b.limitPaise !== undefined ? Number(b.limitPaise / 100n) : (Number(b.limit) || 0);
+        totalSpent += itemSpent;
+        totalBudgetLimit += itemLimit;
     });
 
     // Commitments total (excluding salary income)
     const upcomingOutflows = activeCommitments.filter(c => !c.isIncome);
     const totalCommitted = upcomingOutflows.reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
 
-    const spendableCash = Number(currentCash);
+    const spendableCash = currentCash !== null && currentCash !== undefined ? Number(currentCash) : 37500;
     const safetyBuffer = 5000;
 
     // 4. Safe-to-Spend calculations
@@ -117,57 +194,79 @@ export function buildBudgetControlCenterViewModel({
 
     // 5. Category run-rate & risk evaluation
     const evaluatedCategories = activeBudgets.map(b => {
+        const itemSpent = b.spentPaise !== undefined ? Number(b.spentPaise / 100n) : (Number(b.spent) || 0);
+        const itemLimit = b.limitPaise !== undefined ? Number(b.limitPaise / 100n) : (Number(b.limit) || 0);
+
         const runRate = computeCategoryRunRate({
-            spent: b.spent,
-            budgetLimit: b.limit,
+            spent: itemSpent,
+            budgetLimit: itemLimit,
             daysElapsed: period.daysElapsed,
             daysInPeriod: period.daysInPeriod
         });
 
-        const percentUsed = b.limit > 0 ? Math.round((b.spent / b.limit) * 100) : 0;
-        const progressColor = percentUsed >= 90 ? '#EF4444' : (percentUsed >= 80 ? '#F59E0B' : '#10B981');
+        const percentUsed = b.utilizationPercent !== undefined
+            ? Math.round(b.utilizationPercent)
+            : (itemLimit > 0 ? Math.round((itemSpent / itemLimit) * 100) : 0);
+        const progressColor = percentUsed >= 100 ? '#EF4444' : (percentUsed >= 80 ? '#F59E0B' : '#10B981');
 
         return {
             ...b,
+            spent: itemSpent,
+            limit: itemLimit,
             percentUsed,
             progressColor,
-            formattedSpent: formatCurrency(b.spent),
-            formattedLimit: formatCurrency(b.limit),
-            formattedRemaining: formatCurrency(runRate.remaining),
+            formattedSpent: b.spentFormatted || formatCurrency(itemSpent),
+            formattedLimit: b.limitFormatted || formatCurrency(itemLimit),
+            formattedRemaining: b.remainingFormatted || formatCurrency(runRate.remaining),
             runRate
         };
     });
 
-    // Needs Attention list (matching exact visual cards)
-    const needsAttentionItems = [
-        {
-            id: 'na1',
-            category: 'Travel',
-            percentUsed: 96,
-            note: '96% used · Likely to exceed by ₹2,400',
-            icon: 'Plane',
-            color: '#EF4444',
-            detail: evaluatedCategories.find(c => c.category === 'Travel') || evaluatedCategories[0]
-        },
-        {
-            id: 'na2',
-            category: 'Transportation',
-            percentUsed: 92,
-            note: '92% used · ₹800 remaining',
-            icon: 'Car',
-            color: '#F59E0B',
-            detail: evaluatedCategories.find(c => c.category === 'Transportation') || evaluatedCategories[1]
-        },
-        {
-            id: 'na3',
-            category: 'Utilities',
-            percentUsed: 81,
-            note: '81% used · Keep an eye on this',
-            icon: 'Zap',
-            color: '#F59E0B',
-            detail: evaluatedCategories.find(c => c.category === 'Utilities') || evaluatedCategories[4]
-        }
-    ];
+    // Needs Attention list (dynamically generated from actual budgets when provided, or sample for fallback)
+    const needsAttentionItems = (budgets && budgets.length > 0)
+        ? evaluatedCategories
+            .filter(c => c.percentUsed >= 80 || c.isOverBudget)
+            .sort((a, b) => b.percentUsed - a.percentUsed)
+            .map((c, i) => ({
+                id: `na_${c.id || i}`,
+                category: c.category,
+                percentUsed: c.percentUsed,
+                note: c.percentUsed >= 100
+                    ? `${c.percentUsed}% used · Over budget by ${formatCurrency(c.overspentPaise ? Number(c.overspentPaise / 100n) : (c.spent - c.limit))}`
+                    : `${c.percentUsed}% used · ${c.formattedRemaining} remaining`,
+                icon: c.icon || 'AlertCircle',
+                color: c.percentUsed >= 100 ? '#EF4444' : '#F59E0B',
+                detail: c
+            }))
+        : [
+            {
+                id: 'na1',
+                category: 'Travel',
+                percentUsed: 96,
+                note: '96% used · Likely to exceed by ₹2,400',
+                icon: 'Plane',
+                color: '#EF4444',
+                detail: evaluatedCategories.find(c => c.category === 'Travel') || evaluatedCategories[0]
+            },
+            {
+                id: 'na2',
+                category: 'Transportation',
+                percentUsed: 92,
+                note: '92% used · ₹800 remaining',
+                icon: 'Car',
+                color: '#F59E0B',
+                detail: evaluatedCategories.find(c => c.category === 'Transportation') || evaluatedCategories[1]
+            },
+            {
+                id: 'na3',
+                category: 'Utilities',
+                percentUsed: 81,
+                note: '81% used · Keep an eye on this',
+                icon: 'Zap',
+                color: '#F59E0B',
+                detail: evaluatedCategories.find(c => c.category === 'Utilities') || evaluatedCategories[4]
+            }
+        ];
 
     // 6. Allocation Strategy evaluation
     const strategy = ALLOCATION_STRATEGIES[selectedStrategyId] || ALLOCATION_STRATEGIES['50/30/20'];
@@ -210,8 +309,8 @@ export function buildBudgetControlCenterViewModel({
     ];
 
     // 8. Spending Forecast
-    const currentSpent = totalSpent;
-    const projectedMonthEndSpent = 86800;
+    const currentSpent = (budgets && budgets.length > 0) ? totalSpent : 86500;
+    const projectedMonthEndSpent = (budgets && budgets.length > 0) ? Math.round((currentSpent / Math.max(1, period.daysElapsed)) * period.daysInPeriod) : 86800;
     const forecastVariancePct = '+11%';
 
     const topRecommendations = [
@@ -255,13 +354,14 @@ export function buildBudgetControlCenterViewModel({
     });
 
     // Cross-screen reconciled totals
+    const effectiveTotalSpending = (budgets && budgets.length > 0) ? totalSpent : 86500;
     const reconciledTotals = {
         totalIncome: actualIncome,
-        totalSpending: 86500, // Reconciled month spending baseline
+        totalSpending: effectiveTotalSpending,
         committedUpcoming: 29500,
         projectedMonthEnd: 8400,
         formattedTotalIncome: formatCurrency(actualIncome),
-        formattedTotalSpending: formatCurrency(86500),
+        formattedTotalSpending: formatCurrency(effectiveTotalSpending),
         formattedCommitted: formatCurrency(29500),
         formattedProjectedMonthEnd: formatCurrency(8400)
     };
@@ -284,7 +384,7 @@ export function buildBudgetControlCenterViewModel({
         calculatedAt: now.toISOString()
     };
 
-    return {
+    const rawViewModel = {
         period,
         provenance,
         dataQuality,
@@ -307,8 +407,8 @@ export function buildBudgetControlCenterViewModel({
             formattedProjectedMonthEndBalance: formatCurrency(8400),
             income: actualIncome,
             formattedIncome: formatCurrency(actualIncome),
-            spent: 86500,
-            formattedSpent: formatCurrency(86500),
+            spent: effectiveTotalSpending,
+            formattedSpent: formatCurrency(effectiveTotalSpending),
             committed: 29500,
             formattedCommitted: formatCurrency(29500),
             essentialsStatusText: spendableCash < 0
@@ -410,4 +510,27 @@ export function buildBudgetControlCenterViewModel({
             }
         }
     };
+
+    return sanitizeBudgetForPresentation(rawViewModel);
 }
+
+/**
+ * Recursively sanitizes budget view model for React Native presentation safety:
+ * - BigInt primitives are converted to strings
+ * - Functions and non-serializable properties are stripped
+ */
+export function sanitizeBudgetForPresentation(val) {
+    if (val === null || val === undefined) return val;
+    if (typeof val === 'bigint') return val.toString();
+    if (Array.isArray(val)) return val.map(sanitizeBudgetForPresentation);
+    if (typeof val === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(val)) {
+            if (typeof v === 'function') continue;
+            out[k] = sanitizeBudgetForPresentation(v);
+        }
+        return out;
+    }
+    return val;
+}
+

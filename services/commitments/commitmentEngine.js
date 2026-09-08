@@ -15,6 +15,7 @@ import {
     CommitmentStatus,
     PaymentOccurrenceStatus,
     LedgerMatchConfidence,
+    CashbookReconciliationStatus,
     createMoneyPaise,
     moneyToBigInt,
     validateCommitment
@@ -111,15 +112,50 @@ export function generateOccurrences({
 }
 
 /**
- * Records a payment against an occurrence.
+ * Prepares an occurrence for atomic payment reconciliation.
+ * Transitions UPCOMING/OVERDUE/RETRYABLE -> PAID_PENDING_RECONCILIATION.
+ * 
  * @param {object} occurrence 
- * @param {object} paymentDetails { actualAmount, actualPaidDate, transactionId, notes }
+ * @param {object} options 
+ * @returns {object} Updated occurrence in PAID_PENDING_RECONCILIATION state
+ */
+export function preparePaymentOccurrence(occurrence, options = {}) {
+    if (!occurrence) throw new Error('Occurrence is required');
+    if (occurrence.status === PaymentOccurrenceStatus.PAID) {
+        return occurrence; // Already paid
+    }
+
+    const paymentOperationId = options.paymentOperationId || `pop_${Date.now()}`;
+    const idempotencyKey = options.idempotencyKey || `${occurrence.commitmentId}:${occurrence.id}:${paymentOperationId}`;
+
+    return {
+        ...occurrence,
+        status: PaymentOccurrenceStatus.PAID_PENDING_RECONCILIATION,
+        paymentOperationId,
+        idempotencyKey,
+        pendingReconciliationAt: new Date().toISOString()
+    };
+}
+
+/**
+ * Records a payment against an occurrence after successful Cashbook persistence.
+ * Transitions PAID_PENDING_RECONCILIATION (or UPCOMING) -> PAID.
+ * Replaying with same transaction returns existing occurrence idempotently.
+ * 
+ * @param {object} occurrence 
+ * @param {object} paymentDetails { actualAmount, actualPaidDate, transactionId, cashbookTransactionId, notes }
  * @returns {object} Updated occurrence marked PAID
  */
 export function recordPaymentOccurrence(occurrence, paymentDetails = {}) {
     if (!occurrence) throw new Error('Occurrence is required');
+    const incomingTxId = paymentDetails.cashbookTransactionId || paymentDetails.transactionId;
+
+    // Idempotent replay: if already paid with same transaction, return occurrence
     if (occurrence.status === PaymentOccurrenceStatus.PAID) {
-        throw new Error(`Occurrence ${occurrence.id} has already been paid`);
+        if (incomingTxId && (occurrence.cashbookTransactionId === incomingTxId || occurrence.transactionId === incomingTxId)) {
+            return occurrence;
+        }
+        throw new Error(`Occurrence ${occurrence.id} has already been paid with transaction ${occurrence.cashbookTransactionId || occurrence.transactionId}`);
     }
 
     const actualPaidDate = paymentDetails.actualPaidDate || new Date().toISOString().split('T')[0];
@@ -132,9 +168,66 @@ export function recordPaymentOccurrence(occurrence, paymentDetails = {}) {
         status: PaymentOccurrenceStatus.PAID,
         actualAmount,
         actualPaidDate,
-        transactionId: paymentDetails.transactionId || null,
+        transactionId: incomingTxId || null,
+        cashbookTransactionId: incomingTxId || null,
+        cashbookReconciliationStatus: incomingTxId ? CashbookReconciliationStatus.MATCHED : CashbookReconciliationStatus.UNMATCHED,
         notes: paymentDetails.notes || occurrence.notes || '',
-        paidAt: new Date().toISOString()
+        paidAt: new Date().toISOString(),
+        lastReconciliationError: null
+    };
+}
+
+/**
+ * Marks occurrence as failed reconciliation when Cashbook persistence fails.
+ * Transitions PAID_PENDING_RECONCILIATION -> FAILED_RECONCILIATION (RETRYABLE).
+ * Invariant: Occurrence is NEVER marked PAID if Cashbook write failed.
+ * 
+ * @param {object} occurrence 
+ * @param {string} errorReason 
+ * @returns {object} Updated occurrence in FAILED_RECONCILIATION state
+ */
+export function failReconciliationOccurrence(occurrence, errorReason = 'Cashbook write failed', metadata = {}) {
+    if (!occurrence) throw new Error('Occurrence is required');
+    if (occurrence.status === PaymentOccurrenceStatus.PAID) {
+        throw new Error('Cannot fail reconciliation on an already confirmed PAID occurrence');
+    }
+
+    return {
+        ...occurrence,
+        status: PaymentOccurrenceStatus.FAILED_RECONCILIATION,
+        cashbookReconciliationStatus: CashbookReconciliationStatus.CONFLICT,
+        lastReconciliationError: String(errorReason),
+        reconciliationErrorCode: metadata.errorCode || 'CASHBOOK_WRITE_FAILED',
+        reconciliationAttempts: (metadata.attemptCount != null) ? metadata.attemptCount : ((occurrence.reconciliationAttempts || 0) + 1),
+        failedPaymentOperationId: metadata.paymentOperationId || occurrence.paymentOperationId || null,
+        failedIdempotencyKey: metadata.idempotencyKey || occurrence.idempotencyKey || null,
+        failedAt: new Date().toISOString()
+    };
+}
+
+/**
+ * Reverses a paid occurrence linked to a Cashbook reversal transaction.
+ * Transitions PAID -> UPCOMING (or restored state).
+ * 
+ * @param {object} occurrence 
+ * @param {object} reversalDetails { reversalTransactionId, reason }
+ * @returns {object} Updated occurrence with reversal links
+ */
+export function reversePaymentOccurrence(occurrence, reversalDetails = {}) {
+    if (!occurrence) throw new Error('Occurrence is required');
+    if (occurrence.status !== PaymentOccurrenceStatus.PAID) {
+        throw new Error(`Only PAID occurrences can be reversed. Current status: ${occurrence.status}`);
+    }
+
+    return {
+        ...occurrence,
+        status: PaymentOccurrenceStatus.UPCOMING,
+        actualAmount: null,
+        actualPaidDate: null,
+        cashbookReconciliationStatus: CashbookReconciliationStatus.NOT_REQUIRED,
+        reversalTransactionId: reversalDetails.reversalTransactionId || null,
+        reversalReason: reversalDetails.reason || 'Payment reversed',
+        reversedAt: new Date().toISOString()
     };
 }
 

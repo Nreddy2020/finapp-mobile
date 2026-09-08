@@ -78,8 +78,7 @@ export const AuditService = {
             const line = JSON.stringify(auditRecord) + '\n';
 
             if (Platform.OS === 'web') {
-                console.log('[AUDIT]', line);
-                // Web MVP: log to console or localStorage
+                // Web MVP: suppressed from console to prevent PII and financial payload exposure
             } else {
                 const AUDIT_LOG_FILE = getAuditFile();
                 if (await FileSystem.getInfoAsync(AUDIT_LOG_FILE).then(i => i.exists)) {

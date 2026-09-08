@@ -1,0 +1,94 @@
+{
+  "gate": "Gate R1 — Production Signing & Keystore Verification",
+  "timestamp": "2026-09-08T10:36:41.106Z",
+  "classification": "Production Candidate (Gate R1 Qualified)",
+  "application": {
+    "packageId": "com.nirwas20.wealthwise",
+    "versionName": "1.0.0",
+    "versionCode": 1,
+    "compileSdkVersion": 36,
+    "targetSdkVersion": 36,
+    "minSdkVersion": 24
+  },
+  "buildProvenance": {
+    "gitCommitSha": "f7c3fa0f725cdf0156b95017b7c64db40de66f00",
+    "isWorkingTreeClean": false,
+    "jdkVersion": "v24.14.1",
+    "keystoreFilename": "finlife-release.keystore",
+    "keyAlias": "finlife-release-key",
+    "keyAlgorithm": "RSA",
+    "keySizeBits": 4096
+  },
+  "signingCertificate": {
+    "subjectDN": "CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN",
+    "issuerDN": "CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN",
+    "sha256Digest": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+    "sha1Digest": "84acb7c54f4249411ccd7e32005c86b9ab1bb76b",
+    "md5Digest": "4f4c4b108a777a7d72d6b17583be0d78",
+    "validityDays": 10000,
+    "allowlistMatched": true
+  },
+  "signatureSchemes": {
+    "v1_jar_signing": true,
+    "v2_apk_signature_scheme": true,
+    "v3_apk_signature_scheme": true,
+    "v4_apk_signature_scheme": false
+  },
+  "artifact": {
+    "relativePath": "android/app/build/outputs/apk/release/app-release.apk",
+    "fileSizeBytes": 89098290,
+    "fileSizeFormatted": "84.97 MB",
+    "sha256Checksum": "739dad64a9db64964496dee1ceae29c3142a6a7d4c78b0ab51661165b2957456"
+  },
+  "assertions": [
+    {
+      "id": "R1-SIGN-01",
+      "description": "Artifact is NOT signed by Android debug certificate",
+      "passed": true,
+      "details": "CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN"
+    },
+    {
+      "id": "R1-SIGN-02",
+      "description": "Artifact is signed by authorized FinLife Release corporate DN",
+      "passed": true,
+      "details": "CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN"
+    },
+    {
+      "id": "R1-SIGN-03",
+      "description": "APK Signature Scheme v1 (JAR signing) is verified",
+      "passed": true,
+      "details": "v1=true"
+    },
+    {
+      "id": "R1-SIGN-04",
+      "description": "APK Signature Scheme v2 is verified",
+      "passed": true,
+      "details": "v2=true"
+    },
+    {
+      "id": "R1-SIGN-05",
+      "description": "APK Signature Scheme v3 is verified",
+      "passed": true,
+      "details": "v3=true"
+    },
+    {
+      "id": "R1-SIGN-06",
+      "description": "Certificate SHA-256 fingerprint matches approved security allowlist",
+      "passed": true,
+      "details": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb"
+    },
+    {
+      "id": "R1-SIGN-07",
+      "description": "Release APK artifact is intact, non-empty, and has valid SHA-256 checksum",
+      "passed": true,
+      "details": "Size: 84.97 MB, SHA256: 739dad64a9db64964496dee1ceae29c3142a6a7d4c78b0ab51661165b2957456"
+    },
+    {
+      "id": "R1-SIGN-08",
+      "description": "Application ID is com.nirwas20.wealthwise",
+      "passed": true,
+      "details": "com.nirwas20.wealthwise"
+    }
+  ],
+  "gateStatus": "PASS"
+}

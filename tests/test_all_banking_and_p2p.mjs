@@ -21,8 +21,15 @@ const SUITES = [
     { group: 'P2P Frozen Baseline', name: 'P2P Repayment Processing & Allocations', file: 'test_p2p_repayment.mjs' },
     { group: 'P2P Frozen Baseline', name: 'P2P Settlement Reconciliation & Closures', file: 'test_p2p_settlement.mjs' },
     { group: 'P2P Frozen Baseline', name: 'P2P Lifecycle & Invariants (A-Y, Z1-8)', file: 'test_p2p_lifecycle_invariants.mjs' },
+    { group: 'P2P Frozen Baseline', name: 'P2P Unified 23-Invariant Certification', file: 'test_p2p_unified_invariants.mjs' },
+    { group: 'P2P Frozen Baseline', name: 'P2P Regression & Burn Protection', file: 'test_p2p_regression.mjs' },
     { group: 'P2P Frozen Baseline', name: 'P2P Presentation Adapter & ViewModel', file: 'test_p2p_ui.mjs' },
     { group: 'P2P Frozen Baseline', name: 'P2P UI Financial Truth & Comprehension', file: 'test_p2p_ui_financial_truth.mjs' },
+
+    // ── P2P RELEASE-HARDENING BASELINE ──
+    { group: 'P2P Release-Hardening Baseline', name: 'P2P Persistence, Storage & Migration', file: 'test_p2p_persistence_and_migration.mjs' },
+    { group: 'P2P Release-Hardening Baseline', name: 'P2P Fixed-Point Health Mathematics', file: 'test_p2p_health_mathematics.mjs' },
+    { group: 'P2P Release-Hardening Baseline', name: 'P2P Adversarial & Negative Invariants', file: 'test_p2p_adversarial_and_negative.mjs' },
 
     // ── BANKING RELATIONSHIP PLATFORM ──
     { group: 'Banking Platform', name: 'Banking Core Accounting Invariants', file: 'test_banking_invariants.mjs' },
@@ -69,7 +76,7 @@ for (let i = 0; i < SUITES.length; i++) {
         let passed = 0;
         let total = 0;
 
-        const summaryMatch = stdout.match(/(\d+)\/(\d+)\s+(?:TESTS|GATES|CHECKS)\s+PASSED/i) ||
+        const summaryMatch = stdout.match(/(\d+)\/(\d+)\s*(?:TESTS|GATES|CHECKS)?\s*PASSED/i) ||
                              stdout.match(/PASSED:\s*(\d+)\s*\|\s*FAILED:\s*(\d+)/i);
 
         if (summaryMatch) {
@@ -126,8 +133,14 @@ let smartBudgetsTotal = 0;
 let recurringPassed = 0;
 let recurringTotal = 0;
 
+let p2pHardeningPassed = 0;
+let p2pHardeningTotal = 0;
+
 results.forEach(r => {
-    if (r.name.includes('Presentation Adapter')) {
+    if (r.group === 'P2P Release-Hardening Baseline') {
+        p2pHardeningPassed += r.passed;
+        p2pHardeningTotal += r.total;
+    } else if (r.name.includes('Presentation Adapter')) {
         p2pPresPassed += r.passed;
         p2pPresTotal += r.total;
     } else if (r.group === 'P2P Frozen Baseline') {
@@ -147,15 +160,16 @@ results.forEach(r => {
     console.log(line);
 });
 
-const p2pTotalPassed = p2pCorePassed + p2pPresPassed;
-const p2pTotalExpected = p2pCoreTotal + p2pPresTotal;
+const p2pTotalPassed = p2pCorePassed + p2pPresPassed + p2pHardeningPassed;
+const p2pTotalExpected = p2pCoreTotal + p2pPresTotal + p2pHardeningTotal;
 const totalPassed = results.reduce((sum, s) => sum + s.passed, 0);
 const totalTests = results.reduce((sum, s) => sum + s.total, 0);
 
 console.log('═══════════════════════════════════════════════════════════════════════════════');
 console.log(String('P2P CORE FROZEN BASELINE (Original)').padEnd(45) + String(p2pCorePassed).padStart(8) + String(p2pCoreTotal).padStart(8) + String(p2pCorePassed === p2pCoreTotal ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('P2P PRESENTATION EXTENDED REGRESSION').padEnd(45) + String(p2pPresPassed).padStart(8) + String(p2pPresTotal).padStart(8) + String(p2pPresPassed === p2pPresTotal ? 'PASS' : 'FAIL').padStart(10));
-console.log(String('P2P TOTAL REGRESSION SUITE').padEnd(45) + String(p2pTotalPassed).padStart(8) + String(p2pTotalExpected).padStart(8) + String(p2pTotalPassed === p2pTotalExpected ? 'PASS' : 'FAIL').padStart(10));
+console.log(String('P2P RELEASE-HARDENING VALIDATION').padEnd(45) + String(p2pHardeningPassed).padStart(8) + String(p2pHardeningTotal).padStart(8) + String(p2pHardeningPassed === p2pHardeningTotal ? 'PASS' : 'FAIL').padStart(10));
+console.log(String('P2P TOTAL CERTIFIED SUITE').padEnd(45) + String(p2pTotalPassed).padStart(8) + String(p2pTotalExpected).padStart(8) + String(p2pTotalPassed === p2pTotalExpected ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('BANKING RELATIONSHIP PLATFORM').padEnd(45) + String(bankingPassed).padStart(8) + String(bankingTotal).padStart(8) + String(bankingPassed === bankingTotal ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('SMART BUDGET DECISION PLATFORM').padEnd(45) + String(smartBudgetsPassed).padStart(8) + String(smartBudgetsTotal).padStart(8) + String(smartBudgetsPassed === smartBudgetsTotal ? 'PASS' : 'FAIL').padStart(10));
 console.log(String('RECURRING FINANCIAL COMMITMENTS').padEnd(45) + String(recurringPassed).padStart(8) + String(recurringTotal).padStart(8) + String(recurringPassed === recurringTotal ? 'PASS' : 'FAIL').padStart(10));

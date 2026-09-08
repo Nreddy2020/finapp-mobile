@@ -1,0 +1,251 @@
+{
+  "gate": "Gate R4 — Backup & Restore Qualification",
+  "timestamp": "2026-09-08T10:33:39.718Z",
+  "classification": "FINLIFE RELEASE QUALIFICATION — GATE R4: FUNCTIONALLY QUALIFIED, CRYPTOGRAPHICALLY AUTHENTICATED, AND CERTIFIED AS A RELEASE-CANDIDATE BASELINE — BALANCE-CONSERVING, IDEMPOTENT, AND ATOMIC",
+  "domainSchemaVersions": {
+    "GLOBAL": 1,
+    "INVESTMENTS": 4,
+    "CASHBOOK": 2,
+    "ASSETS": 1,
+    "PROPERTIES": 1,
+    "LOANS": 1,
+    "P2P": 1
+  },
+  "canonicalizationVersion": 1,
+  "encryptionParameters": {
+    "algorithm": "AES-256-GCM",
+    "kdf": "PBKDF2-SHA256",
+    "iterations": 100000,
+    "keyLengthBits": 256,
+    "nonceLengthBits": 96,
+    "authTagLengthBits": 128,
+    "saltLengthBits": 128,
+    "aadBound": true
+  },
+  "checksums": {
+    "canonicalPayloadSha256": "01a44bca8a6b8eeb6ccc5e92669a65e8a2e40880994d09a0472a99f6d11d2ad5",
+    "perDomainSha256": {
+      "investments": "026b244eed7d9f5d515447e8f11cf5d090582595ea644f07d401d1938ed0ec0c",
+      "cashbook": "5533fecf817590214faf3da305aa747d169d09555ab6eb6ffbfd73c5fcdeab33",
+      "properties": "d2a38d7171ab8f9eed34c6ccd87c425551b0243a5b9a163c274a00aa627f43a3",
+      "assets": "304d892ffb387862f9321014567e21c388d5e3a16b8143b25f09f090a712e0f8",
+      "loans": "e0eb879e69e92f0984348176d8d99d3fe0adc5da4118a43d946813a7970f196b",
+      "p2p": "cde981f5ab8789d38c97f201351adcabd2c0eadae388e701b01334499e2e9ca8",
+      "global": "8ee7cfa62daa17aef6bb7d2d3226803811aee64871f01c4d4c2d72ee93b12e25"
+    },
+    "encryptedEnvelopeSha256": "36c6d336e1c3a635c71b3f9fb5c797e2dbb9c0069322a9bceb5382951be524cd"
+  },
+  "totals": {
+    "totalAssertions": 41,
+    "passedAssertions": 41,
+    "failedAssertions": 0
+  },
+  "assertions": {
+    "R4-EXPORT-01": {
+      "description": "Full multi-domain export captures all 7 authoritative domains",
+      "passed": true,
+      "evidence": "Investments (3), Cashbook (Core Books: 5, Accounts: 2, Txs: 2, Total: 10), Properties (1), Assets (1), Loans (1), P2P (2), Global (1)"
+    },
+    "R4-EXPORT-02": {
+      "description": "Explicit schema versions stamped for all 7 domains in manifest",
+      "passed": true,
+      "evidence": "INVESTMENTS=4, CASHBOOK=2, GLOBAL=1, ASSETS=1, PROPERTIES=1, LOANS=1, P2P=1"
+    },
+    "R4-CANON-01": {
+      "description": "Deterministic canonical serialization contract (keys, arrays, BigInts, UTF-8)",
+      "passed": true,
+      "evidence": "Canonical string identical across divergent key/array ordering: {\"a\":\"test\",\"arr\":[{\"id\":1,\"symbol\":\"A\"},{\"id\":2,\"symbol\":\"Z\"}],\"m\":\"50\",\"z\":100}"
+    },
+    "R4-CANON-02": {
+      "description": "Canonical payload SHA-256 is deterministic and reproducible",
+      "passed": true,
+      "evidence": "Payload SHA-256: 01a44bca8a6b8eeb6ccc5e92669a65e8a2e40880994d09a0472a99f6d11d2ad5"
+    },
+    "R4-CANON-03": {
+      "description": "Per-domain canonical checksums computed independently for all 7 domains",
+      "passed": true,
+      "evidence": "All 7 perDomain SHA-256 hashes generated: investments, cashbook, properties, assets, loans, p2p, global"
+    },
+    "R4-SAN-01": {
+      "description": "Confidentiality audit: Plaintext export strips credentials and absolute paths",
+      "passed": true,
+      "evidence": "Passwords, tokens, private keys omitted; local paths redacted"
+    },
+    "R4-ENC-01": {
+      "description": "Encrypted envelope generated with AES-256-GCM, 96-bit nonce, 128-bit tag, 100k iters",
+      "passed": true,
+      "evidence": "Algorithm: AES-256-GCM, Iterations: 100000, Salt: 39516fe6..., Tag: 286a8f87..."
+    },
+    "R4-ENC-02": {
+      "description": "Randomized salt & nonce: Two encryptions yield distinct ciphertexts & distinct envelope checksums",
+      "passed": true,
+      "evidence": "Ciphertexts distinct due to randomized nonce/salt; canonicalPayloadSha256 identical bit-for-bit"
+    },
+    "R4-ENC-03": {
+      "description": "Separation: canonicalPayloadSha256 and encryptedEnvelopeSha256 recorded as separate fields",
+      "passed": true,
+      "evidence": "Payload SHA: 01a44bca8a6b8eeb... | Envelope SHA: 36c6d336e1c3a635..."
+    },
+    "R4-ENC-04": {
+      "description": "Associated Authenticated Data (AAD) binds manifest header to ciphertext",
+      "passed": true,
+      "evidence": "AAD header bound successfully during encryption and verified upon restore"
+    },
+    "R4-REJ-01": {
+      "description": "Wrong passphrase fails closed immediately with authentication error; zero data written",
+      "passed": true,
+      "evidence": "Failed closed with AUTHENTICATION_TAG_VERIFICATION_FAILED"
+    },
+    "R4-REJ-02": {
+      "description": "Tampered ciphertext (single bit flip) fails closed on auth tag verification",
+      "passed": true,
+      "evidence": "Bit-flipped ciphertext rejected by GCM authentication tag"
+    },
+    "R4-REJ-03": {
+      "description": "Modified AAD / swapped manifest header fails closed with auth tag verification failure",
+      "passed": true,
+      "evidence": "Swapped manifest header detected via AAD and rejected cleanly"
+    },
+    "R4-REJ-04": {
+      "description": "Corrupt / truncated JSON payload fails closed with CORRUPT_BACKUP",
+      "passed": true,
+      "evidence": "Null/corrupt payload rejected with CORRUPT_BACKUP"
+    },
+    "R4-REJ-05": {
+      "description": "Payload checksum tampering fails closed with PAYLOAD_CHECKSUM_MISMATCH",
+      "passed": true,
+      "evidence": "Tampered data rejected: PAYLOAD_CHECKSUM_MISMATCH"
+    },
+    "R4-REJ-06": {
+      "description": "Domain checksum tampering fails closed with DOMAIN_CHECKSUM_MISMATCH",
+      "passed": true,
+      "evidence": "Tampered domain checksum rejected with DOMAIN_CHECKSUM_MISMATCH"
+    },
+    "R4-AUTH-01": {
+      "description": "RESTORE_MODE_EMPTY_ONLY on clean storage succeeds",
+      "passed": true,
+      "evidence": "Clean-install restore executed successfully in RESTORE_MODE_EMPTY_ONLY"
+    },
+    "R4-AUTH-02": {
+      "description": "RESTORE_MODE_EMPTY_ONLY on storage with existing financial data fails closed",
+      "passed": true,
+      "evidence": "Rejected restore on populated storage: RESTORE_REJECTED_EXISTING_STATE"
+    },
+    "R4-AUTH-03": {
+      "description": "RESTORE_MODE_REPLACE_EXISTING requires approvedReplacement: true and succeeds",
+      "passed": true,
+      "evidence": "Protected by approvedReplacement requirement; succeeded when authorized"
+    },
+    "R4-BAL-01": {
+      "description": "Investments cost-basis conservation: Post-CostBasis - Pre-CostBasis === 0 paise",
+      "passed": true,
+      "evidence": "Pre: 28500000n paise, Post: 28500000n paise, Delta: 0n paise"
+    },
+    "R4-BAL-02": {
+      "description": "Cashbook multi-account balance conservation across books (Delta === 0 paise)",
+      "passed": true,
+      "evidence": "Pre: 40000000n paise, Post: 40000000n paise, Delta: 0n paise"
+    },
+    "R4-BAL-03": {
+      "description": "Loan principal conservation: Outstanding principal preserved exactly",
+      "passed": true,
+      "evidence": "Pre: 650000000n paise, Post: 650000000n paise, Delta: 0n paise"
+    },
+    "R4-BAL-04": {
+      "description": "P2P relational balance conservation: Lent outstanding preserved exactly",
+      "passed": true,
+      "evidence": "Pre: 7500000n paise, Post: 7500000n paise, Delta: 0n paise"
+    },
+    "R4-BAL-05": {
+      "description": "Properties & Assets valuation conservation (Delta === 0 paise)",
+      "passed": true,
+      "evidence": "Property Delta: 0n paise (1500000000n), Asset Delta: 0n paise (7500000n)"
+    },
+    "R4-ENT-01": {
+      "description": "Granular tax lots preserved with exact acquisition dates, lot IDs, cost basis",
+      "passed": true,
+      "evidence": "Tax lot lot_rel_01 preserved with 50 units, 12500000 paise cost basis"
+    },
+    "R4-ENT-02": {
+      "description": "Property 10,000 BPS ownership splits, deeds, and asset valuation histories preserved",
+      "passed": true,
+      "evidence": "10,000 BPS (100%) ownership split and deed references intact"
+    },
+    "R4-ENT-03": {
+      "description": "Formal loan known repayments preserved; zero synthetic repayments fabricated",
+      "passed": true,
+      "evidence": "1 known repayment preserved; zero synthetic repayments fabricated"
+    },
+    "R4-PROV-01": {
+      "description": "Record-level migration provenance survives backup and restore unchanged",
+      "passed": true,
+      "evidence": "Provenance intact: legacyRecordId=legacy_h_001, targetSchemaVersion=4"
+    },
+    "R4-QUAR-01": {
+      "description": "Quarantined records in quarantineRegistry survive backup and restore with reasons intact",
+      "passed": true,
+      "evidence": "Quarantine registry preserved with 1 corrupt record and audit reason"
+    },
+    "R4-CACHE-01": {
+      "description": "Restore explicitly invalidates CFO snapshots and presentation summaries",
+      "passed": true,
+      "evidence": "Derived caches purged upon restore; authoritative ledgers enforce recomputation"
+    },
+    "R4-IDEM-01": {
+      "description": "Restoring identical backup twice results in ALREADY_RESTORED / NO_OP",
+      "passed": true,
+      "evidence": "Repeat restore recognized existing identity; returned ALREADY_RESTORED (NO_OP)"
+    },
+    "R4-IDEM-02": {
+      "description": "Zero record duplication, zero balance inflation, bit-for-bit snapshot identity",
+      "passed": true,
+      "evidence": "Bit-for-bit snapshot identity verified; 0 record duplication, 0 balance inflation"
+    },
+    "R4-ROLL-01": {
+      "description": "Atomic rollback on failure at Interception Point 1",
+      "passed": true,
+      "evidence": "Failure Point 1 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-02": {
+      "description": "Atomic rollback on failure at Interception Point 2",
+      "passed": true,
+      "evidence": "Failure Point 2 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-03": {
+      "description": "Atomic rollback on failure at Interception Point 3",
+      "passed": true,
+      "evidence": "Failure Point 3 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-04": {
+      "description": "Atomic rollback on failure at Interception Point 4",
+      "passed": true,
+      "evidence": "Failure Point 4 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-05": {
+      "description": "Atomic rollback on failure at Interception Point 5",
+      "passed": true,
+      "evidence": "Failure Point 5 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-06": {
+      "description": "Atomic rollback on failure at Interception Point 6",
+      "passed": true,
+      "evidence": "Failure Point 6 rolled back cleanly; bit-for-bit state restored"
+    },
+    "R4-ROLL-07": {
+      "description": "Zero leaked locks, zero orphan migration markers, zero duplicate idempotency keys after rollback",
+      "passed": true,
+      "evidence": "Restore lock cleanly purged; zero residual markers left after rollback"
+    },
+    "R4-COMPAT-01": {
+      "description": "Legacy V1 cashbook backup imported via adapter and migrated to V4 state",
+      "passed": true,
+      "evidence": "Legacy V1 cashbook backup successfully restored via adapter"
+    },
+    "R4-COMPAT-02": {
+      "description": "Unsupported futuristic schema version (schemaVersion > 4) rejected with error",
+      "passed": true,
+      "evidence": "Rejected schema version 99 with UNSUPPORTED_SCHEMA_VERSION"
+    }
+  },
+  "gateStatus": "PASS"
+}

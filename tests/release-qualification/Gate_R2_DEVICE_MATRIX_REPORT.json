@@ -1,0 +1,95 @@
+{
+  "gate": "Gate R2 — Physical Android Device Matrix",
+  "timestamp": "2026-09-08T10:37:22.495Z",
+  "classification": "Gate R2 Automation and Emulator Baseline Verified — Physical Device Qualification Pending",
+  "hasPhysicalDeviceCoverage": false,
+  "deviceCount": 1,
+  "physicalDeviceCount": 0,
+  "emulatorDeviceCount": 1,
+  "devices": [
+    {
+      "serial": "emulator-5554",
+      "manufacturer": "Google",
+      "model": "sdk_gphone64_x86_64",
+      "androidVersion": "16",
+      "apiLevel": 36,
+      "primaryAbi": "x86_64",
+      "supportedAbis": [
+        "x86_64",
+        "arm64-v8a"
+      ],
+      "screenSize": "1080x2340",
+      "density": 440,
+      "navigationMode": "Gesture Navigation",
+      "fontScale": 1,
+      "artifactSha256": "739dad64a9db64964496dee1ceae29c3142a6a7d4c78b0ab51661165b2957456",
+      "certificateSha256": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+      "installMode": "clean",
+      "startupMeasurements": {
+        "runsMs": [
+          2595,
+          1333,
+          672
+        ],
+        "medianMs": 1333,
+        "worstCaseMs": 2595
+      },
+      "memoryMeasurements": {
+        "totalPssKb": 154657,
+        "totalPssMb": 151.03,
+        "nativeHeapKb": 26827,
+        "dalvikHeapKb": 24935
+      },
+      "assertions": {
+        "R2-HARD-01": {
+          "description": "Device hardware and OS attributes successfully interrogated via ADB",
+          "passed": true,
+          "evidence": "Google sdk_gphone64_x86_64 (Android 16, API 36)"
+        },
+        "R2-INST-01": {
+          "description": "Release APK successfully installed on device via clean mode",
+          "passed": true,
+          "evidence": "Package com.nirwas20.wealthwise installed with installMode=clean"
+        },
+        "R2-ABI-01": {
+          "description": "Installed native libraries match target device architecture without emulation mismatch",
+          "passed": true,
+          "evidence": "Device primaryAbi=x86_64, installed primaryCpuAbi=x86_64"
+        },
+        "R2-PERF-01": {
+          "description": "Cold launch TTID benchmarked across 3 runs with acceptable median",
+          "passed": true,
+          "evidence": "Median TTID: 1333 ms (Worst: 2595 ms across runs: [2595, 1333, 672])"
+        },
+        "R2-MEM-01": {
+          "description": "Total PSS memory under standardized navigation workload remains stable (<180 MB)",
+          "passed": true,
+          "evidence": "Total PSS: 151.03 MB (154657 KB)"
+        },
+        "R2-UI-01": {
+          "description": "System font scaling perturbation (1.15x, 1.30x) succeeds with verified restoration",
+          "passed": true,
+          "evidence": "1.15x=true, 1.30x=true, restoration=PASS"
+        },
+        "R2-LIFE-01": {
+          "description": "App lifecycle preserves PID across Background -> Foreground transitions",
+          "passed": true,
+          "evidence": "PID before=23647, PID after=23647"
+        },
+        "R2-NAV-01": {
+          "description": "Deterministic Three-Tier Back Navigation functions correctly",
+          "passed": true,
+          "evidence": "Tier 2 Sub-tab->Overview: true, Tier 3 Overview->System: true"
+        },
+        "R2-PRIV-01": {
+          "description": "Logcat privacy audit confirms zero leak of signing secrets or credentials",
+          "passed": true,
+          "evidence": "Zero credential leaks found in process logs"
+        }
+      },
+      "unsupportedTests": [],
+      "restorationStatus": "PASS"
+    }
+  ],
+  "gateStatus": "PASS"
+}

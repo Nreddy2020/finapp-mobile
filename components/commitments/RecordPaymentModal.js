@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { X, CheckCircle, CreditCard } from 'lucide-react-native';
 import { rupeesToMoneyPaise, moneyToRupees } from '../../services/commitments/commitmentContracts.js';
+import { CashbookRepository } from '../../services/cashbook/cashbookRepository.js';
 
 const PAYMENT_METHODS = ['UPI', 'Net Banking', 'Debit Card', 'Credit Card', 'Cash'];
 
@@ -38,6 +39,8 @@ export default function RecordPaymentModal({
     const [paidDate, setPaidDate] = useState(new Date().toISOString().split('T')[0]);
     const [paymentMethod, setPaymentMethod] = useState('UPI');
     const [notes, setNotes] = useState('');
+    const [cashbookAccounts, setCashbookAccounts] = useState([]);
+    const [selectedAccountId, setSelectedAccountId] = useState(null);
 
     useEffect(() => {
         if (occurrence?.expectedAmount) {
@@ -45,6 +48,20 @@ export default function RecordPaymentModal({
             setPaidDate(new Date().toISOString().split('T')[0]);
         }
     }, [occurrence]);
+
+    useEffect(() => {
+        if (visible) {
+            CashbookRepository.load()
+                .then(envelope => {
+                    const accs = envelope?.accounts || [];
+                    setCashbookAccounts(accs);
+                    if (accs.length > 0 && !selectedAccountId) {
+                        setSelectedAccountId(accs[0].id);
+                    }
+                })
+                .catch(() => setCashbookAccounts([]));
+        }
+    }, [visible]);
 
     const handleConfirm = () => {
         const numRupees = parseFloat(amountRupees);
@@ -59,6 +76,7 @@ export default function RecordPaymentModal({
                 actualAmount: actualAmountPaise,
                 actualPaidDate: paidDate,
                 paymentMethod,
+                accountId: selectedAccountId,
                 notes: notes.trim()
             });
             onClose();
@@ -134,6 +152,30 @@ export default function RecordPaymentModal({
                                 })}
                             </ScrollView>
                         </View>
+
+                        {/* Cashbook Account Selector */}
+                        {cashbookAccounts.length > 0 && (
+                            <View>
+                                <Text style={styles.inputLabel}>Cashbook Account</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.methodScroll}>
+                                    {cashbookAccounts.map(acc => {
+                                        const isSelected = selectedAccountId === acc.id;
+                                        return (
+                                            <TouchableOpacity
+                                                key={acc.id}
+                                                style={[styles.methodChip, isSelected && styles.methodChipActive]}
+                                                onPress={() => setSelectedAccountId(acc.id)}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Text style={[styles.methodChipText, isSelected && styles.methodChipTextActive]}>
+                                                    {acc.accountName || acc.name || acc.id}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
+                            </View>
+                        )}
 
                         {/* Notes */}
                         <View>

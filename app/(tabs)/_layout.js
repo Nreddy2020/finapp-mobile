@@ -14,7 +14,6 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const [isMoneyExpanded, setIsMoneyExpanded] = useState(false);
-    const [isWealthExpanded, setIsWealthExpanded] = useState(false);
     const [isLifeExpanded, setIsLifeExpanded] = useState(false);
     const [isBusinessExpanded, setIsBusinessExpanded] = useState(false);
     const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(false);
@@ -25,7 +24,6 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
 
     const toggleGroup = (setter, currentVal) => {
         setIsMoneyExpanded(false);
-        setIsWealthExpanded(false);
         setIsLifeExpanded(false);
         setIsBusinessExpanded(false);
         setIsIntelligenceExpanded(false);
@@ -33,52 +31,80 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
         setter(!currentVal);
     };
 
-    const moneySubTabs = [
-        { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/self?tab=flow' },
-        { id: 'budgets', name: 'Budget', icon: PieChart, route: '/budgets' },
-        { id: 'recurring', name: 'Recurring', icon: Calendar, route: '/recurring' },
-        { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/cashbooks' },
-        { id: 'group-expenses', name: 'Group Exp', icon: Users, route: '/group-expenses' },
-        { id: 'reports', name: 'Reports', icon: TrendingUp, route: '/reports' }
+    // Financial Command Center — 4 Visual Subsections (Exactly 11 modules total)
+    // Core financial pillars: Personal CFO (Home), Money Flow & Cash, Wealth & Portfolio, Goals & Life Planning
+    const moneySections = [
+        {
+            title: 'DAILY MONEY',
+            items: [
+                { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/self?tab=flow' },
+                { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/(tabs)/cashbooks' },
+                { id: 'budgets', name: 'Budget', icon: PieChart, route: '/(tabs)/budgets' },
+                { id: 'recurring', name: 'Recurring Commitments', icon: Calendar, route: '/(tabs)/recurring' },
+                { id: 'group-expenses', name: 'Group Expenses', icon: Users, route: '/(tabs)/group-expenses' }
+            ]
+        },
+        {
+            title: 'CREDIT & LENDING',
+            items: [
+                { id: 'banking-credit', name: 'Banking & Credit', icon: Landmark, route: '/(tabs)/banking-credit' },
+                { id: 'p2p', name: 'P2P Network', icon: Users, route: '/(tabs)/p2p' }
+            ]
+        },
+        {
+            title: 'WEALTH & PROPERTY',
+            items: [
+                { id: 'assets', name: 'Assets', icon: Building2, route: '/(tabs)/assets' },
+                { id: 'properties', name: 'Property', icon: Building2, route: '/(tabs)/properties' },
+                { id: 'investments', name: 'Investments', icon: TrendingUp, route: '/(tabs)/investments' }
+            ]
+        },
+        {
+            title: 'REPORTS',
+            items: [
+                { id: 'reports', name: 'Reports', icon: TrendingUp, route: '/(tabs)/reports' }
+            ]
+        }
     ];
 
-    const wealthSubTabs = [
-        { id: 'banking', name: 'Banking', icon: Landmark, route: '/(tabs)/self?tab=banking' },
-        { id: 'loans', name: 'Formal Loans', icon: CreditCard, route: '/(tabs)/self?tab=banking' },
-        { id: 'emis', name: 'EMI Tracker', icon: Calendar, route: '/(tabs)/self?tab=banking' },
-        { id: 'p2p', name: 'P2P Network', icon: Users, route: '/(tabs)/self?tab=p2p' },
-        { id: 'assets', name: 'Assets', icon: Building2, route: '/assets' },
-        { id: 'properties', name: 'Property', icon: Building2, route: '/properties' },
-        { id: 'investments', name: 'Investments', icon: TrendingUp, route: '/investments' }
-    ];
+    // Authoritative 11-module flat array for backward compatibility & index lookup
+    const moneySubTabs = moneySections.flatMap(section => section.items);
 
     const lifeSubTabs = [
-        { id: 'family', name: 'Family', icon: Users, route: '/family' },
-        { id: 'time-management', name: 'Time Mgmt', icon: CheckSquare, route: '/time-management' },
-        { id: 'todos', name: 'Tasks / Goals', icon: CheckSquare, route: '/todos' },
-        { id: 'career', name: 'Career', icon: Wrench, route: '/career' },
-        { id: 'travel', name: 'Travel', icon: Heart, route: '/travel' }
+        { id: 'family', name: 'Family', icon: Users, route: '/(tabs)/family' },
+        { id: 'time-management', name: 'Time Mgmt', icon: CheckSquare, route: '/(tabs)/time-management' },
+        { id: 'todos', name: 'Tasks / Goals', icon: CheckSquare, route: '/(tabs)/todos' },
+        { id: 'career', name: 'Career', icon: Wrench, route: '/(tabs)/career' },
+        { id: 'travel', name: 'Travel', icon: Heart, route: '/(tabs)/travel' }
     ];
     
     const intelligenceSubTabs = [
-        { id: 'insights', name: 'Insights', icon: TrendingUp, route: '/insights' },
-        { id: 'markets', name: 'Markets', icon: TrendingUp, route: '/markets' },
-        { id: 'financial-health', name: 'Fin Health', icon: Heart, route: '/financial-health' },
-        { id: 'tax', name: 'Tax', icon: Wallet, route: '/tax' },
+        { id: 'insights', name: 'Insights', icon: TrendingUp, route: '/(tabs)/insights' },
+        { id: 'markets', name: 'Markets', icon: TrendingUp, route: '/(tabs)/markets' },
+        { id: 'financial-health', name: 'Fin Health', icon: Heart, route: '/(tabs)/financial-health' },
+        { id: 'tax', name: 'Tax', icon: Wallet, route: '/(tabs)/tax' },
         { id: 'testing', name: 'In-App Test Hub', icon: Activity, route: '/(tabs)/testing' }
     ];
     
     const securitySubTabs = [
-        { id: 'validity', name: 'Validity/Docs', icon: ShieldCheck, route: '/validity' },
-        { id: 'emergency', name: 'Emergency', icon: ShieldCheck, route: '/emergency' },
-        { id: 'profile', name: 'Profile', icon: User, route: '/profile' },
-        { id: 'more', name: 'More', icon: Wrench, route: '/more' }
+        { id: 'validity', name: 'Validity/Docs', icon: ShieldCheck, route: '/(tabs)/validity' },
+        { id: 'emergency', name: 'Emergency', icon: ShieldCheck, route: '/(tabs)/emergency' },
+        { id: 'profile', name: 'Profile', icon: User, route: '/(tabs)/profile' },
+        { id: 'more', name: 'More', icon: Wrench, route: '/(tabs)/more' }
     ];
 
     const drawerRoutes = [
         { name: 'index', label: 'Personal CFO (Home)', icon: LayoutDashboard },
-        { name: 'money', label: 'Money Flow & Cash', icon: Wallet, state: isMoneyExpanded, setState: setIsMoneyExpanded, subTabs: moneySubTabs },
-        { name: 'wealth', label: 'Wealth & Portfolio', icon: Landmark, state: isWealthExpanded, setState: setIsWealthExpanded, subTabs: wealthSubTabs },
+        { 
+            name: 'money', 
+            label: 'Financial Command Center', 
+            legacyLabel: 'Money Flow & Cash', // Backward compatibility for legacy tests
+            icon: Wallet, 
+            state: isMoneyExpanded, 
+            setState: setIsMoneyExpanded, 
+            subTabs: moneySubTabs,
+            subSections: moneySections
+        },
         { name: 'life', label: 'Goals & Life Planning', icon: Heart, state: isLifeExpanded, setState: setIsLifeExpanded, subTabs: lifeSubTabs },
         { name: 'business', label: 'Business Hub', icon: Building2 },
         { name: 'intelligence', label: 'Decision Intelligence', icon: Activity, state: isIntelligenceExpanded, setState: setIsIntelligenceExpanded, subTabs: intelligenceSubTabs, isGroup: true },
@@ -131,25 +157,54 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
 
                                         {route.state && (
                                             <View style={styles.subItemsContainer}>
-                                                {route.subTabs.map(sub => {
-                                                    const SubIcon = sub.icon;
-                                                    const onSubPress = () => {
-                                                        router.push(sub.route);
-                                                        onClose();
-                                                    };
-                                                    return (
-                                                        <TouchableOpacity
-                                                            key={sub.id}
-                                                            onPress={onSubPress}
-                                                            style={styles.subMenuItem}
-                                                        >
-                                                            <SubIcon size={16} color="#71717A" />
-                                                            <Text style={styles.subMenuLabel}>
-                                                                {sub.name}
-                                                            </Text>
-                                                        </TouchableOpacity>
-                                                    );
-                                                })}
+                                                {route.subSections ? (
+                                                    route.subSections.map((sec) => (
+                                                        <View key={sec.title} style={styles.subSectionGroup}>
+                                                            <View style={styles.subSectionHeader}>
+                                                                <Text style={styles.subSectionHeaderText}>{sec.title}</Text>
+                                                            </View>
+                                                            {sec.items.map(sub => {
+                                                                const SubIcon = sub.icon;
+                                                                const onSubPress = () => {
+                                                                    router.push(sub.route);
+                                                                    onClose();
+                                                                };
+                                                                return (
+                                                                    <TouchableOpacity
+                                                                        key={sub.id}
+                                                                        onPress={onSubPress}
+                                                                        style={styles.subMenuItem}
+                                                                    >
+                                                                        <SubIcon size={16} color="#71717A" />
+                                                                        <Text style={styles.subMenuLabel}>
+                                                                            {sub.name}
+                                                                        </Text>
+                                                                    </TouchableOpacity>
+                                                                );
+                                                            })}
+                                                        </View>
+                                                    ))
+                                                ) : (
+                                                    route.subTabs.map(sub => {
+                                                        const SubIcon = sub.icon;
+                                                        const onSubPress = () => {
+                                                            router.push(sub.route);
+                                                            onClose();
+                                                        };
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={sub.id}
+                                                                onPress={onSubPress}
+                                                                style={styles.subMenuItem}
+                                                            >
+                                                                <SubIcon size={16} color="#71717A" />
+                                                                <Text style={styles.subMenuLabel}>
+                                                                    {sub.name}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })
+                                                )}
                                             </View>
                                         )}
                                     </View>
@@ -226,6 +281,7 @@ export default function TabLayout() {
                     <Tabs.Screen name="emergency" options={{ href: null }} />
                     <Tabs.Screen name="financial-health" options={{ href: null }} />
                     <Tabs.Screen name="time-management" options={{ href: null }} />
+                    <Tabs.Screen name="banking-credit" options={{ href: null }} />
                     <Tabs.Screen name="loans" options={{ href: null }} />
                     <Tabs.Screen name="emis" options={{ href: null }} />
                     <Tabs.Screen name="accounts" options={{ href: null }} />
@@ -245,6 +301,7 @@ export default function TabLayout() {
                     <Tabs.Screen name="reports" options={{ href: null }} />
                     <Tabs.Screen name="affirmations" options={{ href: null }} />
                     <Tabs.Screen name="testing" options={{ href: null }} />
+                    <Tabs.Screen name="p2p" options={{ href: null }} />
                 </Tabs>
             </View>
         </DrawerContext.Provider>
@@ -354,5 +411,20 @@ const styles = StyleSheet.create({
         color: '#D4D4D8',
         fontSize: 13,
         fontWeight: '600'
+    },
+    subSectionGroup: {
+        marginBottom: 6
+    },
+    subSectionHeader: {
+        paddingTop: 8,
+        paddingBottom: 2,
+        paddingLeft: 2
+    },
+    subSectionHeaderText: {
+        color: '#71717A',
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 1.2,
+        textTransform: 'uppercase'
     }
 });

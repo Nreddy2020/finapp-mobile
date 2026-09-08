@@ -24,6 +24,15 @@ import {
     createSettlementRecord
 } from './p2pDomainModel.js';
 
+import {
+    roundHalfUp,
+    rateToBps,
+    toBigIntPaise,
+    rupeesToPaise,
+    paiseToRupees
+} from './p2pContracts.js';
+
+
 export {
     LOAN_DIRECTION,
     LOAN_TYPES,
@@ -58,68 +67,85 @@ export function addMonthsToDate(dateStr, monthsToAdd) {
 }
 
 /**
- * Calculates primary loan characteristics and installment projections
+ * Calculates primary loan characteristics and installment projections using BigInt paise
  */
 export function calculateLoanDNA(loan = {}) {
-    const principal = Math.max(0, Number(loan.principal) || 0);
+    const principalPaise = toBigIntPaise(loan.principalPaise !== undefined ? loan.principalPaise : (loan.principal !== undefined ? rupeesToPaise(loan.principal) : 0n));
     const annualRate = Math.max(0, Number(loan.interestRate) || 0);
+    const annualRateBps = rateToBps(annualRate);
     const tenureMonths = Math.max(1, Number(loan.tenureMonths) || 12);
     const method = loan.interestMethod || INTEREST_METHOD.SIMPLE;
 
     const annualRateDecimal = annualRate / 100;
     const monthlyRate = annualRateDecimal / 12;
 
-    let expectedMonthlyPayment = 0;
-    let totalExpectedInterest = 0;
+    let expectedMonthlyPaymentPaise = 0n;
+    let totalExpectedInterestPaise = 0n;
 
-    if (method === INTEREST_METHOD.NO_INTEREST || annualRate === 0) {
-        expectedMonthlyPayment = tenureMonths > 0 ? principal / tenureMonths : principal;
-        totalExpectedInterest = 0;
+    if (method === INTEREST_METHOD.NO_INTEREST || annualRateBps === 0n) {
+        expectedMonthlyPaymentPaise = roundHalfUp(principalPaise, BigInt(tenureMonths));
+        totalExpectedInterestPaise = 0n;
     } else if (method === INTEREST_METHOD.AMORTIZED) {
         if (monthlyRate > 0) {
             const factor = Math.pow(1 + monthlyRate, tenureMonths);
-            expectedMonthlyPayment = (principal * monthlyRate * factor) / (factor - 1);
-            totalExpectedInterest = (expectedMonthlyPayment * tenureMonths) - principal;
+            const pRupees = paiseToRupees(principalPaise);
+            const emiRupees = (pRupees * monthlyRate * factor) / (factor - 1);
+            expectedMonthlyPaymentPaise = rupeesToPaise(emiRupees);
+
+            let simOpening = principalPaise;
+            let cumInt = 0n;
+            for (let m = 1; m <= tenureMonths; m++) {
+                const mInt = roundHalfUp(simOpening * annualRateBps, 120000n);
+                cumInt += mInt;
+                const mPrin = m === tenureMonths
+                    ? simOpening
+                    : (expectedMonthlyPaymentPaise > mInt ? expectedMonthlyPaymentPaise - mInt : 0n);
+                simOpening = simOpening > mPrin ? simOpening - mPrin : 0n;
+            }
+            totalExpectedInterestPaise = cumInt;
         } else {
-            expectedMonthlyPayment = principal / tenureMonths;
-            totalExpectedInterest = 0;
+            expectedMonthlyPaymentPaise = roundHalfUp(principalPaise, BigInt(tenureMonths));
+            totalExpectedInterestPaise = 0n;
         }
     } else {
         // DECLINING-BALANCE SIMPLE INTEREST:
-        // Monthly principal = P / tenure
-        // Opening balance for month m = P - (m-1)*(P/tenure)
-        // Sum of interest = sum(P_m * r / 12)
-        const monthlyPrincipal = principal / tenureMonths;
-        let cumulativeInterest = 0;
+        const monthlyPrincipalBase = principalPaise / BigInt(tenureMonths);
+        let cumulativeInterest = 0n;
         for (let m = 1; m <= tenureMonths; m++) {
-            const opening = Math.max(0, principal - (m - 1) * monthlyPrincipal);
-            const mInterest = opening * (annualRateDecimal / 12);
+            const opening = principalPaise - (BigInt(m - 1) * monthlyPrincipalBase);
+            const mInterest = roundHalfUp(opening * annualRateBps, 120000n);
             cumulativeInterest += mInterest;
         }
-        totalExpectedInterest = cumulativeInterest;
-        expectedMonthlyPayment = (principal + totalExpectedInterest) / tenureMonths;
+        totalExpectedInterestPaise = cumulativeInterest;
+        expectedMonthlyPaymentPaise = roundHalfUp(principalPaise + totalExpectedInterestPaise, BigInt(tenureMonths));
     }
 
-    const totalExpectedRepayment = principal + totalExpectedInterest;
+    const totalExpectedRepaymentPaise = principalPaise + totalExpectedInterestPaise;
 
     return {
-        principal,
+        principalPaise,
+        principal: paiseToRupees(principalPaise),
         annualRate,
+        annualRateBps,
         annualRateDecimal,
         monthlyRate,
         tenureMonths,
         method,
-        expectedMonthlyPayment: Number(expectedMonthlyPayment.toFixed(2)),
-        monthlyInstallment: Number(expectedMonthlyPayment.toFixed(2)),
-        totalExpectedInterest: Number(totalExpectedInterest.toFixed(2)),
-        totalInterest: Number(totalExpectedInterest.toFixed(2)),
-        totalExpectedRepayment: Number(totalExpectedRepayment.toFixed(2)),
-        totalPayable: Number(totalExpectedRepayment.toFixed(2))
+        expectedMonthlyPaymentPaise,
+        expectedMonthlyPayment: paiseToRupees(expectedMonthlyPaymentPaise),
+        monthlyInstallment: paiseToRupees(expectedMonthlyPaymentPaise),
+        totalExpectedInterestPaise,
+        totalExpectedInterest: paiseToRupees(totalExpectedInterestPaise),
+        totalInterest: paiseToRupees(totalExpectedInterestPaise),
+        totalExpectedRepaymentPaise,
+        totalExpectedRepayment: paiseToRupees(totalExpectedRepaymentPaise),
+        totalPayable: paiseToRupees(totalExpectedRepaymentPaise)
     };
 }
 
 /**
  * Generates initial declining-balance repayment schedule for a new loan
+ * Guarantees zero penny leakage via final-installment remainder carry-forward.
  */
 export function generateInitialSchedule(loan = {}) {
     const loanId = loan.id || loan.loanId || `loan_${Date.now()}`;
@@ -127,9 +153,11 @@ export function generateInitialSchedule(loan = {}) {
     const startDate = loan.startDate || new Date().toISOString().split('T')[0];
 
     const schedule = [];
-    let currentOpeningPrincipal = dna.principal;
-    const monthlyPrincipalBase = dna.principal / dna.tenureMonths;
+    let currentOpeningPrincipalPaise = dna.principalPaise;
+    const monthlyPrincipalBasePaise = dna.principalPaise / BigInt(dna.tenureMonths);
 
+    let cumPrincipalAllocatedPaise = 0n;
+    let cumInterestAllocatedPaise = 0n;
     let previousPeriodEnd = startDate;
 
     for (let i = 1; i <= dna.tenureMonths; i++) {
@@ -138,37 +166,49 @@ export function generateInitialSchedule(loan = {}) {
         const periodEnd = dueDate;
         previousPeriodEnd = dueDate;
 
-        let interestComponent = 0;
-        let principalComponent = 0;
-        let expectedAmount = 0;
-
-        // Interest on opening principal of the period:
-        // expectedInterest = round(openingPrincipal * (annualRate / 100) * (1/12), 2)
-        interestComponent = Number((currentOpeningPrincipal * (dna.annualRateDecimal / 12)).toFixed(2));
+        let interestComponentPaise = roundHalfUp(currentOpeningPrincipalPaise * dna.annualRateBps, 120000n);
+        let principalComponentPaise = 0n;
 
         if (dna.method === INTEREST_METHOD.AMORTIZED) {
             if (dna.monthlyRate > 0) {
-                // If last installment, adjust principal exactly to remaining
                 if (i === dna.tenureMonths) {
-                    principalComponent = currentOpeningPrincipal;
+                    principalComponentPaise = currentOpeningPrincipalPaise;
                 } else {
-                    principalComponent = Number((dna.expectedMonthlyPayment - interestComponent).toFixed(2));
+                    principalComponentPaise = dna.expectedMonthlyPaymentPaise > interestComponentPaise
+                        ? dna.expectedMonthlyPaymentPaise - interestComponentPaise
+                        : 0n;
+                    if (principalComponentPaise > currentOpeningPrincipalPaise) {
+                        principalComponentPaise = currentOpeningPrincipalPaise;
+                    }
                 }
             } else {
-                principalComponent = i === dna.tenureMonths ? currentOpeningPrincipal : monthlyPrincipalBase;
+                principalComponentPaise = i === dna.tenureMonths ? currentOpeningPrincipalPaise : monthlyPrincipalBasePaise;
             }
-            expectedAmount = principalComponent + interestComponent;
         } else if (dna.method === INTEREST_METHOD.NO_INTEREST) {
-            interestComponent = 0;
-            principalComponent = i === dna.tenureMonths ? currentOpeningPrincipal : monthlyPrincipalBase;
-            expectedAmount = principalComponent;
+            interestComponentPaise = 0n;
+            principalComponentPaise = i === dna.tenureMonths ? currentOpeningPrincipalPaise : monthlyPrincipalBasePaise;
         } else {
             // SIMPLE INTEREST (Declining Balance)
-            principalComponent = i === dna.tenureMonths ? currentOpeningPrincipal : Number(monthlyPrincipalBase.toFixed(2));
-            expectedAmount = principalComponent + interestComponent;
+            principalComponentPaise = i === dna.tenureMonths ? currentOpeningPrincipalPaise : monthlyPrincipalBasePaise;
         }
 
-        const closingPrincipal = Math.max(0, currentOpeningPrincipal - principalComponent);
+        // Remainder carry-forward: Final installment absorbs residual discrepancy
+        if (i === dna.tenureMonths) {
+            interestComponentPaise = dna.totalExpectedInterestPaise > cumInterestAllocatedPaise
+                ? dna.totalExpectedInterestPaise - cumInterestAllocatedPaise
+                : 0n;
+            principalComponentPaise = dna.principalPaise > cumPrincipalAllocatedPaise
+                ? dna.principalPaise - cumPrincipalAllocatedPaise
+                : 0n;
+        }
+
+        const expectedTotalPaise = principalComponentPaise + interestComponentPaise;
+        const closingPrincipalPaise = currentOpeningPrincipalPaise > principalComponentPaise
+            ? currentOpeningPrincipalPaise - principalComponentPaise
+            : 0n;
+
+        cumPrincipalAllocatedPaise += principalComponentPaise;
+        cumInterestAllocatedPaise += interestComponentPaise;
 
         schedule.push(createRepaymentScheduleItem({
             id: `sch_${loanId}_${i}`,
@@ -177,23 +217,26 @@ export function generateInitialSchedule(loan = {}) {
             periodStart,
             periodEnd,
             dueDate,
-            openingPrincipal: Number(currentOpeningPrincipal.toFixed(2)),
-            expectedAmount: Number(expectedAmount.toFixed(2)),
-            expectedTotal: Number(expectedAmount.toFixed(2)),
-            expectedPrincipal: Number(principalComponent.toFixed(2)),
-            expectedInterest: Number(interestComponent.toFixed(2)),
-            principalComponent: Number(principalComponent.toFixed(2)),
-            interestComponent: Number(interestComponent.toFixed(2)),
-            remainingPrincipal: Number(closingPrincipal.toFixed(2)),
-            closingPrincipal: Number(closingPrincipal.toFixed(2)),
+            openingPrincipalPaise: currentOpeningPrincipalPaise,
+            expectedPrincipalPaise: principalComponentPaise,
+            expectedInterestPaise: interestComponentPaise,
+            expectedFeesPaise: 0n,
+            expectedTotalPaise,
+            closingPrincipalPaise,
+            remainingPrincipalPaise: closingPrincipalPaise,
+            paidPrincipalPaise: 0n,
+            paidInterestPaise: 0n,
+            paidFeesPaise: 0n,
+            paidTotalPaise: 0n,
             status: SCHEDULE_STATUS.PENDING
         }));
 
-        currentOpeningPrincipal = closingPrincipal;
+        currentOpeningPrincipalPaise = closingPrincipalPaise;
     }
 
     return schedule;
 }
+
 
 /**
  * Allocates a repayment amount across Fees, Interest, and Principal
@@ -202,81 +245,140 @@ export function generateInitialSchedule(loan = {}) {
 export function allocateRepayment({
     loan = null,
     amount = 0,
+    amountPaise = undefined,
     paymentAmount = null,
+    paymentAmountPaise = undefined,
     currentOutstandingPrincipal = 0,
+    currentOutstandingPrincipalPaise = undefined,
     expectedPrincipal = null,
+    expectedPrincipalPaise = undefined,
     unpaidAccruedInterest = 0,
+    unpaidAccruedInterestPaise = undefined,
     expectedInterest = null,
+    expectedInterestPaise = undefined,
     unpaidFees = 0,
+    unpaidFeesPaise = undefined,
     expectedFees = null,
+    expectedFeesPaise = undefined,
+    outstandingPrincipalPaise = undefined,
+    accruedInterestPaise = undefined,
+    outstandingFeesPaise = undefined,
+    quarantineOverpayment = false,
     allocationPolicy = null,
     policy = null
 } = {}) {
-    const totalPaid = Math.max(0, Number(paymentAmount !== null ? paymentAmount : amount) || 0);
-    const finalPolicy = policy || allocationPolicy || (loan && loan.repaymentAllocation) || REPAYMENT_ALLOCATION.INTEREST_FIRST;
-    const principal = Math.max(0, Number(expectedPrincipal !== null ? expectedPrincipal : currentOutstandingPrincipal) || 0);
-    const interest = Math.max(0, Number(expectedInterest !== null ? expectedInterest : unpaidAccruedInterest) || 0);
-    const fees = Math.max(0, Number(expectedFees !== null ? expectedFees : unpaidFees) || 0);
+    const rawTotalPaid = paymentAmountPaise !== undefined 
+        ? toBigIntPaise(paymentAmountPaise) 
+        : (amountPaise !== undefined ? toBigIntPaise(amountPaise) : (paymentAmount !== null ? rupeesToPaise(paymentAmount) : rupeesToPaise(amount)));
+    const totalPaidPaise = rawTotalPaid > 0n ? rawTotalPaid : 0n;
 
-    let feePaid = 0;
-    let interestPaid = 0;
-    let principalPaid = 0;
-    let remainingToAllocate = totalPaid;
+    const finalPolicy = policy || allocationPolicy || (loan && loan.repaymentAllocation) || REPAYMENT_ALLOCATION.INTEREST_FIRST;
+
+    const principalPaise = outstandingPrincipalPaise !== undefined
+        ? toBigIntPaise(outstandingPrincipalPaise)
+        : (expectedPrincipalPaise !== undefined 
+            ? toBigIntPaise(expectedPrincipalPaise) 
+            : (expectedPrincipal !== null ? rupeesToPaise(expectedPrincipal) : (currentOutstandingPrincipalPaise !== undefined ? toBigIntPaise(currentOutstandingPrincipalPaise) : rupeesToPaise(currentOutstandingPrincipal))));
+
+    const interestPaise = accruedInterestPaise !== undefined
+        ? toBigIntPaise(accruedInterestPaise)
+        : (expectedInterestPaise !== undefined 
+            ? toBigIntPaise(expectedInterestPaise) 
+            : (expectedInterest !== null ? rupeesToPaise(expectedInterest) : (unpaidAccruedInterestPaise !== undefined ? toBigIntPaise(unpaidAccruedInterestPaise) : rupeesToPaise(unpaidAccruedInterest))));
+
+    const feesPaise = outstandingFeesPaise !== undefined
+        ? toBigIntPaise(outstandingFeesPaise)
+        : (expectedFeesPaise !== undefined 
+            ? toBigIntPaise(expectedFeesPaise) 
+            : (expectedFees !== null ? rupeesToPaise(expectedFees) : (unpaidFeesPaise !== undefined ? toBigIntPaise(unpaidFeesPaise) : rupeesToPaise(unpaidFees))));
+
+    let feePaidPaise = 0n;
+    let interestPaidPaise = 0n;
+    let principalPaidPaise = 0n;
+    let remainingToAllocatePaise = totalPaidPaise;
 
     if (finalPolicy === REPAYMENT_ALLOCATION.FEES_FIRST) {
-        feePaid = Math.min(remainingToAllocate, fees);
-        remainingToAllocate -= feePaid;
-        interestPaid = Math.min(remainingToAllocate, interest);
-        remainingToAllocate -= interestPaid;
-        principalPaid = Math.min(remainingToAllocate, principal);
-        remainingToAllocate -= principalPaid;
+        feePaidPaise = remainingToAllocatePaise > feesPaise ? feesPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= feePaidPaise;
+        interestPaidPaise = remainingToAllocatePaise > interestPaise ? interestPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= interestPaidPaise;
+        principalPaidPaise = remainingToAllocatePaise > principalPaise ? principalPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= principalPaidPaise;
     } else if (finalPolicy === REPAYMENT_ALLOCATION.PRINCIPAL_FIRST) {
-        principalPaid = Math.min(remainingToAllocate, principal);
-        remainingToAllocate -= principalPaid;
-        interestPaid = Math.min(remainingToAllocate, interest);
-        remainingToAllocate -= interestPaid;
-        feePaid = Math.min(remainingToAllocate, fees);
-        remainingToAllocate -= feePaid;
+        principalPaidPaise = remainingToAllocatePaise > principalPaise ? principalPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= principalPaidPaise;
+        interestPaidPaise = remainingToAllocatePaise > interestPaise ? interestPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= interestPaidPaise;
+        feePaidPaise = remainingToAllocatePaise > feesPaise ? feesPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= feePaidPaise;
     } else if (finalPolicy === REPAYMENT_ALLOCATION.PROPORTIONAL) {
-        const totalDue = principal + interest + fees;
-        if (totalDue > 0) {
-            feePaid = Math.min(fees, Math.round(totalPaid * (fees / totalDue) * 100) / 100);
-            interestPaid = Math.min(interest, Math.round(totalPaid * (interest / totalDue) * 100) / 100);
-            principalPaid = Math.min(principal, Math.round((totalPaid - feePaid - interestPaid) * 100) / 100);
-            remainingToAllocate = Math.max(0, totalPaid - feePaid - interestPaid - principalPaid);
+        const totalDuePaise = principalPaise + interestPaise + feesPaise;
+        if (totalDuePaise > 0n) {
+            feePaidPaise = roundHalfUp(totalPaidPaise * feesPaise, totalDuePaise);
+            if (feePaidPaise > feesPaise) feePaidPaise = feesPaise;
+            if (feePaidPaise > remainingToAllocatePaise) feePaidPaise = remainingToAllocatePaise;
+
+            interestPaidPaise = roundHalfUp(totalPaidPaise * interestPaise, totalDuePaise);
+            if (interestPaidPaise > interestPaise) interestPaidPaise = interestPaise;
+            if (interestPaidPaise > (remainingToAllocatePaise - feePaidPaise)) interestPaidPaise = remainingToAllocatePaise - feePaidPaise;
+
+            principalPaidPaise = remainingToAllocatePaise - feePaidPaise - interestPaidPaise;
+            remainingToAllocatePaise = 0n;
         } else {
-            principalPaid = totalPaid;
-            remainingToAllocate = 0;
+            principalPaidPaise = totalPaidPaise;
+            remainingToAllocatePaise = 0n;
         }
     } else {
         // Default: INTEREST_FIRST
-        interestPaid = Math.min(remainingToAllocate, interest);
-        remainingToAllocate -= interestPaid;
-        principalPaid = Math.min(remainingToAllocate, principal);
-        remainingToAllocate -= principalPaid;
-        feePaid = Math.min(remainingToAllocate, fees);
-        remainingToAllocate -= feePaid;
+        interestPaidPaise = remainingToAllocatePaise > interestPaise ? interestPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= interestPaidPaise;
+        principalPaidPaise = remainingToAllocatePaise > principalPaise ? principalPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= principalPaidPaise;
+        feePaidPaise = remainingToAllocatePaise > feesPaise ? feesPaise : remainingToAllocatePaise;
+        remainingToAllocatePaise -= feePaidPaise;
     }
 
-    // Excess payment (if any) reduces principal directly (prepayment)
-    if (remainingToAllocate > 0) {
-        principalPaid += remainingToAllocate;
+    // Excess payment (if any)
+    let unallocatedPaise = 0n;
+    if (remainingToAllocatePaise > 0n) {
+        if (quarantineOverpayment) {
+            unallocatedPaise = remainingToAllocatePaise;
+            remainingToAllocatePaise = 0n;
+        } else {
+            principalPaidPaise += remainingToAllocatePaise;
+            remainingToAllocatePaise = 0n;
+        }
     }
 
-    const remainingPrincipalAfter = Math.max(0, principal - principalPaid);
-    const remainingInterestAfter = Math.max(0, interest - interestPaid);
-    const remainingFeesAfter = Math.max(0, fees - feePaid);
+    const remainingPrincipalAfterPaise = principalPaise > principalPaidPaise ? principalPaise - principalPaidPaise : 0n;
+    const remainingInterestAfterPaise = interestPaise > interestPaidPaise ? interestPaise - interestPaidPaise : 0n;
+    const remainingFeesAfterPaise = feesPaise > feePaidPaise ? feesPaise - feePaidPaise : 0n;
 
     return {
-        amount: totalPaid,
-        principalPaid: Number(principalPaid.toFixed(2)),
-        interestPaid: Number(interestPaid.toFixed(2)),
-        feePaid: Number(feePaid.toFixed(2)),
-        principalComponent: Number(principalPaid.toFixed(2)),
-        interestComponent: Number(interestPaid.toFixed(2)),
-        remainingPrincipalAfter: Number(remainingPrincipalAfter.toFixed(2)),
-        remainingInterestAfter: Number(remainingInterestAfter.toFixed(2)),
-        remainingFeesAfter: Number(remainingFeesAfter.toFixed(2))
+        amountPaise: totalPaidPaise,
+        principalPaise: principalPaidPaise,
+        interestPaise: interestPaidPaise,
+        feesPaise: feePaidPaise,
+        unallocatedPaise,
+        principalPaidPaise,
+        interestPaidPaise,
+        feePaidPaise,
+        principalComponentPaise: principalPaidPaise,
+        interestComponentPaise: interestPaidPaise,
+        feeComponentPaise: feePaidPaise,
+        remainingPrincipalAfterPaise,
+        remainingInterestAfterPaise,
+        remainingFeesAfterPaise,
+        amount: paiseToRupees(totalPaidPaise),
+        principalPaid: paiseToRupees(principalPaidPaise),
+        interestPaid: paiseToRupees(interestPaidPaise),
+        feePaid: paiseToRupees(feePaidPaise),
+        principalComponent: paiseToRupees(principalPaidPaise),
+        interestComponent: paiseToRupees(interestPaidPaise),
+        feeComponent: paiseToRupees(feePaidPaise),
+        remainingPrincipalAfter: paiseToRupees(remainingPrincipalAfterPaise),
+        remainingInterestAfter: paiseToRupees(remainingInterestAfterPaise),
+        remainingFeesAfter: paiseToRupees(remainingFeesAfterPaise)
     };
 }
 
@@ -532,22 +634,37 @@ export function payInstallmentInAdvanceInSchedule({
     schedule = [],
     installmentNumber = 1,
     paymentAmount = null,
-    paymentDate = new Date().toISOString().split('T')[0]
+    paymentAmountPaise = undefined,
+    paymentDate = new Date().toISOString().split('T')[0],
+    advancePaymentDate = null
 } = {}) {
     const rawSchedule = Array.isArray(schedule) ? schedule.map(s => ({ ...s })) : [];
     const targetIdx = rawSchedule.findIndex(s => s.installmentNumber === installmentNumber || s.id === installmentNumber);
     if (targetIdx === -1) return rawSchedule;
 
     const item = rawSchedule[targetIdx];
-    const amountToPay = paymentAmount !== null ? Number(paymentAmount) : (item.expectedTotal || item.expectedAmount);
+    const resolvedDate = advancePaymentDate || paymentDate;
+    const resolvedExpectedTotalPaise = item.expectedTotalPaise !== undefined ? item.expectedTotalPaise : rupeesToPaise(item.expectedTotal || item.expectedAmount || 0);
+    const amountToPayPaise = paymentAmountPaise !== undefined 
+        ? toBigIntPaise(paymentAmountPaise) 
+        : (paymentAmount !== null ? rupeesToPaise(paymentAmount) : resolvedExpectedTotalPaise);
 
-    item.paidAmount = amountToPay;
-    item.paidTotal = amountToPay;
-    item.paidPrincipal = item.expectedPrincipal;
-    item.paidInterest = item.expectedInterest;
+    item.paidAmountPaise = amountToPayPaise;
+    item.paidTotalPaise = amountToPayPaise;
+    item.paidPrincipalPaise = item.expectedPrincipalPaise !== undefined ? item.expectedPrincipalPaise : rupeesToPaise(item.expectedPrincipal || 0);
+    item.paidInterestPaise = item.expectedInterestPaise !== undefined ? item.expectedInterestPaise : rupeesToPaise(item.expectedInterest || 0);
+    item.remainingTotalPaise = 0n;
+    item.remainingPrincipalPaise = 0n;
+
+    item.paidAmount = paiseToRupees(amountToPayPaise);
+    item.paidTotal = paiseToRupees(amountToPayPaise);
+    item.paidPrincipal = paiseToRupees(item.paidPrincipalPaise);
+    item.paidInterest = paiseToRupees(item.paidInterestPaise);
     item.remainingTotal = 0;
+    item.remainingPrincipal = 0;
     item.status = SCHEDULE_STATUS.PREPAID;
-    item.paidDate = paymentDate;
+    item.paidDate = resolvedDate;
+    item.isAdvancePayment = true;
 
     return rawSchedule;
 }
@@ -670,7 +787,9 @@ export function calculateSettlementQuote({
     advances = [],
     repayments = [],
     settlementDate = null,
-    waiverAmount = 0
+    waiverAmount = 0,
+    waiverAmountPaise = undefined,
+    waiverPaise = undefined
 } = {}) {
     const totalAdvanced = advances.reduce((sum, a) => sum + (Number(a.amount) || 0), 0) || Number(loan.principal) || 0;
     const principalRepaid = repayments.reduce((sum, r) => sum + (Number(r.principalComponent || r.principalPaid) || 0), 0);
@@ -682,13 +801,30 @@ export function calculateSettlementQuote({
     const interestOutstanding = timeline.outstandingInterest || Math.max(0, timeline.totalAccrued - timeline.totalPaid);
     const feesOutstanding = Number(loan.feesOutstanding) || 0;
 
-    const waiver = Math.max(0, Number(waiverAmount) || 0);
-    const settlementAmount = Math.max(0, (principalOutstanding + interestOutstanding + feesOutstanding) - waiver);
+    const resolvedWaiverPaise = waiverPaise !== undefined 
+        ? toBigIntPaise(waiverPaise) 
+        : (waiverAmountPaise !== undefined ? toBigIntPaise(waiverAmountPaise) : rupeesToPaise(waiverAmount));
+    const waiver = paiseToRupees(resolvedWaiverPaise);
+
+    const pOutPaise = loan.outstandingPrincipalPaise !== undefined ? toBigIntPaise(loan.outstandingPrincipalPaise) : rupeesToPaise(principalOutstanding);
+    const iOutPaise = rupeesToPaise(interestOutstanding);
+    const fOutPaise = loan.feesOutstandingPaise !== undefined ? toBigIntPaise(loan.feesOutstandingPaise) : rupeesToPaise(feesOutstanding);
+    const grossDuePaise = pOutPaise + iOutPaise + fOutPaise;
+    const settlementAmountPaise = grossDuePaise > resolvedWaiverPaise ? grossDuePaise - resolvedWaiverPaise : 0n;
+    const settlementAmount = paiseToRupees(settlementAmountPaise);
 
     return {
         loanId: loan.id,
         totalAdvanced,
         principalRepaid,
+        principalOutstandingPaise: pOutPaise,
+        outstandingPrincipalPaise: pOutPaise,
+        interestOutstandingPaise: iOutPaise,
+        feesOutstandingPaise: fOutPaise,
+        waiverPaise: resolvedWaiverPaise,
+        waiverAmountPaise: resolvedWaiverPaise,
+        settlementAmountPaise,
+        finalSettlementAmountPaise: settlementAmountPaise,
         principalOutstanding: Number(principalOutstanding.toFixed(2)),
         outstandingPrincipal: Number(principalOutstanding.toFixed(2)),
         interestAccrued: timeline.totalAccrued,
@@ -717,12 +853,17 @@ export function createDoubleEntryJournalForEvent({
     cashAccountName = '',
     accountId = 'HDFC Savings Account',
     principalAmount = null,
+    principalAmountPaise = null,
     interestAmount = null,
+    interestAmountPaise = null,
     feeAmount = null,
+    feeAmountPaise = null,
     waiverAmount = 0,
+    waiverAmountPaise = null,
     loan = null,
     advance = null,
     repayment = null,
+    allocation = null,
     settlement = null,
     relationshipSettlement = null,
     date = new Date().toISOString().split('T')[0],
@@ -738,13 +879,18 @@ export function createDoubleEntryJournalForEvent({
     const lines = [];
 
     if (evType === JOURNAL_EVENT_TYPES.P2P_LOAN_GIVEN || evType === JOURNAL_EVENT_TYPES.P2P_ADVANCE_GIVEN) {
-        const amt = principalAmount !== null ? Number(principalAmount) : (advance ? advance.amount : (loan ? loan.principal : 0));
+        const amtPaise = principalAmountPaise !== null && principalAmountPaise !== undefined
+            ? toBigIntPaise(principalAmountPaise)
+            : (principalAmount !== null
+                ? rupeesToPaise(principalAmount)
+                : (advance ? (advance.amountPaise !== undefined ? toBigIntPaise(advance.amountPaise) : rupeesToPaise(advance.amount)) : (loan ? (loan.principalPaise !== undefined ? toBigIntPaise(loan.principalPaise) : rupeesToPaise(loan.principal)) : 0n)));
+
         lines.push(createJournalLine({
             id: `jl_${entryId}_1`,
             accountType: 'ASSET',
             accountId: 'ASSET_P2P_RECEIVABLE',
-            debit: amt,
-            credit: 0,
+            debitPaise: amtPaise,
+            creditPaise: 0n,
             component: 'PRINCIPAL',
             loanId: resolvedEntityId
         }));
@@ -752,19 +898,24 @@ export function createDoubleEntryJournalForEvent({
             id: `jl_${entryId}_2`,
             accountType: 'ASSET',
             accountId: targetAccount,
-            debit: 0,
-            credit: amt,
+            debitPaise: 0n,
+            creditPaise: amtPaise,
             component: 'CAPITAL',
             loanId: resolvedEntityId
         }));
     } else if (evType === JOURNAL_EVENT_TYPES.P2P_LOAN_TAKEN || evType === JOURNAL_EVENT_TYPES.P2P_ADVANCE_TAKEN) {
-        const amt = principalAmount !== null ? Number(principalAmount) : (advance ? advance.amount : (loan ? loan.principal : 0));
+        const amtPaise = principalAmountPaise !== null && principalAmountPaise !== undefined
+            ? toBigIntPaise(principalAmountPaise)
+            : (principalAmount !== null
+                ? rupeesToPaise(principalAmount)
+                : (advance ? (advance.amountPaise !== undefined ? toBigIntPaise(advance.amountPaise) : rupeesToPaise(advance.amount)) : (loan ? (loan.principalPaise !== undefined ? toBigIntPaise(loan.principalPaise) : rupeesToPaise(loan.principal)) : 0n)));
+
         lines.push(createJournalLine({
             id: `jl_${entryId}_1`,
             accountType: 'ASSET',
             accountId: targetAccount,
-            debit: amt,
-            credit: 0,
+            debitPaise: amtPaise,
+            creditPaise: 0n,
             component: 'CAPITAL',
             loanId: resolvedEntityId
         }));
@@ -772,70 +923,117 @@ export function createDoubleEntryJournalForEvent({
             id: `jl_${entryId}_2`,
             accountType: 'LIABILITY',
             accountId: 'LIABILITY_P2P_PAYABLE',
-            debit: 0,
-            credit: amt,
+            debitPaise: 0n,
+            creditPaise: amtPaise,
             component: 'PRINCIPAL',
             loanId: resolvedEntityId
         }));
     } else if (evType === JOURNAL_EVENT_TYPES.P2P_REPAYMENT_RECEIVED || evType === JOURNAL_EVENT_TYPES.P2P_PREPAYMENT_RECEIVED) {
-        const pAmt = Number(principalAmount !== null ? principalAmount : (repayment ? repayment.principalComponent : 0)) || 0;
-        const iAmt = Number(interestAmount !== null ? interestAmount : (repayment ? repayment.interestComponent : 0)) || 0;
-        const totalCash = Number((pAmt + iAmt).toFixed(2));
+        const pAmtPaise = principalAmountPaise !== null && principalAmountPaise !== undefined
+            ? toBigIntPaise(principalAmountPaise)
+            : (principalAmount !== null 
+                ? rupeesToPaise(principalAmount) 
+                : (allocation && (allocation.principalPaise !== undefined || allocation.principalComponentPaise !== undefined)
+                    ? toBigIntPaise(allocation.principalPaise ?? allocation.principalComponentPaise)
+                    : (repayment ? (repayment.principalComponentPaise !== undefined ? toBigIntPaise(repayment.principalComponentPaise) : rupeesToPaise(repayment.principalComponent)) : 0n)));
+
+        const iAmtPaise = interestAmountPaise !== null && interestAmountPaise !== undefined
+            ? toBigIntPaise(interestAmountPaise)
+            : (interestAmount !== null 
+                ? rupeesToPaise(interestAmount) 
+                : (allocation && (allocation.interestPaise !== undefined || allocation.interestComponentPaise !== undefined)
+                    ? toBigIntPaise(allocation.interestPaise ?? allocation.interestComponentPaise)
+                    : (repayment ? (repayment.interestComponentPaise !== undefined ? toBigIntPaise(repayment.interestComponentPaise) : rupeesToPaise(repayment.interestComponent)) : 0n)));
+
+        const fAmtPaise = feeAmountPaise !== null && feeAmountPaise !== undefined
+            ? toBigIntPaise(feeAmountPaise)
+            : (feeAmount !== null
+                ? rupeesToPaise(feeAmount)
+                : (allocation && (allocation.feesPaise !== undefined || allocation.feePaidPaise !== undefined || allocation.feeComponentPaise !== undefined)
+                    ? toBigIntPaise(allocation.feesPaise ?? allocation.feePaidPaise ?? allocation.feeComponentPaise)
+                    : 0n));
+
+        const totalCashPaise = pAmtPaise + iAmtPaise + fAmtPaise;
 
         lines.push(createJournalLine({
             id: `jl_${entryId}_1`,
             accountType: 'ASSET',
             accountId: targetAccount,
-            debit: totalCash,
-            credit: 0,
+            debitPaise: totalCashPaise,
+            creditPaise: 0n,
             component: 'CAPITAL',
             loanId: resolvedEntityId
         }));
-        if (pAmt > 0) {
+        if (pAmtPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_2`,
                 accountType: 'ASSET',
                 accountId: 'ASSET_P2P_RECEIVABLE',
-                debit: 0,
-                credit: pAmt,
+                debitPaise: 0n,
+                creditPaise: pAmtPaise,
                 component: 'PRINCIPAL',
                 loanId: resolvedEntityId
             }));
         }
-        if (iAmt > 0) {
+        if (iAmtPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_3`,
                 accountType: 'INCOME',
                 accountId: 'INCOME_P2P_INTEREST',
-                debit: 0,
-                credit: iAmt,
+                debitPaise: 0n,
+                creditPaise: iAmtPaise,
                 component: 'INTEREST',
                 loanId: resolvedEntityId
             }));
         }
+        if (fAmtPaise > 0n) {
+            lines.push(createJournalLine({
+                id: `jl_${entryId}_fee`,
+                accountType: 'INCOME',
+                accountId: 'INCOME_P2P_FEES',
+                debitPaise: 0n,
+                creditPaise: fAmtPaise,
+                component: 'FEES',
+                loanId: resolvedEntityId
+            }));
+        }
     } else if (evType === JOURNAL_EVENT_TYPES.P2P_REPAYMENT_PAID || evType === JOURNAL_EVENT_TYPES.P2P_PREPAYMENT_PAID) {
-        const pAmt = Number(principalAmount !== null ? principalAmount : (repayment ? repayment.principalComponent : 0)) || 0;
-        const iAmt = Number(interestAmount !== null ? interestAmount : (repayment ? repayment.interestComponent : 0)) || 0;
-        const totalCash = Number((pAmt + iAmt).toFixed(2));
+        const pAmtPaise = principalAmountPaise !== null && principalAmountPaise !== undefined
+            ? toBigIntPaise(principalAmountPaise)
+            : (principalAmount !== null 
+                ? rupeesToPaise(principalAmount) 
+                : (allocation && (allocation.principalPaise !== undefined || allocation.principalComponentPaise !== undefined)
+                    ? toBigIntPaise(allocation.principalPaise ?? allocation.principalComponentPaise)
+                    : (repayment ? (repayment.principalComponentPaise !== undefined ? toBigIntPaise(repayment.principalComponentPaise) : rupeesToPaise(repayment.principalComponent)) : 0n)));
 
-        if (pAmt > 0) {
+        const iAmtPaise = interestAmountPaise !== null && interestAmountPaise !== undefined
+            ? toBigIntPaise(interestAmountPaise)
+            : (interestAmount !== null 
+                ? rupeesToPaise(interestAmount) 
+                : (allocation && (allocation.interestPaise !== undefined || allocation.interestComponentPaise !== undefined)
+                    ? toBigIntPaise(allocation.interestPaise ?? allocation.interestComponentPaise)
+                    : (repayment ? (repayment.interestComponentPaise !== undefined ? toBigIntPaise(repayment.interestComponentPaise) : rupeesToPaise(repayment.interestComponent)) : 0n)));
+
+        const totalCashPaise = pAmtPaise + iAmtPaise;
+
+        if (pAmtPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_1`,
                 accountType: 'LIABILITY',
                 accountId: 'LIABILITY_P2P_PAYABLE',
-                debit: pAmt,
-                credit: 0,
+                debitPaise: pAmtPaise,
+                creditPaise: 0n,
                 component: 'PRINCIPAL',
                 loanId: resolvedEntityId
             }));
         }
-        if (iAmt > 0) {
+        if (iAmtPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_2`,
                 accountType: 'EXPENSE',
                 accountId: 'EXPENSE_P2P_INTEREST',
-                debit: iAmt,
-                credit: 0,
+                debitPaise: iAmtPaise,
+                creditPaise: 0n,
                 component: 'INTEREST',
                 loanId: resolvedEntityId
             }));
@@ -844,161 +1042,173 @@ export function createDoubleEntryJournalForEvent({
             id: `jl_${entryId}_3`,
             accountType: 'ASSET',
             accountId: targetAccount,
-            debit: 0,
-            credit: totalCash,
+            debitPaise: 0n,
+            creditPaise: totalCashPaise,
             component: 'CAPITAL',
             loanId: resolvedEntityId
         }));
     } else if (evType === JOURNAL_EVENT_TYPES.RELATIONSHIP_SETTLEMENT && relationshipSettlement) {
-        // Multi-loan gross extinguishment + net cash settlement
-        const grossRec = Number(relationshipSettlement.grossReceivableClosed || 0);
-        const grossPay = Number(relationshipSettlement.grossPayableClosed || 0);
-        const netCash = Number(relationshipSettlement.settlementAmount || Math.abs(grossRec - grossPay));
-        const isReceivable = (grossRec >= grossPay);
+        const grossRecPaise = relationshipSettlement.grossReceivableClosedPaise !== undefined 
+            ? toBigIntPaise(relationshipSettlement.grossReceivableClosedPaise) 
+            : rupeesToPaise(relationshipSettlement.grossReceivableClosed || 0);
+        const grossPayPaise = relationshipSettlement.grossPayableClosedPaise !== undefined 
+            ? toBigIntPaise(relationshipSettlement.grossPayableClosedPaise) 
+            : rupeesToPaise(relationshipSettlement.grossPayableClosed || 0);
 
-        if (grossPay > 0) {
+        const netCashPaise = relationshipSettlement.settlementAmountPaise !== undefined
+            ? toBigIntPaise(relationshipSettlement.settlementAmountPaise)
+            : (relationshipSettlement.settlementAmount !== undefined 
+                ? rupeesToPaise(relationshipSettlement.settlementAmount) 
+                : (grossRecPaise >= grossPayPaise ? grossRecPaise - grossPayPaise : grossPayPaise - grossRecPaise));
+
+        const isReceivable = (grossRecPaise >= grossPayPaise);
+
+        if (grossPayPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_pay`,
                 accountType: 'LIABILITY',
                 accountId: 'LIABILITY_P2P_PAYABLE',
-                debit: grossPay,
-                credit: 0,
+                debitPaise: grossPayPaise,
+                creditPaise: 0n,
                 component: 'PRINCIPAL',
                 personId: relationshipSettlement.personId
             }));
         }
-        if (isReceivable && netCash > 0) {
+        if (isReceivable && netCashPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_cash`,
                 accountType: 'ASSET',
                 accountId: targetAccount,
-                debit: netCash,
-                credit: 0,
+                debitPaise: netCashPaise,
+                creditPaise: 0n,
                 component: 'CAPITAL',
                 personId: relationshipSettlement.personId
             }));
         }
-        if (grossRec > 0) {
+        if (grossRecPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_rec`,
                 accountType: 'ASSET',
                 accountId: 'ASSET_P2P_RECEIVABLE',
-                debit: 0,
-                credit: grossRec,
+                debitPaise: 0n,
+                creditPaise: grossRecPaise,
                 component: 'PRINCIPAL',
                 personId: relationshipSettlement.personId
             }));
         }
-        if (!isReceivable && netCash > 0) {
+        if (!isReceivable && netCashPaise > 0n) {
             lines.push(createJournalLine({
                 id: `jl_${entryId}_cash_out`,
                 accountType: 'ASSET',
                 accountId: targetAccount,
-                debit: 0,
-                credit: netCash,
+                debitPaise: 0n,
+                creditPaise: netCashPaise,
                 component: 'CAPITAL',
                 personId: relationshipSettlement.personId
             }));
         }
     } else if (evType === JOURNAL_EVENT_TYPES.P2P_SETTLEMENT && settlement) {
         const isGiven = (loan && loan.direction === LOAN_DIRECTION.GIVEN) || settlement.direction === LOAN_DIRECTION.GIVEN;
-        const pAmt = Number(settlement.principalOutstanding || 0);
-        const iAmt = Number(settlement.interestOutstanding || 0);
-        const wAmt = Number(settlement.waiverAmount || 0);
-        const cashAmt = Number(settlement.finalSettlementAmount || (pAmt + iAmt - wAmt));
+        const pAmtPaise = settlement.principalOutstandingPaise !== undefined ? toBigIntPaise(settlement.principalOutstandingPaise) : rupeesToPaise(settlement.principalOutstanding || 0);
+        const iAmtPaise = settlement.interestOutstandingPaise !== undefined ? toBigIntPaise(settlement.interestOutstandingPaise) : rupeesToPaise(settlement.interestOutstanding || 0);
+        const wAmtPaise = settlement.waiverAmountPaise !== undefined ? toBigIntPaise(settlement.waiverAmountPaise) : rupeesToPaise(settlement.waiverAmount || 0);
+        const cashAmtPaise = settlement.finalSettlementAmountPaise !== undefined 
+            ? toBigIntPaise(settlement.finalSettlementAmountPaise) 
+            : (settlement.finalSettlementAmount !== undefined ? rupeesToPaise(settlement.finalSettlementAmount) : (pAmtPaise + iAmtPaise - wAmtPaise));
 
         if (isGiven) {
-            if (cashAmt > 0) {
+            if (cashAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_c`,
                     accountType: 'ASSET',
                     accountId: targetAccount,
-                    debit: cashAmt,
-                    credit: 0,
+                    debitPaise: cashAmtPaise,
+                    creditPaise: 0n,
                     component: 'CAPITAL',
                     loanId: resolvedEntityId
                 }));
             }
-            if (wAmt > 0) {
+            if (wAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_w`,
                     accountType: 'EXPENSE',
                     accountId: 'EXPENSE_P2P_WAIVER',
-                    debit: wAmt,
-                    credit: 0,
+                    debitPaise: wAmtPaise,
+                    creditPaise: 0n,
                     component: 'WAIVER',
                     loanId: resolvedEntityId
                 }));
             }
-            if (pAmt > 0) {
+            if (pAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_p`,
                     accountType: 'ASSET',
                     accountId: 'ASSET_P2P_RECEIVABLE',
-                    debit: 0,
-                    credit: pAmt,
+                    debitPaise: 0n,
+                    creditPaise: pAmtPaise,
                     component: 'PRINCIPAL',
                     loanId: resolvedEntityId
                 }));
             }
-            if (iAmt > 0) {
+            if (iAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_i`,
                     accountType: 'INCOME',
                     accountId: 'INCOME_P2P_INTEREST',
-                    debit: 0,
-                    credit: iAmt,
+                    debitPaise: 0n,
+                    creditPaise: iAmtPaise,
                     component: 'INTEREST',
                     loanId: resolvedEntityId
                 }));
             }
         } else {
-            if (pAmt > 0) {
+            if (pAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_p`,
                     accountType: 'LIABILITY',
                     accountId: 'LIABILITY_P2P_PAYABLE',
-                    debit: pAmt,
-                    credit: 0,
+                    debitPaise: pAmtPaise,
+                    creditPaise: 0n,
                     component: 'PRINCIPAL',
                     loanId: resolvedEntityId
                 }));
             }
-            if (iAmt > 0) {
+            if (iAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_i`,
                     accountType: 'EXPENSE',
                     accountId: 'EXPENSE_P2P_INTEREST',
-                    debit: iAmt,
-                    credit: 0,
+                    debitPaise: iAmtPaise,
+                    creditPaise: 0n,
                     component: 'INTEREST',
                     loanId: resolvedEntityId
                 }));
             }
-            if (cashAmt > 0) {
+            if (cashAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_c`,
                     accountType: 'ASSET',
                     accountId: targetAccount,
-                    debit: 0,
-                    credit: cashAmt,
+                    debitPaise: 0n,
+                    creditPaise: cashAmtPaise,
                     component: 'CAPITAL',
                     loanId: resolvedEntityId
                 }));
             }
-            if (wAmt > 0) {
+            if (wAmtPaise > 0n) {
                 lines.push(createJournalLine({
                     id: `jl_${entryId}_w`,
                     accountType: 'INCOME',
                     accountId: 'INCOME_P2P_WAIVER',
-                    debit: 0,
-                    credit: wAmt,
+                    debitPaise: 0n,
+                    creditPaise: wAmtPaise,
                     component: 'WAIVER',
                     loanId: resolvedEntityId
                 }));
             }
         }
     }
+
 
     return createJournalEntry({
         id: entryId,
@@ -1019,12 +1229,13 @@ export function createDoubleEntryJournalForEvent({
 /**
  * Creates an immutable Reversal Journal Entry that perfectly negates a prior entry
  */
-export function createReversalJournalEntry({
-    originalJournalEntry,
-    reversalReason = 'User correction',
-    reversedBy = 'FINLIFE_USER',
-    date = new Date().toISOString().split('T')[0]
-}) {
+export function createReversalJournalEntry(firstArg, secondArg, thirdArg, fourthArg) {
+    const isObjectParam = firstArg && typeof firstArg === 'object' && ('originalJournalEntry' in firstArg);
+    const originalJournalEntry = isObjectParam ? firstArg.originalJournalEntry : firstArg;
+    const reversalReason = isObjectParam ? (firstArg.reversalReason || 'User correction') : (secondArg || 'User correction');
+    const reversedBy = isObjectParam ? (firstArg.reversedBy || 'FINLIFE_USER') : (thirdArg || 'FINLIFE_USER');
+    const date = isObjectParam ? (firstArg.date || new Date().toISOString().split('T')[0]) : (fourthArg || new Date().toISOString().split('T')[0]);
+
     if (!originalJournalEntry || !Array.isArray(originalJournalEntry.lines)) {
         throw new Error('Original journal entry with valid lines is required for reversal.');
     }
@@ -1034,8 +1245,8 @@ export function createReversalJournalEntry({
         id: `jl_${entryId}_${idx}`,
         accountType: l.accountType,
         accountId: l.accountId,
-        debit: l.credit,   // Invert debit/credit
-        credit: l.debit,
+        debitPaise: l.creditPaise !== undefined ? l.creditPaise : rupeesToPaise(l.credit || 0),   // Invert debit/credit paise
+        creditPaise: l.debitPaise !== undefined ? l.debitPaise : rupeesToPaise(l.debit || 0),
         currency: l.currency,
         component: l.component,
         loanId: l.loanId,
@@ -1079,6 +1290,11 @@ export function rebuildP2PProjectionsFromJournal({
         personProjections[p.id] = {
             personId: p.id,
             name: p.name,
+            totalGivenPaise: 0n,
+            totalReceivedPaise: 0n,
+            totalTakenPaise: 0n,
+            totalPaidPaise: 0n,
+            netBalancePaise: 0n,
             totalGiven: 0,
             totalReceived: 0,
             totalTaken: 0,
@@ -1091,11 +1307,19 @@ export function rebuildP2PProjectionsFromJournal({
 
     // Initialize loan structures
     (loans || []).forEach(l => {
+        const pPaise = l.principalPaise !== undefined ? toBigIntPaise(l.principalPaise) : rupeesToPaise(l.principal);
         loanProjections[l.id] = {
             id: l.id,
             personId: l.personId,
             direction: l.direction,
-            principal: Number(l.principal),
+            principalPaise: pPaise,
+            principal: paiseToRupees(pPaise),
+            totalAdvancedPaise: 0n,
+            principalPaidPaise: 0n,
+            interestPaidPaise: 0n,
+            interestAccruedPaise: 0n,
+            outstandingPrincipalPaise: 0n,
+            outstandingInterestPaise: 0n,
             totalAdvanced: 0,
             principalPaid: 0,
             interestPaid: 0,
@@ -1117,28 +1341,30 @@ export function rebuildP2PProjectionsFromJournal({
         for (const line of (je.lines || [])) {
             const lId = line.loanId || je.entityId;
             const pId = line.personId || (loans.find(l => l.id === lId)?.personId);
+            const dPaise = line.debitPaise !== undefined ? toBigIntPaise(line.debitPaise) : rupeesToPaise(line.debit);
+            const cPaise = line.creditPaise !== undefined ? toBigIntPaise(line.creditPaise) : rupeesToPaise(line.credit);
 
             if (loanProjections[lId]) {
                 const lp = loanProjections[lId];
                 if (line.accountId === 'ASSET_P2P_RECEIVABLE') {
-                    lp.totalAdvanced += line.debit;
-                    lp.principalPaid += line.credit;
+                    lp.totalAdvancedPaise += dPaise;
+                    lp.principalPaidPaise += cPaise;
                 } else if (line.accountId === 'LIABILITY_P2P_PAYABLE') {
-                    lp.totalAdvanced += line.credit;
-                    lp.principalPaid += line.debit;
+                    lp.totalAdvancedPaise += cPaise;
+                    lp.principalPaidPaise += dPaise;
                 } else if (line.accountId === 'INCOME_P2P_INTEREST' || line.accountId === 'EXPENSE_P2P_INTEREST') {
-                    lp.interestPaid += (line.credit || line.debit);
+                    lp.interestPaidPaise += (cPaise > 0n ? cPaise : dPaise);
                 }
             }
 
             if (personProjections[pId]) {
                 const pp = personProjections[pId];
                 if (line.accountId === 'ASSET_P2P_RECEIVABLE') {
-                    pp.totalGiven += line.debit;
-                    pp.totalReceived += line.credit;
+                    pp.totalGivenPaise += dPaise;
+                    pp.totalReceivedPaise += cPaise;
                 } else if (line.accountId === 'LIABILITY_P2P_PAYABLE') {
-                    pp.totalTaken += line.credit;
-                    pp.totalPaid += line.debit;
+                    pp.totalTakenPaise += cPaise;
+                    pp.totalPaidPaise += dPaise;
                 }
             }
         }
@@ -1157,8 +1383,12 @@ export function rebuildP2PProjectionsFromJournal({
 
     // Finalize loan balances
     Object.values(loanProjections).forEach(lp => {
-        lp.outstandingPrincipal = Math.max(0, lp.totalAdvanced - lp.principalPaid);
-        if (lp.outstandingPrincipal <= 0.01 && lp.outstandingInterest <= 0.01 && lp.totalAdvanced > 0) {
+        lp.outstandingPrincipalPaise = lp.totalAdvancedPaise > lp.principalPaidPaise ? lp.totalAdvancedPaise - lp.principalPaidPaise : 0n;
+        lp.totalAdvanced = paiseToRupees(lp.totalAdvancedPaise);
+        lp.principalPaid = paiseToRupees(lp.principalPaidPaise);
+        lp.interestPaid = paiseToRupees(lp.interestPaidPaise);
+        lp.outstandingPrincipal = paiseToRupees(lp.outstandingPrincipalPaise);
+        if (lp.outstandingPrincipalPaise === 0n && lp.outstandingInterestPaise === 0n && lp.totalAdvancedPaise > 0n) {
             lp.status = LOAN_STATUS.SETTLED;
         }
     });
@@ -1166,9 +1396,14 @@ export function rebuildP2PProjectionsFromJournal({
     // Finalize person relationship netting
     const relationships = {};
     Object.values(personProjections).forEach(pp => {
-        const net = (pp.totalGiven - pp.totalReceived) - (pp.totalTaken - pp.totalPaid);
-        pp.netBalance = Number(net.toFixed(2));
-        pp.direction = net >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+        const netPaise = (pp.totalGivenPaise - pp.totalReceivedPaise) - (pp.totalTakenPaise - pp.totalPaidPaise);
+        pp.totalGiven = paiseToRupees(pp.totalGivenPaise);
+        pp.totalReceived = paiseToRupees(pp.totalReceivedPaise);
+        pp.totalTaken = paiseToRupees(pp.totalTakenPaise);
+        pp.totalPaid = paiseToRupees(pp.totalPaidPaise);
+        pp.netBalancePaise = netPaise;
+        pp.netBalance = paiseToRupees(netPaise);
+        pp.direction = netPaise >= 0n ? 'RECEIVABLE' : 'PAYABLE';
 
         const pLoans = Object.values(loanProjections).filter(lp => lp.personId === pp.personId);
         pp.pendingLoanIds = pLoans.filter(l => l.status === LOAN_STATUS.ACTIVE).map(l => l.id);
@@ -1176,9 +1411,9 @@ export function rebuildP2PProjectionsFromJournal({
 
         relationships[pp.personId] = createPersonRelationship({
             personId: pp.personId,
-            totalGiven: pp.totalGiven,
-            totalTaken: pp.totalTaken,
-            netBalance: pp.netBalance,
+            totalGivenPaise: pp.totalGivenPaise,
+            totalTakenPaise: pp.totalTakenPaise,
+            netBalancePaise: netPaise,
             pendingLoanIds: pp.pendingLoanIds,
             settledLoanIds: pp.settledLoanIds
         });
@@ -1187,6 +1422,9 @@ export function rebuildP2PProjectionsFromJournal({
     return {
         loanProjections,
         personProjections,
+        loans: loanProjections,
+        persons: personProjections,
         relationships
     };
 }
+

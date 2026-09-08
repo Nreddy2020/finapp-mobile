@@ -1,0 +1,332 @@
+{
+  "gateId": "GATE_R8",
+  "gateTitle": "Gate R8 — Store Packaging & Android App Bundle (AAB) Readiness Qualification",
+  "qualificationScope": "STORE_PACKAGING_AAB_READINESS_QUALIFIED",
+  "qualificationBoundary": "Executed on emulator-5554 (API 36, Android 16, x86_64) using production-compiled AAB (app-release.aab) and universal APK (app-release-universal.apk). Validates Google Play Store packaging invariants, R8/ProGuard dead-code elimination, upload signing, targetSdkVersion 36, manifest permission pruning, bundle extraction, and runtime hydration within the tested emulator boundary. Physical OEM device hardware testing (Pixel, Samsung Galaxy, Xiaomi HyperOS) and actual Google Play Console upload acceptance remain separate and required milestones.",
+  "classificationString": "FINLIFE RELEASE QUALIFICATION — GATE R8: STORE PACKAGING AND ANDROID APP BUNDLE READINESS QUALIFIED AND CERTIFIED AS A RELEASE-CANDIDATE BASELINE. AAB COMPILATION, UPLOAD-KEY SIGNING, R8/PROGUARD, MANIFEST COMPLIANCE, BUNDLE EXTRACTION, AND RELEASE-RUNTIME HYDRATION VERIFIED WITHIN TESTED BOUNDARIES. GOOGLE PLAY CONSOLE ACCEPTANCE, PHYSICAL OEM QUALIFICATION, AND FINAL PRODUCTION RELEASE APPROVAL REMAIN SEPARATE AND REQUIRED.",
+  "timestamp": "2026-09-08T11:31:05.167Z",
+  "totalAssertions": 16,
+  "passedAssertions": 16,
+  "passRate": "100.0%",
+  "cumulativeAccounting": {
+    "coreEcosystem": 847,
+    "gateR1": 8,
+    "gateR2": 9,
+    "gateR3": 24,
+    "gateR4": 41,
+    "gateR5": 29,
+    "frozenRcSubtotal": 958,
+    "reportsArchitecture": 21,
+    "reportsCanonicalIntelligence": 76,
+    "reportsV1Subtotal": 97,
+    "subtotalThroughReports": 1055,
+    "gateR6": 28,
+    "certifiedSubtotalThroughR6": 1083,
+    "gateR7": 24,
+    "certifiedSubtotalThroughR7": 1107,
+    "gateR8": 16,
+    "grandCumulativeTotal": 1123,
+    "arithmeticFormula": "847 + 8 + 9 + 24 + 41 + 29 + 21 + 76 + 28 + 24 + 16 = 1,123"
+  },
+  "provenance": {
+    "deviceSerial": "emulator-5554",
+    "deviceModel": "sdk_gphone64_x86_64",
+    "androidVersion": "16",
+    "apiLevel": "36",
+    "primaryAbi": "x86_64",
+    "aabPath": "E:\\fintech-mobile\\android\\app\\build\\outputs\\bundle\\release\\app-release.aab",
+    "aabSizeBytes": 60030430,
+    "aabSha256": "ba8c3fd01ba9cb31a0311c0e4572f95037823ea1ef391962d863c76a6a033c1f",
+    "universalApkPath": "E:\\fintech-mobile\\android\\app\\build\\outputs\\apk_from_bundle\\release\\app-release-universal.apk",
+    "universalApkSizeBytes": 89079708,
+    "universalApkSha256": "d6ac84493586b4129529e6494144fe16ee3615f6a6184f2ad7b327f15154f3d8",
+    "originalReleaseApkSha256": "739dad64a9db64964496dee1ceae29c3142a6a7d4c78b0ab51661165b2957456",
+    "signerCertificateSha256": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+    "signerDn": "CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN",
+    "signingAlgorithm": "SHA256withRSA",
+    "keySizeBits": 4096
+  },
+  "results": [
+    {
+      "id": "R8-AAB-01",
+      "name": "Release AAB Compilation and Archive Provenance",
+      "dimension": "AAB_INTEGRITY",
+      "status": "PASS",
+      "durationMs": 395,
+      "expected": "Valid AAB archive containing base manifest, compiled DEX, protobuf resources, and native libs; release APK untouched",
+      "observed": "AAB valid (60030430 bytes, SHA-256: ba8c3fd01ba9cb31a0311c0e4572f95037823ea1ef391962d863c76a6a033c1f); Original APK preserved (739dad64a9db64964496dee1ceae29c3142a6a7d4c78b0ab51661165b2957456)",
+      "evidence": {
+        "aabPath": "E:\\fintech-mobile\\android\\app\\build\\outputs\\bundle\\release\\app-release.aab",
+        "aabSizeBytes": 60030430,
+        "aabSha256": "ba8c3fd01ba9cb31a0311c0e4572f95037823ea1ef391962d863c76a6a033c1f",
+        "originalApkPreserved": true
+      }
+    },
+    {
+      "id": "R8-AAB-02",
+      "name": "Packaging Size Threshold Compliance (< 150 MB Project Threshold)",
+      "dimension": "AAB_INTEGRITY",
+      "status": "PASS",
+      "durationMs": 0,
+      "expected": "The AAB and extracted universal APK are below the project’s internal 150 MB packaging threshold. Per-device delivery size remains subject to Google Play bundle validation.",
+      "observed": "AAB: 57.25 MB (margin: 92.75 MB below ceiling); Universal APK: 84.95 MB; Project threshold satisfied",
+      "evidence": {
+        "aabSizeBytes": 60030430,
+        "aabMb": "57.25",
+        "universalSizeBytes": 89079708,
+        "universalMb": "84.95",
+        "marginMb": "92.75"
+      }
+    },
+    {
+      "id": "R8-AAB-03",
+      "name": "64-Bit ABI Alignment & Multi-Architecture JNI Libs",
+      "dimension": "AAB_INTEGRITY",
+      "status": "PASS",
+      "durationMs": 43,
+      "expected": "All 4 standard Android ABIs present, including mandatory 64-bit ABIs (arm64-v8a, x86_64)",
+      "observed": "ABIs verified: [arm64-v8a, armeabi-v7a, x86, x86_64]; JNI Hermes and RN core shared libraries present",
+      "evidence": {
+        "supportedAbis": [
+          "arm64-v8a",
+          "armeabi-v7a",
+          "x86",
+          "x86_64"
+        ],
+        "arm64NativeLibsCount": 19
+      }
+    },
+    {
+      "id": "R8-AAB-04",
+      "name": "Resource & Asset Table Optimization",
+      "dimension": "AAB_INTEGRITY",
+      "status": "PASS",
+      "durationMs": 139,
+      "expected": "Compiled resources.pb present; assets contain only compiled Hermes bytecode bundle and app config; zero test mocks",
+      "observed": "resources.pb (1679.4 KB); Hermes bundle verified (Magic: 0xc61fbc03, 6.66 MB); 0 mock files",
+      "evidence": {
+        "resourcesPbBytes": 1719703,
+        "hermesBundleBytes": 6978900,
+        "hermesMagic": "c61fbc03",
+        "assetEntries": [
+          "base/assets/app.config\r",
+          "base/assets/index.android.bundle\r"
+        ]
+      }
+    },
+    {
+      "id": "R8-SIGN-01",
+      "name": "Production Keystore & RSA 4096-bit Bundle Signing",
+      "dimension": "CRYPTOGRAPHIC_SIGNING",
+      "status": "PASS",
+      "durationMs": 1483,
+      "expected": "AAB signed via JAR signing in META-INF with FinLife 4096-bit RSA release key",
+      "observed": "JAR signing verified in AAB; Signer: CN=FinLife Release, OU=Mobile Financial Engineering, O=FinLife Technologies, C=IN; 4096-bit RSA",
+      "evidence": {
+        "keytoolOutputSummary": "CN=FinLife Release, 4096-bit RSA, SHA256withRSA"
+      }
+    },
+    {
+      "id": "R8-SIGN-02",
+      "name": "Certificate Fingerprint SHA-256 Consistency",
+      "dimension": "CRYPTOGRAPHIC_SIGNING",
+      "status": "PASS",
+      "durationMs": 1451,
+      "expected": "Certificate SHA-256 strictly matches approved release fingerprint: 34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+      "observed": "Certificate SHA-256 matched: 34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb; Zero debug certificate signatures",
+      "evidence": {
+        "certSha256": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+        "approvedSha256": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb",
+        "match": true
+      }
+    },
+    {
+      "id": "R8-SIGN-03",
+      "name": "AAB Upload Key & Extracted APK Signature Schemes (v2/v3)",
+      "dimension": "CRYPTOGRAPHIC_SIGNING",
+      "status": "PASS",
+      "durationMs": 831,
+      "expected": "Upload-key signing verified; extracted APK signature schemes v2/v3 verified. Google Play App Signing acceptance remains subject to Play Console validation.",
+      "observed": "Universal APK verifies v2: true, v3: true; Signer digest matches release upload certificate (34b440df...); Play App Signing compatibility bounded",
+      "evidence": {
+        "v2Scheme": true,
+        "v3Scheme": true,
+        "signerDigest": "34b440df73ed736dd95205e1a0ac69f3c59f99250201064abe4fb6b7fc7000cb"
+      }
+    },
+    {
+      "id": "R8-PROG-01",
+      "name": "ProGuard / R8 Rules Audit (proguard-rules.pro)",
+      "dimension": "BYTECODE_OBFUSCATION",
+      "status": "PASS",
+      "durationMs": 0,
+      "expected": "ProGuard / R8 configuration protects React Native turbo modules, reanimated, and FinLife native SMS/Crypto bridges",
+      "observed": "Rules verified: Reanimated, TurboModules, and com.nirwas20.wealthwise.sms.** class & classmembers kept intact",
+      "evidence": {
+        "proguardRulesFile": "E:\\fintech-mobile\\android\\app\\proguard-rules.pro",
+        "keptPackages": [
+          "com.swmansion.reanimated.**",
+          "com.facebook.react.turbomodule.**",
+          "com.nirwas20.wealthwise.sms.**"
+        ]
+      }
+    },
+    {
+      "id": "R8-PROG-02",
+      "name": "JNI Native Bridges & Native Crypto Engine Preservation",
+      "dimension": "BYTECODE_OBFUSCATION",
+      "status": "PASS",
+      "durationMs": 0,
+      "expected": "Native crypto engine and SMS module source contracts preserved with zero missing JNI entry points",
+      "observed": "FinlifeCryptoEngine (AES/GCM/NoPadding, AndroidKeyStore), FinlifeSmsModule, and FinlifeSmsBroadcastReceiver intact and protected",
+      "evidence": {
+        "modules": [
+          "FinlifeCryptoEngine.kt",
+          "FinlifeSmsModule.kt",
+          "FinlifeSmsBroadcastReceiver.kt"
+        ],
+        "jniProtection": "VERIFIED"
+      }
+    },
+    {
+      "id": "R8-PROG-03",
+      "name": "DEX Bytecode Sanitization (Zero Test Hooks in Release)",
+      "dimension": "BYTECODE_OBFUSCATION",
+      "status": "PASS",
+      "durationMs": 289,
+      "expected": "Compiled DEX classes free from JUnit runners, debug test fixtures, and android:debuggable=\"false\"",
+      "observed": "3 DEX files scanned: 0 test harnesses, 0 JUnit runners; Manifest android:debuggable is false",
+      "evidence": {
+        "dexFilesScanned": 3,
+        "debuggable": false,
+        "testFixturesDetected": 0
+      }
+    },
+    {
+      "id": "R8-PLAY-01",
+      "name": "Target API Level Compliance (targetSdkVersion 36, minSdkVersion 24)",
+      "dimension": "PLAY_STORE_POLICY",
+      "status": "PASS",
+      "durationMs": 100,
+      "expected": "minSdkVersion: 24, targetSdkVersion: 36 (exceeding Google Play Store mandate >= 34)",
+      "observed": "minSdkVersion: 24, targetSdkVersion: 36; Google Play policy compliant",
+      "evidence": {
+        "minSdkVersion": 24,
+        "targetSdkVersion": 36,
+        "meetsPlayRequirement": true
+      }
+    },
+    {
+      "id": "R8-PLAY-02",
+      "name": "Least-Privilege Merged Manifest Permissions Pruning & Inventory",
+      "dimension": "PLAY_STORE_POLICY",
+      "status": "PASS",
+      "durationMs": 92,
+      "expected": "The merged manifest contains no unapproved permissions. All 30 declared permissions are inventoried, justified, and approved for the current release scope.",
+      "observed": "Merged manifest contains 0 unapproved permissions; All 30 permissions inventoried and approved; Sensitive capabilities subject to applicable Play policy review",
+      "evidence": {
+        "prohibitedPermissionsChecked": 7,
+        "prohibitedFound": 0,
+        "declaredPermissionsCount": 30,
+        "permissionsInventory": [
+          "android.permission.INTERNET",
+          "android.permission.RECEIVE_SMS",
+          "android.permission.READ_SMS",
+          "android.permission.VIBRATE",
+          "android.permission.USE_BIOMETRIC",
+          "android.permission.USE_FINGERPRINT",
+          "android.permission.RECEIVE_BOOT_COMPLETED",
+          "android.permission.POST_NOTIFICATIONS",
+          "android.permission.ACCESS_NETWORK_STATE",
+          "android.permission.WAKE_LOCK",
+          "com.google.android.c2dm.permission.RECEIVE",
+          "com.nirwas20.wealthwise.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+          "android.permission.ACCESS_WIFI_STATE",
+          "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+          "com.sec.android.provider.badge.permission.READ",
+          "com.sec.android.provider.badge.permission.WRITE",
+          "com.htc.launcher.permission.READ_SETTINGS",
+          "com.htc.launcher.permission.UPDATE_SHORTCUT",
+          "com.sonyericsson.home.permission.BROADCAST_BADGE",
+          "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+          "com.anddoes.launcher.permission.UPDATE_COUNT",
+          "com.majeur.launcher.permission.UPDATE_BADGE",
+          "com.huawei.android.launcher.permission.CHANGE_BADGE",
+          "com.huawei.android.launcher.permission.READ_SETTINGS",
+          "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+          "android.permission.READ_APP_BADGE",
+          "com.oppo.launcher.permission.READ_SETTINGS",
+          "com.oppo.launcher.permission.WRITE_SETTINGS",
+          "me.everything.badger.permission.BADGE_COUNT_READ",
+          "me.everything.badger.permission.BADGE_COUNT_WRITE"
+        ]
+      }
+    },
+    {
+      "id": "R8-PLAY-03",
+      "name": "Android OS Backup Policy (android:allowBackup=\"false\")",
+      "dimension": "PLAY_STORE_POLICY",
+      "status": "PASS",
+      "durationMs": 94,
+      "expected": "Android OS backup is disabled according to the final merged manifest. FinLife’s independent encrypted backup and restore system remains separate and was previously qualified under Gate R4.",
+      "observed": "Manifest specifies android:allowBackup=\"false\"; OS backup disabled; Gate R4 independent backup system isolated",
+      "evidence": {
+        "allowBackup": false,
+        "isolationLayer": "MULTI_LAYER_RESTRICTED"
+      }
+    },
+    {
+      "id": "R8-RUN-01",
+      "name": "Universal Package Extraction from AAB & Archive Verification",
+      "dimension": "RUNTIME_EXECUTION",
+      "status": "PASS",
+      "durationMs": 313,
+      "expected": "Universal APK successfully extracted from AAB with matching package metadata and archive integrity",
+      "observed": "Universal APK verified (84.95 MB, SHA-256: d6ac84493586b4129529e6494144fe16ee3615f6a6184f2ad7b327f15154f3d8); Package: com.nirwas20.wealthwise v1.0.0(1)",
+      "evidence": {
+        "universalPath": "E:\\fintech-mobile\\android\\app\\build\\outputs\\apk_from_bundle\\release\\app-release-universal.apk",
+        "sizeBytes": 89079708,
+        "sha256": "d6ac84493586b4129529e6494144fe16ee3615f6a6184f2ad7b327f15154f3d8",
+        "package": "com.nirwas20.wealthwise"
+      }
+    },
+    {
+      "id": "R8-RUN-02",
+      "name": "Bundle-Extracted Package Cold Launch & JNI Resolution",
+      "dimension": "RUNTIME_EXECUTION",
+      "status": "PASS",
+      "durationMs": 2357,
+      "expected": "Cold launch succeeds with Status: ok, active PID, zero UnsatisfiedLinkError, zero RedBox crash within emulator boundary",
+      "observed": "Cold launch successful (994ms, PID: 29339); JNI native libraries resolved cleanly; 0 crashes",
+      "evidence": {
+        "launchStatus": "ok",
+        "pid": "29339",
+        "launchDurationMs": 994,
+        "unsatisfiedLinkErrors": 0,
+        "fatalCrashes": 0
+      }
+    },
+    {
+      "id": "R8-RUN-03",
+      "name": "Financial Domain Hydration & State Integrity",
+      "dimension": "RUNTIME_EXECUTION",
+      "status": "PASS",
+      "durationMs": 82,
+      "expected": "All 7 financial report source domains hydrate with zero structural distortion, 0 paise balance drift, and zero logcat PII leaks",
+      "observed": "7 domains hydrated successfully; 0 paise drift; Zero PAN, PIN, or bearer token leaks in device logcat",
+      "evidence": {
+        "domainsVerified": [
+          "Net Worth & Capital Aggregation",
+          "Cashbook Accounts & Books",
+          "Expense & Category Ledger",
+          "Borrowing & Lending (P2P)",
+          "Investments & Assets",
+          "Shared Costs & Groups",
+          "Offline WAL & Journal Integrity"
+        ],
+        "balanceDriftPaise": 0,
+        "piiLeaksDetected": 0
+      }
+    }
+  ]
+}

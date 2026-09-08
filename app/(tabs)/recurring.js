@@ -49,6 +49,7 @@ export default function RecurringScreen() {
     const [commitments, setCommitments] = useState([]);
     const [occurrences, setOccurrences] = useState([]);
     const [activeFilter, setActiveFilter] = useState(CommitmentFilterPill.ALL);
+    const [templateValues, setTemplateValues] = useState(null);
 
     // Modals
     const [selectedCommitment, setSelectedCommitment] = useState(null);
@@ -130,13 +131,61 @@ export default function RecurringScreen() {
 
     // Action Handlers
     const handleSaveNewCommitment = async (newCommitment) => {
-        await CommitmentsService.saveCommitment(newCommitment, { mode: appMode });
-        await loadData();
+        try {
+            await CommitmentsService.saveCommitment(newCommitment, { mode: appMode });
+            setAddModalVisible(false);
+            setTemplateValues(null);
+            await loadData();
+        } catch (err) {
+            Alert.alert('Save Failed', err.message);
+        }
     };
 
     const handleConfirmPayment = async (occurrenceId, paymentData) => {
-        await CommitmentsService.recordPayment(occurrenceId, paymentData, { mode: appMode });
-        await loadData();
+        try {
+            await CommitmentsService.executeOccurrencePayment(
+                occurrenceId,
+                paymentData,
+                { mode: appMode }
+            );
+            setPaymentModalVisible(false);
+            setSelectedOccurrence(null);
+            await loadData();
+        } catch (err) {
+            Alert.alert('Payment Reconciliation Failed', err.message);
+            await loadData();
+        }
+    };
+
+    const handleRetryPayment = async (occurrence) => {
+        try {
+            await CommitmentsService.executeOccurrencePayment(
+                occurrence.id,
+                {},
+                { mode: appMode }
+            );
+            setDetailModalVisible(false);
+            setSelectedOccurrence(null);
+            await loadData();
+        } catch (err) {
+            Alert.alert('Retry Failed', err.message);
+            await loadData();
+        }
+    };
+
+    const handleReversePayment = async (occurrence) => {
+        try {
+            await CommitmentsService.reverseOccurrencePayment(
+                occurrence.id,
+                { reason: 'User requested reversal from UI' },
+                { mode: appMode }
+            );
+            setDetailModalVisible(false);
+            setSelectedOccurrence(null);
+            await loadData();
+        } catch (err) {
+            Alert.alert('Reversal Failed', err.message);
+        }
     };
 
     const handleTogglePause = async (commitment) => {
@@ -150,21 +199,16 @@ export default function RecurringScreen() {
     };
 
     const handleCancelCommitment = async (commitment) => {
-        await CommitmentsService.saveCommitment({
-            ...commitment,
-            status: 'CANCELLED'
-        }, { mode: appMode });
+        await CommitmentsService.cancelCommitment(commitment.id, { mode: appMode });
         setDetailModalVisible(false);
         await loadData();
     };
 
     const handleOpenOccurrence = (occ) => {
-        // Find parent commitment
         const parent = commitments.find(c => c.id === occ.commitmentId);
-        if (parent) {
-            setSelectedCommitment(parent);
-            setDetailModalVisible(true);
-        }
+        setSelectedCommitment(parent || null);
+        setSelectedOccurrence(occ);
+        setDetailModalVisible(true);
     };
 
     const handleQuickPay = (occ) => {
@@ -174,7 +218,25 @@ export default function RecurringScreen() {
 
     const handleOpenCommitmentDetail = (comm) => {
         setSelectedCommitment(comm);
+        setSelectedOccurrence(null);
         setDetailModalVisible(true);
+    };
+
+    const handleOpenTemplate = (template) => {
+        Alert.alert(
+            'Starter Template',
+            `Create ${template.name} (${template.amountRupees ? `₹${template.amountRupees}` : ''})?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Open Creator',
+                    onPress: () => {
+                        setTemplateValues(template);
+                        setAddModalVisible(true);
+                    }
+                }
+            ]
+        );
     };
 
     const dynamicTopPadding = Math.max(insets?.top || 0, 48) + 8;
@@ -237,6 +299,30 @@ export default function RecurringScreen() {
                     counts={viewModel.filterCounts}
                 />
 
+                {/* Overdue Liabilities (High Priority Alert) */}
+                {viewModel.hasOverdue && (
+                    <View style={styles.section}>
+                        <View style={[styles.sectionHeader, { borderColor: '#EF4444' }]}>
+                            <View>
+                                <Text style={[styles.sectionTitle, { color: '#EF4444' }]}>Overdue Liabilities</Text>
+                                <Text style={styles.sectionSub}>Action required immediately</Text>
+                            </View>
+                            <View style={[styles.countBadge, { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                                <Text style={[styles.countBadgeText, { color: '#EF4444' }]}>{viewModel.overdueOccurrences.length}</Text>
+                            </View>
+                        </View>
+                        {viewModel.overdueOccurrences.map(occ => (
+                            <CommitmentCard
+                                key={occ.id}
+                                item={occ}
+                                isOccurrence={true}
+                                onPress={handleOpenOccurrence}
+                                onQuickPay={handleQuickPay}
+                            />
+                        ))}
+                    </View>
+                )}
+
                 {/* Section 1: Upcoming Liabilities */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
@@ -268,7 +354,67 @@ export default function RecurringScreen() {
                     )}
                 </View>
 
-                {/* Section 2: All Active Commitments */}
+                {/* Section 2: Failed Reconciliations (Retryable) */}
+                {viewModel.hasFailed && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <View>
+                                <Text style={[styles.sectionTitle, { color: '#F59E0B' }]}>Failed Reconciliations</Text>
+                                <Text style={styles.sectionSub}>Cashbook write failed • Tap to retry</Text>
+                            </View>
+                            <View style={[styles.countBadge, { backgroundColor: 'rgba(245, 158, 11, 0.2)' }]}>
+                                <Text style={[styles.countBadgeText, { color: '#F59E0B' }]}>{viewModel.failedOccurrences.length}</Text>
+                            </View>
+                        </View>
+                        {viewModel.failedOccurrences.map(occ => (
+                            <View key={occ.id} style={styles.failedRowCard}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.failedRowTitle}>{occ.commitmentName}</Text>
+                                    <Text style={styles.failedRowDesc}>{occ.errorMessage}</Text>
+                                    <Text style={styles.failedRowSub}>Due: {occ.scheduledDate} • {occ.amountFormatted}</Text>
+                                </View>
+                                <TouchableOpacity
+                                    style={styles.failedRetryBtn}
+                                    onPress={() => handleRetryPayment(occ)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.failedRetryText}>Retry</Text>
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {/* Section 3: Recent Paid & Reconciled (Collapsible) */}
+                {viewModel.recentPaid && viewModel.recentPaid.length > 0 && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <View>
+                                <Text style={styles.sectionTitle}>Paid & Reconciled</Text>
+                                <Text style={styles.sectionSub}>Posted directly to Cashbook ledger</Text>
+                            </View>
+                            <View style={styles.countBadge}>
+                                <Text style={styles.countBadgeText}>{viewModel.recentPaid.length}</Text>
+                            </View>
+                        </View>
+                        {viewModel.recentPaid.slice(0, 5).map(occ => (
+                            <TouchableOpacity
+                                key={occ.id}
+                                style={styles.paidRowCard}
+                                onPress={() => handleOpenOccurrence(occ)}
+                                activeOpacity={0.75}
+                            >
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.paidRowTitle}>{occ.commitmentName}</Text>
+                                    <Text style={styles.paidRowSub}>Tx: {occ.cashbookTransactionId || 'Matched'} • Paid {occ.paidDate}</Text>
+                                </View>
+                                <Text style={styles.paidRowAmount}>{occ.amountFormatted}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                )}
+
+                {/* Section 4: All Active Commitments */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
                         <View>
@@ -289,13 +435,62 @@ export default function RecurringScreen() {
                                     ? 'Add your first recurring EMI, subscription, or bill.'
                                     : 'No commitments match the selected filter.'}
                             </Text>
+
+                            {/* Starter Templates */}
+                            <View style={styles.starterWrap}>
+                                <Text style={styles.starterTitle}>QUICK STARTER TEMPLATES</Text>
+                                <TouchableOpacity
+                                    style={styles.starterBtn}
+                                    onPress={() => handleOpenTemplate({
+                                        name: 'Child School Tuition',
+                                        amountRupees: '8000',
+                                        type: 'EDUCATION',
+                                        financialNature: 'EXPENSE',
+                                        category: 'Education',
+                                        obligationCategory: 'CHILD_EDUCATION'
+                                    })}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.starterBtnText}>+ Child School Tuition (₹8,000/mo)</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.starterBtn}
+                                    onPress={() => handleOpenTemplate({
+                                        name: 'Home Loan EMI',
+                                        amountRupees: '25000',
+                                        type: 'LOAN_EMI',
+                                        financialNature: 'DEBT',
+                                        category: 'Debt & Loans'
+                                    })}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.starterBtnText}>+ Home Loan EMI (₹25,000/mo)</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.starterBtn}
+                                    onPress={() => handleOpenTemplate({
+                                        name: 'Family Health Insurance',
+                                        amountRupees: '1500',
+                                        type: 'INSURANCE',
+                                        financialNature: 'EXPENSE',
+                                        category: 'Insurance',
+                                        obligationCategory: 'FAMILY_PROTECTION'
+                                    })}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.starterBtnText}>+ Family Health Insurance (₹1,500/mo)</Text>
+                                </TouchableOpacity>
+                            </View>
+
                             <TouchableOpacity
                                 style={styles.emptyAddBtn}
                                 onPress={() => setAddModalVisible(true)}
                                 activeOpacity={0.8}
                             >
                                 <Plus size={16} color="#FFFFFF" />
-                                <Text style={styles.emptyAddBtnText}>Add Commitment</Text>
+                                <Text style={styles.emptyAddBtnText}>Add Custom Commitment</Text>
                             </TouchableOpacity>
                         </View>
                     ) : (
@@ -327,30 +522,42 @@ export default function RecurringScreen() {
             <CommitmentDetailModal
                 visible={detailModalVisible}
                 commitment={selectedCommitment}
-                onClose={() => setDetailModalVisible(false)}
-                onRecordPayment={(comm) => {
+                occurrence={selectedOccurrence}
+                onClose={() => {
                     setDetailModalVisible(false);
-                    // Open payment modal for parent's next occurrence
-                    const occ = occurrences.find(o => o.commitmentId === comm.id && o.status !== 'PAID');
-                    if (occ) {
-                        setSelectedOccurrence(occ);
+                    setSelectedOccurrence(null);
+                }}
+                onRecordPayment={(comm, occ) => {
+                    setDetailModalVisible(false);
+                    const targetOcc = occ || occurrences.find(o => o.commitmentId === comm.id && o.status !== 'PAID');
+                    if (targetOcc) {
+                        setSelectedOccurrence(targetOcc);
                         setPaymentModalVisible(true);
                     }
                 }}
                 onTogglePause={handleTogglePause}
                 onCancelCommitment={handleCancelCommitment}
+                onReversePayment={handleReversePayment}
+                onRetryPayment={handleRetryPayment}
             />
 
             <AddCommitmentModal
                 visible={addModalVisible}
-                onClose={() => setAddModalVisible(false)}
+                initialValues={templateValues}
+                onClose={() => {
+                    setAddModalVisible(false);
+                    setTemplateValues(null);
+                }}
                 onSave={handleSaveNewCommitment}
             />
 
             <RecordPaymentModal
                 visible={paymentModalVisible}
                 occurrence={selectedOccurrence}
-                onClose={() => setPaymentModalVisible(false)}
+                onClose={() => {
+                    setPaymentModalVisible(false);
+                    setSelectedOccurrence(null);
+                }}
                 onConfirmPayment={handleConfirmPayment}
             />
         </View>
@@ -502,5 +709,96 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '700',
         color: '#FFFFFF'
+    },
+    failedRowCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#1C1318',
+        marginHorizontal: 16,
+        marginBottom: 8,
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#78350F'
+    },
+    failedRowTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FDE68A'
+    },
+    failedRowDesc: {
+        fontSize: 11,
+        color: '#F87171',
+        marginTop: 2
+    },
+    failedRowSub: {
+        fontSize: 11,
+        color: '#94A3B8',
+        marginTop: 2
+    },
+    failedRetryBtn: {
+        backgroundColor: '#B45309',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 8,
+        marginLeft: 8
+    },
+    failedRetryText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: '#FFFFFF'
+    },
+    paidRowCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#121922',
+        marginHorizontal: 16,
+        marginBottom: 8,
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#1E293B'
+    },
+    paidRowTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#E2E8F0'
+    },
+    paidRowSub: {
+        fontSize: 11,
+        color: '#64748B',
+        marginTop: 2
+    },
+    paidRowAmount: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#10B981'
+    },
+    starterWrap: {
+        width: '100%',
+        marginTop: 12,
+        gap: 8
+    },
+    starterTitle: {
+        fontSize: 10,
+        fontWeight: '800',
+        color: '#94A3B8',
+        letterSpacing: 1,
+        marginBottom: 4
+    },
+    starterBtn: {
+        backgroundColor: '#1C1930',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#2D2845'
+    },
+    starterBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#C084FC'
     }
 });

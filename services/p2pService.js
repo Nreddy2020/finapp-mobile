@@ -45,6 +45,18 @@ import {
     rebuildP2PProjectionsFromJournal
 } from '../components/p2p/p2pAccountingEngine';
 import { mapP2PJournalToMoneyFlowTransactions } from '../components/p2p/p2pCashEventAdapter';
+import { 
+    serializeP2PData, 
+    hydrateP2PData, 
+    formatPaiseToINR, 
+    paiseToRupees, 
+    toBigIntPaise, 
+    rupeesToPaise, 
+    validatePaiseBounds, 
+    MAX_TRANSACTION_PAISE, 
+    P2PValidationError 
+} from '../components/p2p/p2pContracts';
+import { computeP2POverviewMetrics } from '../components/p2p/p2pPresentationAdapter';
 
 // In-Memory Fast Query Cache
 let memoryCache = {
@@ -83,8 +95,9 @@ export const P2PService = {
     getPersons: async () => {
         if (memoryCache.persons) return memoryCache.persons;
         const loaded = await loadData(STORAGE_KEYS.P2P_PERSONS, []) || [];
-        memoryCache.persons = loaded;
-        return loaded;
+        const hydrated = hydrateP2PData(loaded);
+        memoryCache.persons = hydrated;
+        return hydrated;
     },
 
     addPerson: async (personData) => {
@@ -92,7 +105,7 @@ export const P2PService = {
         const newPerson = createPerson(personData);
         const updated = [...persons, newPerson];
         memoryCache.persons = updated;
-        await saveData(STORAGE_KEYS.P2P_PERSONS, updated);
+        await saveData(STORAGE_KEYS.P2P_PERSONS, serializeP2PData(updated));
         return newPerson;
     },
 
@@ -100,7 +113,7 @@ export const P2PService = {
         const persons = await P2PService.getPersons();
         const updated = persons.map(p => p.id === updatedPerson.id ? { ...p, ...updatedPerson, updatedAt: new Date().toISOString() } : p);
         memoryCache.persons = updated;
-        await saveData(STORAGE_KEYS.P2P_PERSONS, updated);
+        await saveData(STORAGE_KEYS.P2P_PERSONS, serializeP2PData(updated));
         return updatedPerson;
     },
 
@@ -141,8 +154,9 @@ export const P2PService = {
     getLoans: async () => {
         if (memoryCache.loans) return memoryCache.loans;
         const loaded = await loadData(STORAGE_KEYS.P2P_LOANS, []) || [];
-        memoryCache.loans = loaded;
-        return loaded;
+        const hydrated = hydrateP2PData(loaded);
+        memoryCache.loans = hydrated;
+        return hydrated;
     },
 
     getLoanById: async (loanId) => {
@@ -154,13 +168,34 @@ export const P2PService = {
         const loans = await P2PService.getLoans();
         const updated = loans.map(l => l.id === updatedLoan.id ? { ...l, ...updatedLoan, updatedAt: new Date().toISOString() } : l);
         memoryCache.loans = updated;
-        await saveData(STORAGE_KEYS.P2P_LOANS, updated);
+        await saveData(STORAGE_KEYS.P2P_LOANS, serializeP2PData(updated));
         return updatedLoan;
     },
 
     addLoan: async (loanData) => {
+        // 1. Idempotency Check
+        if (loanData.idempotencyKey) {
+            const existingOps = await P2PService.getOperations();
+            const committedOp = existingOps.find(o => o.idempotencyKey === loanData.idempotencyKey && o.status === OPERATION_STATUS.COMMITTED);
+            if (committedOp && committedOp.resultPayload) {
+                return committedOp.resultPayload;
+            }
+        }
+
+        // 2. Validate input and monetary bounds
+        const principalPaise = loanData.principalPaise !== undefined 
+            ? toBigIntPaise(loanData.principalPaise) 
+            : rupeesToPaise(loanData.principal);
+        if (principalPaise < 0n) {
+            throw new P2PValidationError('Loan principal cannot be negative', 'ERR_NEGATIVE_AMOUNT');
+        }
+        if (principalPaise === 0n) {
+            throw new P2PValidationError('Loan principal must be strictly positive', 'ERR_ZERO_PRINCIPAL');
+        }
+        validatePaiseBounds(principalPaise, { allowNegative: false, maxLimit: MAX_TRANSACTION_PAISE, fieldName: 'Loan Principal' });
+
         const opId = `p2p_op_create_${Date.now()}`;
-        const op = createP2POperation({ id: opId, operationType: 'CREATE_LOAN', payload: loanData });
+        const op = createP2POperation({ id: opId, operationType: 'CREATE_LOAN', idempotencyKey: loanData.idempotencyKey, payload: loanData });
         await P2PService._logOperation(op);
 
         const newLoan = createP2PLoan(loanData);
@@ -200,7 +235,7 @@ export const P2PService = {
         const loans = await P2PService.getLoans();
         const updatedLoans = [...loans, newLoan];
         memoryCache.loans = updatedLoans;
-        await saveData(STORAGE_KEYS.P2P_LOANS, updatedLoans);
+        await saveData(STORAGE_KEYS.P2P_LOANS, serializeP2PData(updatedLoans));
 
         // 5. Link loan to Person
         const persons = await P2PService.getPersons();
@@ -211,7 +246,7 @@ export const P2PService = {
         }
 
         // 6. Commit Operation & Sync Money Flow
-        await P2PService._commitOperation(opId, journalEntry.id);
+        await P2PService._commitOperation(opId, journalEntry.id, newLoan);
         await P2PService.syncMoneyFlowFromJournal();
 
         return newLoan;
@@ -220,7 +255,8 @@ export const P2PService = {
     // ── 3. ADVANCES / TOP-UPS ──────────────────────────────────────────────────
     getAdvances: async (loanId = null) => {
         if (!memoryCache.advances) {
-            memoryCache.advances = await loadData(STORAGE_KEYS.P2P_ADVANCES, []) || [];
+            const loaded = await loadData(STORAGE_KEYS.P2P_ADVANCES, []) || [];
+            memoryCache.advances = hydrateP2PData(loaded);
         }
         if (!loanId) return memoryCache.advances;
         return memoryCache.advances.filter(a => a.loanId === loanId);
@@ -229,18 +265,38 @@ export const P2PService = {
     addTopUpAdvance: async ({
         loanId,
         amount,
+        amountPaise,
         date = new Date().toISOString().split('T')[0],
         effectiveDate = null,
         accountId,
-        note = ''
+        note = '',
+        idempotencyKey = null
     }) => {
-        const opId = `p2p_op_topup_${Date.now()}`;
-        const op = createP2POperation({ id: opId, operationType: 'TOPUP_ADVANCE', payload: { loanId, amount } });
-        await P2PService._logOperation(op);
+        if (idempotencyKey) {
+            const existingOps = await P2PService.getOperations();
+            const committedOp = existingOps.find(o => o.idempotencyKey === idempotencyKey && o.status === OPERATION_STATUS.COMMITTED);
+            if (committedOp && committedOp.resultPayload) {
+                return committedOp.resultPayload;
+            }
+        }
+
+        const topUpPaise = toBigIntPaise(amountPaise !== undefined ? amountPaise : rupeesToPaise(amount));
+        if (topUpPaise <= 0n) {
+            throw new P2PValidationError('Top-up advance amount must be strictly positive', 'ERR_ZERO_TOPUP');
+        }
+        validatePaiseBounds(topUpPaise, { allowNegative: false, maxLimit: MAX_TRANSACTION_PAISE, fieldName: 'Top-Up Amount' });
 
         const loans = await P2PService.getLoans();
         const loan = loans.find(l => l.id === loanId);
         if (!loan) throw new Error(`Loan ${loanId} not found.`);
+
+        if (loan.status === LOAN_STATUS.SETTLED) {
+            throw new P2PValidationError(`Cannot top-up already settled loan ${loanId}`, 'ERR_SETTLED_LOAN_IMMUTABLE');
+        }
+
+        const opId = `p2p_op_topup_${Date.now()}`;
+        const op = createP2POperation({ id: opId, operationType: 'TOPUP_ADVANCE', idempotencyKey, payload: { loanId, amount, topUpPaise: topUpPaise.toString() } });
+        await P2PService._logOperation(op);
 
         const advance = createLoanAdvance({
             loanId,
@@ -278,7 +334,7 @@ export const P2PService = {
         });
         await P2PService._appendJournalEntry(journalEntry);
 
-        await P2PService._commitOperation(opId, journalEntry.id);
+        await P2PService._commitOperation(opId, journalEntry.id, advance);
         await P2PService.syncMoneyFlowFromJournal();
 
         return advance;
@@ -287,7 +343,8 @@ export const P2PService = {
     // ── 4. REPAYMENTS & LIFECYCLE ──────────────────────────────────────────────
     getRepayments: async (loanId = null) => {
         if (!memoryCache.repayments) {
-            memoryCache.repayments = await loadData(STORAGE_KEYS.P2P_REPAYMENTS, []) || [];
+            const loaded = await loadData(STORAGE_KEYS.P2P_REPAYMENTS, []) || [];
+            memoryCache.repayments = hydrateP2PData(loaded);
         }
         if (!loanId) return memoryCache.repayments;
         return memoryCache.repayments.filter(r => r.loanId === loanId);
@@ -301,19 +358,39 @@ export const P2PService = {
     recordRepayment: async ({
         loanId,
         amount,
+        amountPaise,
         date = new Date().toISOString().split('T')[0],
         accountId,
         note = '',
         scheduleItemId = null,
-        allocationPolicy = REPAYMENT_ALLOCATION.INTEREST_FIRST
+        allocationPolicy = REPAYMENT_ALLOCATION.INTEREST_FIRST,
+        idempotencyKey = null
     }) => {
-        const opId = `p2p_op_repay_${Date.now()}`;
-        const op = createP2POperation({ id: opId, operationType: 'RECORD_REPAYMENT', payload: { loanId, amount } });
-        await P2PService._logOperation(op);
+        if (idempotencyKey) {
+            const existingOps = await P2PService.getOperations();
+            const committedOp = existingOps.find(o => o.idempotencyKey === idempotencyKey && o.status === OPERATION_STATUS.COMMITTED);
+            if (committedOp && committedOp.resultPayload) {
+                return committedOp.resultPayload;
+            }
+        }
+
+        const repaymentPaise = toBigIntPaise(amountPaise !== undefined ? amountPaise : rupeesToPaise(amount));
+        if (repaymentPaise <= 0n) {
+            throw new P2PValidationError('Repayment amount must be strictly positive', 'ERR_ZERO_REPAYMENT');
+        }
+        validatePaiseBounds(repaymentPaise, { allowNegative: false, maxLimit: MAX_TRANSACTION_PAISE, fieldName: 'Repayment Amount' });
 
         const loans = await P2PService.getLoans();
         const loan = loans.find(l => l.id === loanId);
         if (!loan) throw new Error(`Loan ${loanId} not found.`);
+
+        if (loan.status === LOAN_STATUS.SETTLED) {
+            throw new P2PValidationError(`Cannot record repayment on already settled loan ${loanId}`, 'ERR_SETTLED_LOAN_IMMUTABLE');
+        }
+
+        const opId = `p2p_op_repay_${Date.now()}`;
+        const op = createP2POperation({ id: opId, operationType: 'RECORD_REPAYMENT', idempotencyKey, payload: { loanId, amount, repaymentPaise: repaymentPaise.toString() } });
+        await P2PService._logOperation(op);
 
         const advances = await P2PService.getAdvances(loanId);
         const existingRepayments = await P2PService.getRepayments(loanId);
@@ -377,15 +454,27 @@ export const P2PService = {
         });
         await P2PService._appendJournalEntry(journalEntry);
 
-        // Check if loan is fully paid: Require both principal and interest <= 0.01
-        if (allocation.remainingPrincipalAfter <= 0.01 && allocation.remainingInterestAfter <= 0.01) {
-            await P2PService.updateLoan({ ...loan, status: LOAN_STATUS.SETTLED });
-        }
+        // Update loan remaining outstanding principal and check settlement
+        const remainingPrincipal = allocation.remainingPrincipalAfter !== undefined 
+            ? allocation.remainingPrincipalAfter 
+            : Math.max(0, outstandingPrincipal - (allocation.principalComponent || 0));
+        const remainingPrincipalPaise = rupeesToPaise(remainingPrincipal);
 
-        await P2PService._commitOperation(opId, journalEntry.id);
+        const updatedLoanData = {
+            ...loan,
+            outstandingPrincipal: remainingPrincipal,
+            outstandingPrincipalPaise: remainingPrincipalPaise
+        };
+        if (remainingPrincipal <= 0.01 && allocation.remainingInterestAfter <= 0.01) {
+            updatedLoanData.status = LOAN_STATUS.SETTLED;
+        }
+        await P2PService.updateLoan(updatedLoanData);
+
+        const res = { repayment, allocation, updatedSchedule };
+        await P2PService._commitOperation(opId, journalEntry.id, res);
         await P2PService.syncMoneyFlowFromJournal();
 
-        return { repayment, allocation, updatedSchedule };
+        return res;
     },
 
     skipInstallment: async ({
@@ -572,15 +661,28 @@ export const P2PService = {
         waiverAmount = 0,
         date = new Date().toISOString().split('T')[0],
         accountId,
-        note = ''
+        note = '',
+        idempotencyKey = null
     }) => {
-        const opId = `p2p_op_settle_${Date.now()}`;
-        const op = createP2POperation({ id: opId, operationType: 'SETTLE_LOAN', payload: { loanId, waiverAmount } });
-        await P2PService._logOperation(op);
+        if (idempotencyKey) {
+            const existingOps = await P2PService.getOperations();
+            const committedOp = existingOps.find(o => o.idempotencyKey === idempotencyKey && o.status === OPERATION_STATUS.COMMITTED);
+            if (committedOp && committedOp.resultPayload) {
+                return committedOp.resultPayload;
+            }
+        }
 
         const loans = await P2PService.getLoans();
         const loan = loans.find(l => l.id === loanId);
         if (!loan) throw new Error(`Loan ${loanId} not found.`);
+
+        if (loan.status === LOAN_STATUS.SETTLED) {
+            throw new P2PValidationError(`Cannot settle already settled loan ${loanId}`, 'ERR_ALREADY_SETTLED');
+        }
+
+        const opId = `p2p_op_settle_${Date.now()}`;
+        const op = createP2POperation({ id: opId, operationType: 'SETTLE_LOAN', idempotencyKey, payload: { loanId, waiverAmount } });
+        await P2PService._logOperation(op);
 
         const advances = await P2PService.getAdvances(loanId);
         const repayments = await P2PService.getRepayments(loanId);
@@ -634,10 +736,11 @@ export const P2PService = {
             direction: loan.direction
         });
 
-        await P2PService._commitOperation(opId, journalEntry.id);
+        const res = { quote, updatedLoan, settlementRecord, journalEntry };
+        await P2PService._commitOperation(opId, journalEntry.id, res);
         await P2PService.syncMoneyFlowFromJournal();
 
-        return { quote, updatedLoan, settlementRecord, journalEntry };
+        return res;
     },
 
     settlePersonRelationship: async ({
@@ -645,10 +748,19 @@ export const P2PService = {
         waiverAmount = 0,
         date = new Date().toISOString().split('T')[0],
         accountId = 'HDFC Savings Account',
-        note = ''
+        note = '',
+        idempotencyKey = null
     }) => {
+        if (idempotencyKey) {
+            const existingOps = await P2PService.getOperations();
+            const committedOp = existingOps.find(o => o.idempotencyKey === idempotencyKey && o.status === OPERATION_STATUS.COMMITTED);
+            if (committedOp && committedOp.resultPayload) {
+                return committedOp.resultPayload;
+            }
+        }
+
         const opId = `p2p_op_rel_settle_${Date.now()}`;
-        const op = createP2POperation({ id: opId, operationType: 'RELATIONSHIP_SETTLE', payload: { personId } });
+        const op = createP2POperation({ id: opId, operationType: 'RELATIONSHIP_SETTLE', idempotencyKey, payload: { personId } });
         await P2PService._logOperation(op);
 
         const persons = await P2PService.getPersons();
@@ -687,9 +799,12 @@ export const P2PService = {
 
         const relSettlementData = {
             personId,
-            grossReceivableClosed: grossReceivable,
-            grossPayableClosed: grossPayable,
-            settlementAmount: finalNetCash,
+            personName: person.name,
+            settlementDate: date,
+            grossReceivable,
+            grossPayable,
+            netBalance,
+            finalNetCash,
             direction,
             closedLoanIds,
             waiverAmount: Number(waiverAmount || 0)
@@ -705,10 +820,11 @@ export const P2PService = {
         });
         await P2PService._appendJournalEntry(journalEntry);
 
-        await P2PService._commitOperation(opId, journalEntry.id);
+        const res = { relSettlementData, journalEntry };
+        await P2PService._commitOperation(opId, journalEntry.id, res);
         await P2PService.syncMoneyFlowFromJournal();
 
-        return { relSettlementData, journalEntry };
+        return res;
     },
 
     // ── 6. REVERSALS (IMMUTABLE JOURNAL REVERSAL) ──────────────────────────────
@@ -741,15 +857,17 @@ export const P2PService = {
     getJournalEntries: async () => {
         if (memoryCache.journal) return memoryCache.journal;
         const loaded = await loadData(STORAGE_KEYS.P2P_JOURNAL, []) || [];
-        memoryCache.journal = loaded;
-        return loaded;
+        const hydrated = hydrateP2PData(loaded);
+        memoryCache.journal = hydrated;
+        return hydrated;
     },
 
     getOperations: async () => {
         if (memoryCache.operations) return memoryCache.operations;
         const loaded = await loadData(STORAGE_KEYS.P2P_OPERATIONS, []) || [];
-        memoryCache.operations = loaded;
-        return loaded;
+        const hydrated = hydrateP2PData(loaded);
+        memoryCache.operations = hydrated;
+        return hydrated;
     },
 
     rebuildAllProjections: async () => {
@@ -844,7 +962,7 @@ export const P2PService = {
         const journal = await P2PService.getJournalEntries();
         const updated = [...journal, entry];
         memoryCache.journal = updated;
-        await saveData(STORAGE_KEYS.P2P_JOURNAL, updated);
+        await saveData(STORAGE_KEYS.P2P_JOURNAL, serializeP2PData(updated));
         return entry;
     },
 
@@ -852,7 +970,7 @@ export const P2PService = {
         const advances = await P2PService.getAdvances();
         const updated = [...advances, advance];
         memoryCache.advances = updated;
-        await saveData(STORAGE_KEYS.P2P_ADVANCES, updated);
+        await saveData(STORAGE_KEYS.P2P_ADVANCES, serializeP2PData(updated));
         return advance;
     },
 
@@ -860,22 +978,23 @@ export const P2PService = {
         const repayments = await P2PService.getRepayments();
         const updated = [...repayments, repayment];
         memoryCache.repayments = updated;
-        await saveData(STORAGE_KEYS.P2P_REPAYMENTS, updated);
+        await saveData(STORAGE_KEYS.P2P_REPAYMENTS, serializeP2PData(updated));
         return repayment;
     },
 
     _loadAllSchedules: async () => {
         if (memoryCache.schedules) return memoryCache.schedules;
         const loaded = await loadData(STORAGE_KEYS.P2P_SCHEDULES, {}) || {};
-        memoryCache.schedules = loaded;
-        return loaded;
+        const hydrated = hydrateP2PData(loaded);
+        memoryCache.schedules = hydrated;
+        return hydrated;
     },
 
     _saveScheduleForLoan: async (loanId, schedule) => {
         const all = await P2PService._loadAllSchedules();
         all[loanId] = schedule;
         memoryCache.schedules = all;
-        await saveData(STORAGE_KEYS.P2P_SCHEDULES, all);
+        await saveData(STORAGE_KEYS.P2P_SCHEDULES, serializeP2PData(all));
         return schedule;
     },
 
@@ -883,14 +1002,14 @@ export const P2PService = {
         const ops = await P2PService.getOperations();
         const updated = [...ops, op];
         memoryCache.operations = updated;
-        await saveData(STORAGE_KEYS.P2P_OPERATIONS, updated);
+        await saveData(STORAGE_KEYS.P2P_OPERATIONS, serializeP2PData(updated));
     },
 
-    _commitOperation: async (opId, journalEntryId) => {
+    _commitOperation: async (opId, journalEntryId, resultPayload = null) => {
         const ops = await P2PService.getOperations();
-        const updated = ops.map(o => o.id === opId ? { ...o, status: OPERATION_STATUS.COMMITTED, journalEntryId, committedAt: new Date().toISOString() } : o);
+        const updated = ops.map(o => o.id === opId ? { ...o, status: OPERATION_STATUS.COMMITTED, journalEntryId, resultPayload, committedAt: new Date().toISOString() } : o);
         memoryCache.operations = updated;
-        await saveData(STORAGE_KEYS.P2P_OPERATIONS, updated);
+        await saveData(STORAGE_KEYS.P2P_OPERATIONS, serializeP2PData(updated));
     },
 
     // ── 10. DEMO FIXTURE LOADER (ISOLATED DEV ACTION) ──────────────────────────
@@ -964,5 +1083,33 @@ export const P2PService = {
         const existingTx = await loadData(STORAGE_KEYS.TRANSACTIONS, []) || [];
         const nonP2PTx = existingTx.filter(t => !t.isP2P && !t.id?.startsWith('mf_p2p_'));
         await saveData(STORAGE_KEYS.TRANSACTIONS, nonP2PTx);
+    },
+
+    getNetWorthProjection: async (asOfDate = new Date().toISOString().split('T')[0]) => {
+        const [loans, advances, repayments] = await Promise.all([
+            P2PService.getLoans(),
+            P2PService.getAdvances(),
+            P2PService.getRepayments()
+        ]);
+
+        const metrics = computeP2POverviewMetrics(loans, advances, repayments, {}, asOfDate);
+        const p2pAssetPaise = metrics.totalReceivablePaise;
+        const p2pLiabilityPaise = metrics.totalPayablePaise;
+        const p2pNetWorthContributionPaise = metrics.netPositionPaise;
+
+        return {
+            p2pAssetPaise,
+            p2pLiabilityPaise,
+            p2pNetWorthContributionPaise,
+            p2pAssetRupees: paiseToRupees(p2pAssetPaise),
+            p2pLiabilityRupees: paiseToRupees(p2pLiabilityPaise),
+            p2pNetWorthContributionRupees: paiseToRupees(p2pNetWorthContributionPaise),
+            p2pAssetFormatted: formatPaiseToINR(p2pAssetPaise),
+            p2pLiabilityFormatted: formatPaiseToINR(p2pLiabilityPaise),
+            p2pNetWorthFormatted: formatPaiseToINR(p2pNetWorthContributionPaise),
+            activeGivenCount: metrics.activeGivenCount,
+            activeTakenCount: metrics.activeTakenCount,
+            asOfDate
+        };
     }
 };

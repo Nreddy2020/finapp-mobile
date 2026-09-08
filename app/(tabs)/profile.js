@@ -1,13 +1,32 @@
-import React from 'react';
-import { View, ScrollView, Text, StyleSheet, Pressable } from 'react-native';
-import { User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight } from 'lucide-react-native';
+import React, { useCallback, useEffect } from 'react';
+import { View, ScrollView, Text, StyleSheet, Pressable, TouchableOpacity, BackHandler } from 'react-native';
+import { useRouter } from 'expo-router';
+import { ArrowLeft, User, Settings, Bell, Shield, HelpCircle, LogOut, ChevronRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 import LuxuryCard from '../../components/ui/LuxuryCard';
 
 export default function ProfileScreen() {
+    const router = useRouter();
     const insets = useSafeAreaInsets();
+
+    const handleBack = useCallback(() => {
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace('/(tabs)');
+        }
+    }, [router]);
+
+    useEffect(() => {
+        const onBackPress = () => {
+            handleBack();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => sub.remove();
+    }, [handleBack]);
 
     const menuItems = [
         { icon: User, label: 'Personal Information', route: '/profile/personal' },
@@ -21,9 +40,25 @@ export default function ProfileScreen() {
         <AnimatedScreen style={styles.container}>
             <ScrollView
                 style={styles.scrollView}
-                contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 40) + 20, paddingBottom: insets.bottom + 150 }]}
+                contentContainerStyle={[styles.content, { paddingTop: Math.max(insets.top, 24) + 12, paddingBottom: insets.bottom + 150 }]}
                 showsVerticalScrollIndicator={false}
             >
+                {/* Top Bar with Back Button */}
+                <View style={styles.topBar}>
+                    <TouchableOpacity
+                        onPress={handleBack}
+                        style={styles.backBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Go back"
+                        accessibilityRole="button"
+                    >
+                        <ArrowLeft size={20} color="#F8FAFC" />
+                    </TouchableOpacity>
+                    <Text style={styles.topBarTitle}>Profile</Text>
+                    <View style={{ width: 38 }} />
+                </View>
+
                 {/* Profile Header */}
                 <View style={styles.header}>
                     <View style={styles.avatarContainer}>
@@ -80,6 +115,27 @@ const styles = StyleSheet.create({
     },
     content: {
         paddingHorizontal: 24,
+    },
+    topBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    topBarTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#FFFFFF',
+    },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: '#18181B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#27272A',
     },
     header: {
         alignItems: 'center',

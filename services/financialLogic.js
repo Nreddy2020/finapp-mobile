@@ -47,16 +47,11 @@ export const analyzeLeakage = (transactions) => {
     const now = new Date();
     const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
 
-    // Debug logging
-    console.log(`[Leakage] Analyzying ${transactions.length} transactions. 30 days ago: ${thirtyDaysAgo.toISOString()}`);
-
     const smallExpenses = transactions.filter(t => {
         const amount = parseFloat(t.amount) || 0;
         const date = new Date(t.date);
         return amount < 500 && amount > 0 && date >= thirtyDaysAgo && t.category !== 'Utilities' && t.category !== 'Rent' && t.category !== 'EMI';
     });
-
-    console.log(`[Leakage] Found ${smallExpenses.length} small expenses < 500`);
 
     // 2. Group by normalized description
     const groups = {};
@@ -79,8 +74,6 @@ export const analyzeLeakage = (transactions) => {
             projectedYearly: data.total * 12 // Simplified projection
         }))
         .sort((a, b) => b.totalLeakage - a.totalLeakage);
-
-    console.log(`[Leakage] Identified ${leaks.length} leaks:`, leaks);
 
     return leaks;
 };

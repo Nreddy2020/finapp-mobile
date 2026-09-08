@@ -61,56 +61,72 @@ export default function BudgetCategoriesList({ categories = [], onSelectCategory
 
             {/* Categories List */}
             <View style={styles.list}>
-                {filtered.map((cat, idx) => {
-                    const IconComp = CATEGORY_ICONS[cat.category] || Zap;
-                    const iconColor = CATEGORY_COLORS[cat.category] || '#3B82F6';
-                    const percent = Math.min(100, Math.max(0, cat.percentUsed || 0));
+                {filtered.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>No budget categories found.</Text>
+                        <TouchableOpacity style={styles.emptyBtn} onPress={onAddBudget} activeOpacity={0.7}>
+                            <Text style={styles.emptyBtnText}>+ Create Budget</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    filtered.map((cat, idx) => {
+                        const IconComp = CATEGORY_ICONS[cat.category] || Zap;
+                        const iconColor = CATEGORY_COLORS[cat.category] || '#3B82F6';
+                        const percent = Math.min(100, Math.max(0, cat.percentUsed || 0));
 
-                    return (
-                        <TouchableOpacity
-                            key={cat.id || idx}
-                            style={styles.categoryCard}
-                            onPress={() => onSelectCategory && onSelectCategory(cat)}
-                            activeOpacity={0.7}
-                        >
-                            {/* Top row: Icon + Name + Tag ... Limit */}
-                            <View style={styles.cardHeader}>
-                                <View style={[styles.iconBox, { backgroundColor: `${iconColor}20` }]}>
-                                    <IconComp size={18} color={iconColor} />
-                                </View>
-
-                                <View style={styles.titleCol}>
-                                    <View style={styles.nameTagRow}>
-                                        <Text style={styles.categoryName}>{cat.category}</Text>
-                                        <View style={styles.tagBadge}>
-                                            <Text style={styles.tagText}>{cat.type || 'Needs'}</Text>
+                        return (
+                            <TouchableOpacity
+                                key={cat.id || idx}
+                                style={styles.categoryCard}
+                                onPress={() => onSelectCategory && onSelectCategory(cat)}
+                                activeOpacity={0.7}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.titleGroup}>
+                                        <View style={[styles.iconBox, { backgroundColor: `${iconColor}20` }]}>
+                                            <IconComp size={18} color={iconColor} />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.categoryName}>{cat.category}</Text>
+                                            <Text style={styles.categoryType}>{cat.type}</Text>
                                         </View>
                                     </View>
-                                    <Text style={styles.spentText}>{cat.formattedSpent} spent</Text>
+
+                                    <View style={styles.amountGroup}>
+                                        <Text style={styles.spentAmount}>{cat.formattedSpent}</Text>
+                                        <Text style={styles.limitAmount}>of {cat.formattedLimit}</Text>
+                                    </View>
                                 </View>
 
-                                <View style={styles.limitCol}>
-                                    <Text style={styles.limitAmount}>{cat.formattedLimit}</Text>
-                                    <Text style={[styles.percentText, { color: cat.progressColor || '#10B981' }]}>
-                                        {percent}%
+                                {/* Progress Bar */}
+                                <View style={styles.progressBarContainer}>
+                                    <View
+                                        style={[
+                                            styles.progressBarFill,
+                                            {
+                                                width: `${percent}%`,
+                                                backgroundColor: cat.progressColor || '#10B981'
+                                            }
+                                        ]}
+                                    />
+                                </View>
+
+                                {/* Card Footer */}
+                                <View style={styles.cardFooter}>
+                                    <Text style={styles.remainingText}>
+                                        {cat.percentUsed >= 100
+                                            ? `Over by ${cat.overspentFormatted || '₹0'}`
+                                            : `${cat.formattedRemaining} remaining`}
                                     </Text>
+                                    <View style={styles.actionGroup}>
+                                        <Text style={styles.percentText}>{cat.percentUsed}%</Text>
+                                        <ChevronRight size={14} color="#64748B" />
+                                    </View>
                                 </View>
-
-                                <ChevronRight size={16} color="#64748B" style={{ marginLeft: 6 }} />
-                            </View>
-
-                            {/* Progress bar */}
-                            <View style={styles.progressBarBg}>
-                                <View
-                                    style={[
-                                        styles.progressBarFill,
-                                        { width: `${percent}%`, backgroundColor: cat.progressColor || '#10B981' }
-                                    ]}
-                                />
-                            </View>
-                        </TouchableOpacity>
-                    );
-                })}
+                            </TouchableOpacity>
+                        );
+                    })
+                )}
             </View>
         </View>
     );
