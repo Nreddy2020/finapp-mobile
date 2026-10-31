@@ -1,8 +1,12 @@
 /**
  * components/cashbook/TransactionRow.js
  * 
- * Individual transaction row item with status badge, account indicator,
- * formatted currency amount, and void state presentation.
+ * FinLife Universal Cashbook — Transaction Ledger Row (Screen 3).
+ * 
+ * Visual Layout:
+ * - Left: Category / Type Icon in distinct colored circle
+ * - Middle: Title (e.g. "Rent") + Subtitle ("Expense • Bank - HDFC")
+ * - Right: Amount ("- ₹ 20,000" in red, "+ ₹ 80,000" in green, "₹ 10,000" in charcoal)
  */
 
 import React from 'react';
@@ -11,16 +15,40 @@ import {
     ArrowDownLeft,
     ArrowUpRight,
     ArrowLeftRight,
-    Bookmark,
+    Layers,
+    Home,
+    ShoppingCart,
+    Shield,
+    Car,
+    Fuel,
+    Wallet,
     Sliders,
+    Bookmark,
     Ban
 } from 'lucide-react-native';
 import { TransactionType } from '../../services/cashbook/cashbookContracts.js';
+import { getTransactionIconMeta } from '../../services/cashbook/cashbookPresentation.js';
+
+export { getTransactionIconMeta };
+
+function resolveTransactionIconComp(iconKey) {
+    switch (iconKey) {
+        case 'Ban': return Ban;
+        case 'Income': return ArrowDownLeft;
+        case 'Transfer': return ArrowLeftRight;
+        case 'Rent': return Home;
+        case 'Groceries': return ShoppingCart;
+        case 'Health': return Shield;
+        case 'Fuel': return Car;
+        case 'Expense':
+        default:
+            return ArrowUpRight;
+    }
+}
 
 export default function TransactionRow({ item, onPress }) {
     const {
         description,
-        category,
         accountDisplay,
         formattedAmount,
         amountColor,
@@ -28,25 +56,27 @@ export default function TransactionRow({ item, onPress }) {
         rawTxn
     } = item;
 
-    const renderIcon = () => {
-        if (isVoided) {
-            return <Ban size={16} color="#94A3B8" />;
-        }
-        switch (rawTxn.transactionType) {
-            case TransactionType.INCOME:
-                return <ArrowDownLeft size={16} color="#10B981" />;
-            case TransactionType.EXPENSE:
-                return <ArrowUpRight size={16} color="#EF4444" />;
-            case TransactionType.TRANSFER:
-                return <ArrowLeftRight size={16} color="#3B82F6" />;
-            case TransactionType.OPENING_BALANCE:
-                return <Bookmark size={16} color="#8B5CF6" />;
-            case TransactionType.ADJUSTMENT:
-                return <Sliders size={16} color="#F59E0B" />;
-            default:
-                return <ArrowUpRight size={16} color="#94A3B8" />;
-        }
-    };
+    const iconMeta = getTransactionIconMeta(item);
+    const IconComp = resolveTransactionIconComp(iconMeta.iconKey);
+
+    // Build subtitle format: "Type • Account"
+    let typeLabel = 'Expense';
+    let isTransfer = false;
+    let isIncome = false;
+
+    if (rawTxn?.transactionType === TransactionType.INCOME) {
+        typeLabel = 'Income';
+        isIncome = true;
+    } else if (rawTxn?.transactionType === TransactionType.TRANSFER) {
+        typeLabel = 'Transfer';
+        isTransfer = true;
+    } else if (rawTxn?.transactionType === TransactionType.OPENING_BALANCE) {
+        typeLabel = 'Opening';
+    } else if (rawTxn?.transactionType === TransactionType.ADJUSTMENT) {
+        typeLabel = 'Adjustment';
+    }
+
+    const subtitle = `${typeLabel} • ${accountDisplay || 'Primary'}`;
 
     return (
         <TouchableOpacity
@@ -54,17 +84,14 @@ export default function TransactionRow({ item, onPress }) {
             onPress={() => onPress && onPress(item)}
             activeOpacity={0.7}
         >
-            {/* Icon Bubble */}
-            <View style={[
-                styles.iconBubble,
-                isVoided && styles.iconBubbleVoided
-            ]}>
-                {renderIcon()}
+            {/* Left Circle Icon */}
+            <View style={[styles.iconCircle, { backgroundColor: iconMeta.bg }]}>
+                <IconComp size={18} color={iconMeta.color} />
             </View>
 
-            {/* Middle Section: Title, Category, Account */}
+            {/* Middle Section: Title & Subtitle */}
             <View style={styles.contentWrap}>
-                <View style={styles.topRow}>
+                <View style={styles.titleRow}>
                     <Text
                         style={[styles.title, isVoided && styles.titleVoided]}
                         numberOfLines={1}
@@ -77,17 +104,9 @@ export default function TransactionRow({ item, onPress }) {
                         </View>
                     )}
                 </View>
-
-                <View style={styles.subRow}>
-                    {category ? (
-                        <View style={styles.categoryChip}>
-                            <Text style={styles.categoryText}>{category}</Text>
-                        </View>
-                    ) : null}
-                    <Text style={styles.accountText} numberOfLines={1}>
-                        {accountDisplay}
-                    </Text>
-                </View>
+                <Text style={styles.subtitle} numberOfLines={1}>
+                    {subtitle}
+                </Text>
             </View>
 
             {/* Right Amount */}
@@ -95,11 +114,13 @@ export default function TransactionRow({ item, onPress }) {
                 <Text
                     style={[
                         styles.amount,
-                        { color: amountColor },
+                        isIncome && styles.amountIncome,
+                        !isIncome && !isTransfer && styles.amountExpense,
+                        isTransfer && styles.amountTransfer,
                         isVoided && styles.amountVoided
                     ]}
                 >
-                    {formattedAmount}
+                    {isTransfer ? formattedAmount.replace('+', '').replace('-', '') : formattedAmount}
                 </Text>
             </View>
         </TouchableOpacity>
@@ -110,47 +131,36 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#1E293B',
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        marginHorizontal: 16,
-        marginBottom: 6,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#334155'
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9'
     },
     containerVoided: {
-        backgroundColor: 'rgba(30, 41, 59, 0.4)',
-        borderColor: 'rgba(51, 65, 85, 0.5)'
+        opacity: 0.6
     },
-    iconBubble: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#0F172A',
+    iconCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
-        borderWidth: 1,
-        borderColor: '#334155'
-    },
-    iconBubbleVoided: {
-        backgroundColor: '#1E293B',
-        borderColor: '#475569'
+        marginRight: 14
     },
     contentWrap: {
         flex: 1,
-        marginRight: 10
+        marginRight: 12
     },
-    topRow: {
+    titleRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6
     },
     title: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#F8FAFC',
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0F172A',
         flexShrink: 1
     },
     titleVoided: {
@@ -158,49 +168,41 @@ const styles = StyleSheet.create({
         textDecorationLine: 'line-through'
     },
     voidBadge: {
-        backgroundColor: 'rgba(239, 68, 68, 0.15)',
-        paddingHorizontal: 5,
+        backgroundColor: '#FEE2E2',
+        paddingHorizontal: 6,
         paddingVertical: 1,
-        borderRadius: 4,
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.3)'
+        borderRadius: 4
     },
     voidBadgeText: {
         fontSize: 9,
         fontWeight: '800',
         color: '#EF4444'
     },
-    subRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 4,
-        gap: 6
-    },
-    categoryChip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 6
-    },
-    categoryText: {
-        fontSize: 10,
-        fontWeight: '600',
-        color: '#94A3B8',
-        textTransform: 'capitalize'
-    },
-    accountText: {
-        fontSize: 11,
+    subtitle: {
+        fontSize: 12,
         color: '#64748B',
-        flexShrink: 1
+        marginTop: 3
     },
     amountWrap: {
-        alignItems: 'flex-end'
+        alignItems: 'flex-end',
+        justifyContent: 'center'
     },
     amount: {
-        fontSize: 15,
-        fontWeight: '700'
+        fontSize: 16,
+        fontWeight: '800',
+        letterSpacing: -0.3
+    },
+    amountIncome: {
+        color: '#10B981'
+    },
+    amountExpense: {
+        color: '#EF4444'
+    },
+    amountTransfer: {
+        color: '#0F172A'
     },
     amountVoided: {
+        color: '#94A3B8',
         textDecorationLine: 'line-through'
     }
 });

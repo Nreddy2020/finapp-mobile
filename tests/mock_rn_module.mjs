@@ -160,6 +160,16 @@ export const Tag = () => null;
 export const Share2 = () => null;
 export const Send = () => null;
 export const MessageCircle = () => null;
+export const User = () => null;
+export const Briefcase = () => null;
+export const Coins = () => null;
+export const ChevronUp = () => null;
+export const ChevronDown = () => null;
+export const MoreVertical = () => null;
+export const MoreHorizontal = () => null;
+export const ShoppingCart = () => null;
+export const ArrowLeftRight = () => null;
+export const Fuel = () => null;
 export const ExternalLink = () => null;
 
 export default {

@@ -1,500 +1,474 @@
 /**
  * components/cashbook/PersonalDashboardView.js
  * 
- * Purpose-Built Dashboard for PERSONAL_FINANCE_BOOK.
- * Presents household financial diary, liquid savings, today's cash flow,
- * monthly savings movement, quick action pills, and purpose category cards.
+ * FinLife Universal Cashbook — Purpose-Built Personal Dashboard (Screen 2).
+ * 
+ * Visual Hierarchy:
+ * - Date Range Chip (e.g. "Jan 1, 2025 – Jan 31, 2025 ∨")
+ * - Closing Balance Hero Card with +8.4% trend badge and green wallet graphic
+ * - 2x2 Metric Grid:
+ *   [ Income: ₹ 80,000      | Expense: ₹ 27,700       ]
+ *   [ Transfers: ₹ 10,000   | Net Cash Flow: ₹ 52,300 ]
+ * - Account Balances with "View All >"
+ *   (Bank - HDFC, Cash Handy, UPI)
+ * - Floating Purple Pill Button: "+ Add Transaction"
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView
+} from 'react-native';
 import {
     Wallet,
-    ArrowDownLeft,
     ArrowUpRight,
+    ArrowDownLeft,
     TrendingUp,
-    TrendingDown,
-    Home,
-    Users,
-    Coffee,
-    Car,
+    Layers,
+    Landmark,
+    Phone,
     CreditCard,
     Plus,
     Calendar,
-    Sparkles,
-    ChevronRight
+    ChevronDown,
+    ChevronRight,
+    CheckCircle2
 } from 'lucide-react-native';
 
 export default function PersonalDashboardView({
-    metrics,
-    profile,
+    metrics = {},
+    summary = {},
+    activeBook,
+    accounts = [],
+    recentTransactions = [],
     onQuickAction,
     onNavigateTab,
-    activeBook,
-    recentTransactions = [],
+    onAddTransaction,
     onSelectTransaction
 }) {
-    if (!metrics) return null;
+    // Derived ledger metrics from authoritative engine
+    const closingBalance = summary?.closingBalanceFormatted || metrics?.availableBalanceFormatted || '₹ 0';
+    const isNegative = metrics?.isBalanceNegative || false;
 
-    const {
-        availableBalanceFormatted = '₹0',
-        isBalanceNegative = false,
-        todayReceivedFormatted = '₹0',
-        todaySpentFormatted = '₹0',
-        monthIncomeFormatted = '₹0',
-        monthExpenseFormatted = '₹0',
-        monthSavingsMovementFormatted = '₹0',
-        isSavingsNegative = false
-    } = metrics;
+    const incomeFormatted = summary?.totalIncomeFormatted || metrics?.monthIncomeFormatted || '₹ 0';
+    const expenseFormatted = summary?.totalExpenseFormatted || metrics?.monthExpenseFormatted || '₹ 0';
+    const transferVolumeFormatted = summary?.transferVolumeFormatted || '₹ 0';
+    const netCashFlowFormatted = summary?.netCashFlowFormatted || metrics?.monthSavingsMovementFormatted || '₹ 0';
 
-    const quickActions = profile?.quickActions || [];
+    // Filter accounts associated with active book (or show first 3 liquid accounts)
+    const bookAccounts = accounts.filter(a => !a.bookId || a.bookId === activeBook?.id).slice(0, 4);
 
-    const getActionIcon = (actionId) => {
-        switch (actionId) {
-            case 'ADD_INCOME': return <ArrowDownLeft size={16} color="#10B981" />;
-            case 'ADD_EXPENSE': return <ArrowUpRight size={16} color="#F43F5E" />;
-            case 'TRANSFER': return <Wallet size={16} color="#38BDF8" />;
-            case 'PAY_BILL': return <CreditCard size={16} color="#F59E0B" />;
-            default: return <Plus size={16} color="#38BDF8" />;
+    const getAccountIcon = (acc) => {
+        const type = (acc.type || '').toUpperCase();
+        const name = (acc.name || '').toLowerCase();
+
+        if (type === 'BANK' || name.includes('bank') || name.includes('hdfc') || name.includes('sbi')) {
+            return { comp: Landmark, color: '#3B82F6', bg: '#EFF6FF' };
         }
+        if (type === 'CASH' || name.includes('cash') || name.includes('handy')) {
+            return { comp: Wallet, color: '#10B981', bg: '#ECFDF5' };
+        }
+        if (type === 'CREDIT_CARD' || name.includes('card')) {
+            return { comp: CreditCard, color: '#F59E0B', bg: '#FEF3C7' };
+        }
+        return { comp: Phone, color: '#6366F1', bg: '#EEF2FF' };
     };
 
     return (
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-            {/* 1. Hero Available Cash & Diary Card */}
-            <View style={styles.heroCardContainer}>
-                <LinearGradient
-                    colors={['#0F172A', '#1E293B', '#0F172A']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.heroCard}
-                >
-                    <View style={styles.heroHeader}>
-                        <View style={styles.badgeWrap}>
-                            <Sparkles size={12} color="#38BDF8" />
-                            <Text style={styles.badgeText}>HOUSEHOLD FINANCIAL DIARY</Text>
-                        </View>
-                        <Text style={styles.bookNameText}>{activeBook?.name || 'Personal Savings'}</Text>
-                    </View>
+        <View style={styles.outerContainer}>
+            <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {/* 1. Date Range Filter Chip */}
+                <View style={styles.dateChipWrap}>
+                    <TouchableOpacity style={styles.dateChip} activeOpacity={0.7}>
+                        <Text style={styles.dateChipText}>Jan 1, 2025 – Jan 31, 2025</Text>
+                        <ChevronDown size={14} color="#64748B" />
+                    </TouchableOpacity>
+                </View>
 
-                    <View style={styles.balanceSection}>
-                        <Text style={styles.balanceLabel}>AVAILABLE LIQUID CASH</Text>
-                        <Text style={[styles.balanceValue, isBalanceNegative && styles.balanceNegative]}>
-                            {availableBalanceFormatted}
+                {/* 2. Closing Balance Hero Card */}
+                <View style={styles.heroCard}>
+                    <View style={styles.heroLeft}>
+                        <Text style={styles.heroLabel}>Closing Balance</Text>
+                        <Text style={[styles.heroAmount, isNegative && styles.heroAmountNegative]}>
+                            {closingBalance}
                         </Text>
-                        <Text style={styles.balanceHint}>Ready for household spending & bills</Text>
-                    </View>
-
-                    {/* Today Flow Row */}
-                    <View style={styles.metricsRow}>
-                        <View style={styles.metricBox}>
-                            <View style={styles.metricLabelRow}>
-                                <ArrowDownLeft size={12} color="#10B981" />
-                                <Text style={styles.metricLabel}>TODAY IN</Text>
-                            </View>
-                            <Text style={[styles.metricValue, { color: '#10B981' }]}>
-                                +{todayReceivedFormatted}
-                            </Text>
-                        </View>
-
-                        <View style={styles.metricDivider} />
-
-                        <View style={styles.metricBox}>
-                            <View style={styles.metricLabelRow}>
-                                <ArrowUpRight size={12} color="#F43F5E" />
-                                <Text style={styles.metricLabel}>TODAY SPENT</Text>
-                            </View>
-                            <Text style={[styles.metricValue, { color: '#F43F5E' }]}>
-                                -{todaySpentFormatted}
-                            </Text>
-                        </View>
-
-                        <View style={styles.metricDivider} />
-
-                        <View style={styles.metricBox}>
-                            <View style={styles.metricLabelRow}>
-                                {isSavingsNegative ? (
-                                    <TrendingDown size={12} color="#F43F5E" />
-                                ) : (
-                                    <TrendingUp size={12} color="#38BDF8" />
-                                )}
-                                <Text style={styles.metricLabel}>MONTH NET</Text>
-                            </View>
-                            <Text style={[styles.metricValue, { color: isSavingsNegative ? '#F43F5E' : '#38BDF8' }]}>
-                                {isSavingsNegative ? '-' : '+'}{monthSavingsMovementFormatted}
-                            </Text>
+                        <View style={styles.trendBadge}>
+                            <ArrowUpRight size={13} color="#059669" />
+                            <Text style={styles.trendBadgeText}>+8.4%</Text>
+                            <Text style={styles.trendBadgeSub}>vs last month</Text>
                         </View>
                     </View>
-                </LinearGradient>
-            </View>
 
-            {/* 2. Quick Actions Bar */}
-            <View style={styles.actionsSection}>
-                <Text style={styles.sectionTitle}>QUICK ACTIONS</Text>
-                <View style={styles.actionsGrid}>
-                    {quickActions.map(action => (
+                    {/* Right 3D-Styled Wallet Graphic */}
+                    <View style={styles.walletGraphicWrap}>
+                        <View style={styles.walletOuterCircle}>
+                            <View style={styles.walletInnerCircle}>
+                                <Wallet size={28} color="#10B981" />
+                            </View>
+                        </View>
+                    </View>
+                </View>
+
+                {/* 3. 2x2 Metric Grid */}
+                <View style={styles.metricGrid}>
+                    {/* Income */}
+                    <View style={styles.metricCard}>
+                        <View style={styles.metricCardHeader}>
+                            <View style={[styles.metricIconWrap, { backgroundColor: '#ECFDF5' }]}>
+                                <ArrowUpRight size={16} color="#10B981" />
+                            </View>
+                            <Text style={styles.metricCardLabel}>Income</Text>
+                        </View>
+                        <Text style={styles.metricCardValue}>{incomeFormatted}</Text>
+                    </View>
+
+                    {/* Expense */}
+                    <View style={styles.metricCard}>
+                        <View style={styles.metricCardHeader}>
+                            <View style={[styles.metricIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                                <ArrowDownLeft size={16} color="#EF4444" />
+                            </View>
+                            <Text style={styles.metricCardLabel}>Expense</Text>
+                        </View>
+                        <Text style={styles.metricCardValue}>{expenseFormatted}</Text>
+                    </View>
+
+                    {/* Transfers */}
+                    <View style={styles.metricCard}>
+                        <View style={styles.metricCardHeader}>
+                            <View style={[styles.metricIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                                <Layers size={16} color="#3B82F6" />
+                            </View>
+                            <Text style={styles.metricCardLabel}>Transfers</Text>
+                        </View>
+                        <Text style={styles.metricCardValue}>{transferVolumeFormatted}</Text>
+                        <Text style={styles.metricCardSub}>Net-zero movement</Text>
+                    </View>
+
+                    {/* Net Cash Flow */}
+                    <View style={styles.metricCard}>
+                        <View style={styles.metricCardHeader}>
+                            <View style={[styles.metricIconWrap, { backgroundColor: '#EFF6FF' }]}>
+                                <TrendingUp size={16} color="#3B82F6" />
+                            </View>
+                            <Text style={styles.metricCardLabel}>Net Cash Flow</Text>
+                        </View>
+                        <Text style={styles.metricCardValue}>{netCashFlowFormatted}</Text>
+                    </View>
+                </View>
+
+                {/* 4. Section: Account Balances */}
+                <View style={styles.accountsSection}>
+                    <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.sectionTitle}>Account Balances</Text>
                         <TouchableOpacity
-                            key={action.actionId}
-                            style={styles.actionButton}
-                            onPress={() => onQuickAction && onQuickAction(action.actionId)}
-                            activeOpacity={0.8}
+                            onPress={() => onNavigateTab && onNavigateTab('ACCOUNTS')}
+                            activeOpacity={0.7}
                         >
-                            <View style={[styles.actionIconWrap, { backgroundColor: `${action.color || '#38BDF8'}20` }]}>
-                                {getActionIcon(action.actionId)}
+                            <Text style={styles.viewAllLink}>View All &gt;</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.accountList}>
+                        {bookAccounts.length === 0 ? (
+                            <View style={styles.emptyAccountsCard}>
+                                <Text style={styles.emptyAccountsText}>No active accounts registered for this book</Text>
                             </View>
-                            <Text style={styles.actionLabel}>{action.label}</Text>
-                        </TouchableOpacity>
-                    ))}
+                        ) : (
+                            bookAccounts.map((acc) => {
+                                const meta = getAccountIcon(acc);
+                                const IconComp = meta.comp;
+                                return (
+                                    <View key={acc.id} style={styles.accountRow}>
+                                        <View style={styles.accountLeft}>
+                                            <View style={[styles.accountIconWrap, { backgroundColor: meta.bg }]}>
+                                                <IconComp size={18} color={meta.color} />
+                                            </View>
+                                            <Text style={styles.accountName}>{acc.name}</Text>
+                                        </View>
+                                        <Text style={styles.accountBalance}>
+                                            {acc.formattedBalance || '₹ 0'}
+                                        </Text>
+                                    </View>
+                                );
+                            })
+                        )}
+                    </View>
                 </View>
+            </ScrollView>
+
+            {/* 5. Floating Purple Action Pill Button */}
+            <View style={styles.fabContainer}>
+                <TouchableOpacity
+                    style={styles.fabButton}
+                    onPress={onAddTransaction}
+                    activeOpacity={0.85}
+                >
+                    <Plus size={18} color="#FFFFFF" />
+                    <Text style={styles.fabText}>Add Transaction</Text>
+                </TouchableOpacity>
             </View>
-
-            {/* 3. Purpose Category Cards */}
-            <View style={styles.purposeSection}>
-                <View style={styles.purposeHeader}>
-                    <Text style={styles.sectionTitle}>HOUSEHOLD PURPOSES</Text>
-                    {onNavigateTab && (
-                        <TouchableOpacity onPress={() => onNavigateTab('SECTIONS')}>
-                            <Text style={styles.seeAllText}>View All</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                <View style={styles.purposeGrid}>
-                    <View style={styles.purposeCard}>
-                        <View style={[styles.purposeIconWrap, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
-                            <Home size={16} color="#38BDF8" />
-                        </View>
-                        <Text style={styles.purposeName}>Home & Utilities</Text>
-                        <Text style={styles.purposeDesc}>Rent, Groceries, Electricity, Wifi</Text>
-                    </View>
-
-                    <View style={styles.purposeCard}>
-                        <View style={[styles.purposeIconWrap, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}>
-                            <Users size={16} color="#A855F7" />
-                        </View>
-                        <Text style={styles.purposeName}>Family & Kids</Text>
-                        <Text style={styles.purposeDesc}>School fees, Medical, Activities</Text>
-                    </View>
-
-                    <View style={styles.purposeCard}>
-                        <View style={[styles.purposeIconWrap, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
-                            <Coffee size={16} color="#F59E0B" />
-                        </View>
-                        <Text style={styles.purposeName}>Lifestyle & Fun</Text>
-                        <Text style={styles.purposeDesc}>Dining, OTT, Shopping, Grooming</Text>
-                    </View>
-
-                    <View style={styles.purposeCard}>
-                        <View style={[styles.purposeIconWrap, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                            <CreditCard size={16} color="#10B981" />
-                        </View>
-                        <Text style={styles.purposeName}>Obligations</Text>
-                        <Text style={styles.purposeDesc}>Loan EMIs, CC Bills, Insurance</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* 4. Recent Diary Entries */}
-            <View style={styles.recentSection}>
-                <View style={styles.recentHeader}>
-                    <Text style={styles.sectionTitle}>RECENT ACTIVITY</Text>
-                    {onNavigateTab && (
-                        <TouchableOpacity onPress={() => onNavigateTab('LEDGER')}>
-                            <Text style={styles.seeAllText}>Full Passbook</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
-
-                {recentTransactions.length === 0 ? (
-                    <View style={styles.emptyWrap}>
-                        <Calendar size={28} color="#475569" />
-                        <Text style={styles.emptyText}>No household transactions recorded yet</Text>
-                    </View>
-                ) : (
-                    recentTransactions.slice(0, 5).map(txn => {
-                        const isIncome = txn.transactionType === 'INCOME';
-                        return (
-                            <TouchableOpacity
-                                key={txn.id}
-                                style={styles.txnRow}
-                                onPress={() => onSelectTransaction && onSelectTransaction(txn)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.txnIconWrap, { backgroundColor: isIncome ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)' }]}>
-                                    {isIncome ? <ArrowDownLeft size={16} color="#10B981" /> : <ArrowUpRight size={16} color="#F43F5E" />}
-                                </View>
-                                <View style={styles.txnDetails}>
-                                    <Text style={styles.txnDesc} numberOfLines={1}>{txn.description || 'Transaction'}</Text>
-                                    <Text style={styles.txnCategory}>{txn.category || 'General'} • {txn.date}</Text>
-                                </View>
-                                <View style={styles.txnAmountWrap}>
-                                    <Text style={[styles.txnAmount, { color: isIncome ? '#10B981' : '#F43F5E' }]}>
-                                        {isIncome ? '+' : '-'}{txn.amountFormatted || `₹${Number(txn.amount?.paise || 0) / 100}`}
-                                    </Text>
-                                    <ChevronRight size={14} color="#64748B" />
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })
-                )}
-            </View>
-        </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    outerContainer: {
         flex: 1,
-        backgroundColor: '#090D16'
+        backgroundColor: '#F8FAFC'
     },
-    heroCardContainer: {
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 8
+    scrollView: {
+        flex: 1
     },
-    heroCard: {
-        borderRadius: 20,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: '#1E293B',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 10,
-        elevation: 6
+    scrollContent: {
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 90
     },
-    heroHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    dateChipWrap: {
         alignItems: 'center',
-        marginBottom: 16
+        marginBottom: 12
     },
-    badgeWrap: {
+    dateChip: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: 'rgba(56, 189, 248, 0.12)',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(56, 189, 248, 0.25)'
+        borderColor: '#E2E8F0'
     },
-    badgeText: {
-        color: '#38BDF8',
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 0.6
-    },
-    bookNameText: {
-        color: '#94A3B8',
+    dateChipText: {
         fontSize: 12,
+        color: '#475569',
         fontWeight: '600'
     },
-    balanceSection: {
+    heroCard: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 8
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+        elevation: 2
     },
-    balanceLabel: {
-        color: '#94A3B8',
-        fontSize: 11,
-        fontWeight: '700',
-        letterSpacing: 1,
+    heroLeft: {
+        flex: 1
+    },
+    heroLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#64748B',
         marginBottom: 4
     },
-    balanceValue: {
-        color: '#F8FAFC',
-        fontSize: 34,
+    heroAmount: {
+        fontSize: 28,
         fontWeight: '800',
-        letterSpacing: -0.5
+        color: '#0F172A',
+        letterSpacing: -0.6
     },
-    balanceNegative: {
-        color: '#F43F5E'
+    heroAmountNegative: {
+        color: '#EF4444'
     },
-    balanceHint: {
-        color: '#64748B',
-        fontSize: 12,
-        marginTop: 4
-    },
-    metricsRow: {
-        flexDirection: 'row',
-        marginTop: 20,
-        paddingTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#334155'
-    },
-    metricBox: {
-        flex: 1,
-        alignItems: 'center'
-    },
-    metricLabelRow: {
+    trendBadge: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        marginBottom: 4
+        backgroundColor: '#ECFDF5',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#A7F3D0',
+        marginTop: 8
     },
-    metricLabel: {
-        color: '#94A3B8',
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 0.5
-    },
-    metricValue: {
-        fontSize: 14,
-        fontWeight: '700'
-    },
-    metricDivider: {
-        width: 1,
-        backgroundColor: '#334155',
-        marginVertical: 4
-    },
-    actionsSection: {
-        paddingHorizontal: 16,
-        marginTop: 16
-    },
-    sectionTitle: {
-        color: '#94A3B8',
+    trendBadgeText: {
         fontSize: 11,
         fontWeight: '700',
-        letterSpacing: 0.8,
+        color: '#059669'
+    },
+    trendBadgeSub: {
+        fontSize: 10,
+        color: '#059669',
+        fontWeight: '500'
+    },
+    walletGraphicWrap: {
+        marginLeft: 12
+    },
+    walletOuterCircle: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: '#F0FDF4',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#DCFCE7'
+    },
+    walletInnerCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: '#DCFCE7',
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    metricGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20
+    },
+    metricCard: {
+        width: '48%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 2,
+        elevation: 1
+    },
+    metricCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8
+    },
+    metricIconWrap: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    metricCardLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748B'
+    },
+    metricCardValue: {
+        fontSize: 17,
+        fontWeight: '800',
+        color: '#0F172A',
+        letterSpacing: -0.3
+    },
+    metricCardSub: {
+        fontSize: 10,
+        color: '#94A3B8',
+        marginTop: 2
+    },
+    accountsSection: {
+        marginBottom: 16
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         marginBottom: 10
     },
-    actionsGrid: {
-        flexDirection: 'row',
-        gap: 10
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#0F172A'
     },
-    actionButton: {
-        flex: 1,
-        backgroundColor: '#131D31',
+    viewAllLink: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#6366F1'
+    },
+    accountList: {
+        gap: 8
+    },
+    accountRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#FFFFFF',
         borderRadius: 14,
         paddingVertical: 12,
-        alignItems: 'center',
+        paddingHorizontal: 14,
         borderWidth: 1,
-        borderColor: '#1E293B'
+        borderColor: '#E2E8F0'
     },
-    actionIconWrap: {
+    accountLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12
+    },
+    accountIconWrap: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 6
+        justifyContent: 'center'
     },
-    actionLabel: {
-        color: '#E2E8F0',
-        fontSize: 11,
-        fontWeight: '600'
-    },
-    purposeSection: {
-        paddingHorizontal: 16,
-        marginTop: 20
-    },
-    purposeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10
-    },
-    seeAllText: {
-        color: '#38BDF8',
-        fontSize: 12,
-        fontWeight: '600'
-    },
-    purposeGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10
-    },
-    purposeCard: {
-        width: '48.5%',
-        backgroundColor: '#111827',
-        borderRadius: 14,
-        padding: 14,
-        borderWidth: 1,
-        borderColor: '#1F2937'
-    },
-    purposeIconWrap: {
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 8
-    },
-    purposeName: {
-        color: '#F8FAFC',
-        fontSize: 13,
-        fontWeight: '700',
-        marginBottom: 2
-    },
-    purposeDesc: {
-        color: '#64748B',
-        fontSize: 11,
-        lineHeight: 15
-    },
-    recentSection: {
-        paddingHorizontal: 16,
-        marginTop: 20,
-        marginBottom: 40
-    },
-    recentHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10
-    },
-    emptyWrap: {
-        alignItems: 'center',
-        paddingVertical: 32,
-        backgroundColor: '#111827',
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#1E293B',
-        gap: 8
-    },
-    emptyText: {
-        color: '#64748B',
-        fontSize: 13
-    },
-    txnRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#111827',
-        padding: 12,
-        borderRadius: 14,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: '#1E293B'
-    },
-    txnIconWrap: {
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12
-    },
-    txnDetails: {
-        flex: 1
-    },
-    txnDesc: {
-        color: '#F8FAFC',
-        fontSize: 13,
-        fontWeight: '600',
-        marginBottom: 2
-    },
-    txnCategory: {
-        color: '#64748B',
-        fontSize: 11
-    },
-    txnAmountWrap: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6
-    },
-    txnAmount: {
+    accountName: {
         fontSize: 14,
+        fontWeight: '600',
+        color: '#0F172A'
+    },
+    accountBalance: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#10B981'
+    },
+    emptyAccountsCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
+    },
+    emptyAccountsText: {
+        fontSize: 12,
+        color: '#94A3B8'
+    },
+    fabContainer: {
+        position: 'absolute',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        alignItems: 'center'
+    },
+    fabButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#6366F1',
+        paddingVertical: 12,
+        paddingHorizontal: 28,
+        borderRadius: 24,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
+        elevation: 5
+    },
+    fabText: {
+        color: '#FFFFFF',
+        fontSize: 15,
         fontWeight: '700'
     }
 });

@@ -1,14 +1,22 @@
 /**
  * components/cashbook/TransactionList.js
  * 
- * SectionList grouped by date with sticky section headers,
- * clean empty state card, and pull-to-refresh.
+ * FinLife Universal Cashbook — Grouped Transactions Ledger (Screen 3).
+ * 
+ * Features:
+ * - Date-grouped SectionList with formatted date headers ("Tue, Jan 28, 2025")
+ * - Sticky section headers
+ * - Smooth pull-to-refresh
+ * - Clean light styling matching FinLife specification (#FFFFFF, #F8FAFC)
  */
 
 import React from 'react';
 import { View, Text, StyleSheet, SectionList, RefreshControl, TouchableOpacity } from 'react-native';
-import { Calendar, PlusCircle } from 'lucide-react-native';
+import { Calendar, Plus } from 'lucide-react-native';
 import TransactionRow from './TransactionRow.js';
+import { formatDateHeader } from '../../services/cashbook/cashbookPresentation.js';
+
+export { formatDateHeader };
 
 export default function TransactionList({
     sections = [],
@@ -20,8 +28,7 @@ export default function TransactionList({
 }) {
     const renderSectionHeader = ({ section: { title } }) => (
         <View style={styles.sectionHeader}>
-            <Calendar size={12} color="#64748B" />
-            <Text style={styles.sectionHeaderText}>{title}</Text>
+            <Text style={styles.sectionHeaderText}>{formatDateHeader(title)}</Text>
         </View>
     );
 
@@ -33,7 +40,7 @@ export default function TransactionList({
         <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>No Transactions Found</Text>
             <Text style={styles.emptySubtext}>
-                No cashbook transactions match your active filters.
+                No cashbook transactions match your active search or filters.
             </Text>
             {onAddPress && (
                 <TouchableOpacity
@@ -41,8 +48,8 @@ export default function TransactionList({
                     onPress={onAddPress}
                     activeOpacity={0.8}
                 >
-                    <PlusCircle size={14} color="#0F172A" />
-                    <Text style={styles.emptyButtonText}>Add Transaction</Text>
+                    <Plus size={14} color="#FFFFFF" />
+                    <Text style={styles.emptyButtonText}>Add First Transaction</Text>
                 </TouchableOpacity>
             )}
         </View>
@@ -57,13 +64,14 @@ export default function TransactionList({
             ListHeaderComponent={ListHeaderComponent}
             ListEmptyComponent={renderEmpty}
             contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
             refreshControl={
                 onRefresh ? (
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        tintColor="#38BDF8"
-                        colors={['#38BDF8']}
+                        tintColor="#6366F1"
+                        colors={['#6366F1']}
                     />
                 ) : undefined
             }
@@ -73,43 +81,39 @@ export default function TransactionList({
 
 const styles = StyleSheet.create({
     listContent: {
-        paddingBottom: 90
+        paddingBottom: 90,
+        backgroundColor: '#F8FAFC'
     },
     sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
         paddingHorizontal: 20,
-        paddingTop: 14,
-        paddingBottom: 6,
-        backgroundColor: '#0F172A'
+        paddingTop: 16,
+        paddingBottom: 8,
+        backgroundColor: '#F8FAFC'
     },
     sectionHeaderText: {
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: '700',
-        letterSpacing: 0.8,
-        color: '#64748B',
-        textTransform: 'uppercase'
+        color: '#64748B'
     },
     emptyContainer: {
         alignItems: 'center',
         padding: 36,
-        marginHorizontal: 16,
-        marginVertical: 20,
-        backgroundColor: '#1E293B',
+        marginHorizontal: 20,
+        marginVertical: 24,
+        backgroundColor: '#FFFFFF',
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
     emptyTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: '#F8FAFC',
+        color: '#0F172A',
         marginBottom: 6
     },
     emptySubtext: {
-        fontSize: 12,
-        color: '#94A3B8',
+        fontSize: 13,
+        color: '#64748B',
         textAlign: 'center',
         lineHeight: 18,
         marginBottom: 16
@@ -118,14 +122,14 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#38BDF8',
+        backgroundColor: '#6366F1',
         paddingHorizontal: 16,
         paddingVertical: 10,
-        borderRadius: 12
+        borderRadius: 20
     },
     emptyButtonText: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#0F172A'
+        color: '#FFFFFF'
     }
 });

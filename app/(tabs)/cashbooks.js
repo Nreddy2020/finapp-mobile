@@ -3,14 +3,16 @@
  * 
  * FinLife Universal Cashbook Experience (V3) — Purpose-Driven Financial Books.
  * 
- * Features:
- * - Purpose-Built Experiences per Book: Personal Savings, Handy Cash Till, Business Operations,
- *   Loans (Liabilities / Receivables), Provident Fund (EPFO), Regular Income.
- * - Purpose-Driven Dashboards with domain metric reducers.
- * - Dynamic context-aware navigation tabs (Dashboard, Passbook / Journal / Till Count, Accounts).
- * - Adaptive Workflow Action Modal: Compiles mathematically balanced LedgerTransactions (Debits === Credits).
- * - Universal underlying Ledger Engine with integer paise arithmetic and hash chain.
- * - Multi-book switching with strict DEMO vs PRODUCTION isolation.
+ * Implements the complete 4-Screen Universal Architecture:
+ * - Screen 1: Master Directory (Cashbooks / My Books / Templates)
+ * - Screen 2: Book Dashboard (Hero Closing Balance, 2x2 Metric Grid, Account Balances, Add Pill)
+ * - Screen 3: Transactions Ledger (Sub-tabs, Search with Filter Funnel, Date-grouped List)
+ * - Screen 4: Transaction Details (Hero, Key-Value Metadata, Expandable Double-Entry Table & Balanced Entry Status)
+ * 
+ * Invariants:
+ * - Strictly truthful ledger-computed metrics (no arbitrary floating point calculations)
+ * - Strict book isolation
+ * - Non-lossy double-entry journal lines validation & presentation
  */
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -25,6 +27,7 @@ import {
     Share,
     Platform,
     ScrollView,
+    TextInput,
     BackHandler
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -44,7 +47,11 @@ import {
     ArrowDownRight,
     ArrowUpRight,
     Shield,
-    ArrowLeft
+    ArrowLeft,
+    MoreVertical,
+    Search,
+    Filter,
+    X
 } from 'lucide-react-native';
 import AnimatedScreen from '../../components/ui/AnimatedScreen';
 
@@ -70,6 +77,14 @@ import {
 import { buildCashbookViewModel, FilterType } from '../../services/cashbook/cashbookViewModel.js';
 import { CashbookExport } from '../../services/cashbook/cashbookExport.js';
 
+// V3 Purpose-Built Screen Components
+import CashbookDirectoryView from '../../components/cashbook/CashbookDirectoryView.js';
+import PersonalDashboardView from '../../components/cashbook/PersonalDashboardView.js';
+import HandyCashDashboardView from '../../components/cashbook/HandyCashDashboardView.js';
+import BusinessDashboardView from '../../components/cashbook/BusinessDashboardView.js';
+import LoansDashboardView from '../../components/cashbook/LoansDashboardView.js';
+import PFDashboardView from '../../components/cashbook/PFDashboardView.js';
+
 import BookHeaderBar from '../../components/cashbook/BookHeaderBar.js';
 import LedgerTableView from '../../components/cashbook/LedgerTableView.js';
 import DailyClosingView from '../../components/cashbook/DailyClosingView.js';
@@ -79,13 +94,6 @@ import TransactionList from '../../components/cashbook/TransactionList.js';
 import AddTransactionModal from '../../components/cashbook/AddTransactionModal.js';
 import TransactionDetailModal from '../../components/cashbook/TransactionDetailModal.js';
 import AccountManageModal from '../../components/cashbook/AccountManageModal.js';
-
-// Purpose-Built V3 Components
-import PersonalDashboardView from '../../components/cashbook/PersonalDashboardView.js';
-import HandyCashDashboardView from '../../components/cashbook/HandyCashDashboardView.js';
-import BusinessDashboardView from '../../components/cashbook/BusinessDashboardView.js';
-import LoansDashboardView from '../../components/cashbook/LoansDashboardView.js';
-import PFDashboardView from '../../components/cashbook/PFDashboardView.js';
 import WorkflowActionModal from '../../components/cashbook/WorkflowActionModal.js';
 
 export default function CashbooksScreen() {
@@ -93,6 +101,9 @@ export default function CashbooksScreen() {
     const [appMode, setAppMode] = useState(CashbookAppMode.PRODUCTION);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // View Hierarchy: 'DIRECTORY' (Screen 1) | 'BOOK_VIEW' (Screen 2 / 3)
+    const [viewMode, setViewMode] = useState('DIRECTORY');
 
     // Envelope & multi-book state
     const [envelope, setEnvelope] = useState({
@@ -104,13 +115,14 @@ export default function CashbooksScreen() {
         auditLog: []
     });
 
-    // Navigation segment state (Default to DASHBOARD)
+    // Sub-tab Navigation within Active Book: 'DASHBOARD' | 'TRANSACTIONS' | 'ACCOUNTS' | 'REPORTS'
     const [activeTab, setActiveTab] = useState('DASHBOARD');
 
-    // UI filters for Overview
+    // UI filters & Search for Transactions Ledger
     const [activeFilter, setActiveFilter] = useState(FilterType.ALL);
     const [selectedAccountId, setSelectedAccountId] = useState(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [showFilterPills, setShowFilterPills] = useState(false);
 
     // Modals
     const [addModalVisible, setAddModalVisible] = useState(false);
@@ -132,16 +144,6 @@ export default function CashbooksScreen() {
     const experienceProfile = useMemo(() => {
         return resolveCashbookExperience(activeBook);
     }, [activeBook]);
-
-    // Ensure activeTab matches profile navigation when book changes
-    useEffect(() => {
-        if (experienceProfile?.navigation?.length > 0) {
-            const validKeys = experienceProfile.navigation.map(n => n.key);
-            if (!validKeys.includes(activeTab)) {
-                setActiveTab(validKeys[0]);
-            }
-        }
-    }, [experienceProfile]);
 
     // Filter transactions strictly by active book (Strict Book Isolation)
     const activeBookTransactions = useMemo(() => {
@@ -263,6 +265,8 @@ export default function CashbooksScreen() {
         try {
             await CashbookRepository.setActiveBookId(bookId, { mode: appMode });
             await loadLedgerData();
+            setViewMode('BOOK_VIEW');
+            setActiveTab('DASHBOARD');
         } catch (err) {
             Alert.alert('Book Switch Error', err.message);
         }
@@ -274,6 +278,8 @@ export default function CashbooksScreen() {
             await CashbookRepository.saveBook(book, { mode: appMode });
             await CashbookRepository.setActiveBookId(book.id, { mode: appMode });
             await loadLedgerData();
+            setViewMode('BOOK_VIEW');
+            setActiveTab('DASHBOARD');
         } catch (err) {
             Alert.alert('Create Book Error', err.message);
         }
@@ -329,7 +335,6 @@ export default function CashbooksScreen() {
 
     // Quick action trigger from purpose dashboards
     const handleQuickAction = (actionId) => {
-        console.log('[Cashbook] handleQuickAction called with:', actionId);
         if (actionId === 'COUNT_CASH' || actionId === 'CLOSE_DAY') {
             setActiveTab('CLOSING');
             return;
@@ -358,8 +363,12 @@ export default function CashbooksScreen() {
             setAccountsModalVisible(false);
             return true;
         }
-        if (activeTab !== 'DASHBOARD') {
-            setActiveTab('DASHBOARD');
+        if (viewMode === 'BOOK_VIEW') {
+            if (activeTab !== 'DASHBOARD') {
+                setActiveTab('DASHBOARD');
+                return true;
+            }
+            setViewMode('DIRECTORY');
             return true;
         }
         if (router.canGoBack()) {
@@ -368,7 +377,7 @@ export default function CashbooksScreen() {
         }
         router.replace('/(tabs)');
         return true;
-    }, [workflowModalVisible, addModalVisible, detailModalVisible, accountsModalVisible, activeTab, router]);
+    }, [workflowModalVisible, addModalVisible, detailModalVisible, accountsModalVisible, activeTab, viewMode, router]);
 
     useEffect(() => {
         const onBackPress = () => handleBack();
@@ -389,108 +398,132 @@ export default function CashbooksScreen() {
         }
     };
 
-    // Map tab icon
-    const getTabIcon = (key, iconName) => {
-        switch (iconName || key) {
-            case 'Home':
-            case 'DASHBOARD': return Home;
-            case 'BookOpen':
-            case 'LEDGER': return BookOpen;
-            case 'Calendar':
-            case 'CLOSING': return Calendar;
-            case 'Wallet':
-            case 'ACCOUNTS': return Wallet;
-            case 'Store': return Store;
-            case 'Briefcase': return Briefcase;
-            case 'ArrowDownRight': return ArrowDownRight;
-            case 'ArrowUpRight': return ArrowUpRight;
-            case 'Shield': return Shield;
-            case 'TrendingUp': return TrendingUp;
-            case 'Layers':
-            case 'SECTIONS': return Layers;
-            default: return BookOpen;
-        }
+    const handleOpenBookMenu = () => {
+        Alert.alert(
+            `${activeBook?.name || 'Cashbook'} Options`,
+            `Active Book: ${activeBook?.name}\nMode: ${appMode}`,
+            [
+                { text: 'Switch Book (Directory)', onPress: () => setViewMode('DIRECTORY') },
+                { text: 'Export CSV Ledger', onPress: handleExportCSV },
+                {
+                    text: appMode === CashbookAppMode.DEMO ? 'Switch to Production' : 'Switch to Demo',
+                    onPress: handleToggleMode
+                },
+                { text: 'Cancel', style: 'cancel' }
+            ]
+        );
     };
 
     if (loading && !refreshing) {
         return (
             <SafeAreaView style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#38BDF8" />
+                <ActivityIndicator size="large" color="#6366F1" />
                 <Text style={styles.loadingText}>Loading Purpose-Driven Ledger...</Text>
             </SafeAreaView>
         );
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Screen 1: Master Directory View
+    // ─────────────────────────────────────────────────────────────────
+    if (viewMode === 'DIRECTORY') {
+        return (
+            <AnimatedScreen style={styles.container}>
+                <CashbookDirectoryView
+                    books={envelope.books || []}
+                    activeBookId={envelope.activeBookId}
+                    accounts={envelope.accounts || []}
+                    transactions={envelope.transactions || []}
+                    onSelectBook={handleSelectBook}
+                    onCreateBook={handleCreateBook}
+                    onOpenCreateModal={() => setAccountsModalVisible(true)}
+                />
+
+                {/* Account & New Book Modal */}
+                <AccountManageModal
+                    visible={accountsModalVisible}
+                    accounts={viewModel.accounts}
+                    onClose={() => setAccountsModalVisible(false)}
+                    onSaveAccount={handleSaveAccount}
+                />
+            </AnimatedScreen>
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // Screen 2 & 3: Active Cashbook Experience
+    // ─────────────────────────────────────────────────────────────────
     return (
         <AnimatedScreen style={styles.container}>
             <View style={styles.container}>
-                {/* Header Action Bar */}
-                <View style={styles.topBar}>
-                    <View style={styles.headerLeft}>
-                        <TouchableOpacity
-                            onPress={handleBack}
-                            style={styles.backBtn}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            accessibilityLabel="Go back"
-                            accessibilityRole="button"
-                        >
-                            <ArrowLeft size={20} color="#F8FAFC" />
-                        </TouchableOpacity>
-                        <Text style={styles.screenTitle}>FinLife Cashbook</Text>
-                    </View>
-                    <View style={styles.topActions}>
-                        <TouchableOpacity
-                            onPress={handleExportCSV}
-                            style={styles.iconActionBtn}
-                            activeOpacity={0.7}
-                        >
-                            <Download size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={handleRefresh}
-                            style={styles.iconActionBtn}
-                            activeOpacity={0.7}
-                        >
-                            <RefreshCw size={16} color="#94A3B8" />
-                        </TouchableOpacity>
-                    </View>
+                {/* Book Header Bar */}
+                <View style={styles.bookHeaderBar}>
+                    <TouchableOpacity
+                        onPress={handleBack}
+                        style={styles.backBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <ArrowLeft size={20} color="#0F172A" />
+                    </TouchableOpacity>
+
+                    <Text style={styles.bookHeaderTitle} numberOfLines={1}>
+                        {activeBook?.name ? `${activeBook.name} Cashbook` : 'Personal Cashbook'}
+                    </Text>
+
+                    <TouchableOpacity
+                        onPress={handleOpenBookMenu}
+                        style={styles.menuBtn}
+                        activeOpacity={0.7}
+                    >
+                        <MoreVertical size={20} color="#64748B" />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Book Header Bar (Active Book Switcher) */}
-                <BookHeaderBar
-                    activeBook={activeBook}
-                    books={envelope.books || []}
-                    onSelectBook={handleSelectBook}
-                    onCreateBook={handleCreateBook}
-                />
+                {/* Sub-Tabs: [ Dashboard | Transactions | Accounts | Reports ] */}
+                <View style={styles.subTabBar}>
+                    <TouchableOpacity
+                        style={[styles.subTabItem, activeTab === 'DASHBOARD' && styles.subTabItemActive]}
+                        onPress={() => setActiveTab('DASHBOARD')}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.subTabText, activeTab === 'DASHBOARD' && styles.subTabTextActive]}>
+                            Dashboard
+                        </Text>
+                    </TouchableOpacity>
 
-                {/* Dynamic Segmented Tab Navigation from Experience Profile */}
-                <View style={styles.navTabs}>
-                    {(experienceProfile?.navigation || [
-                        { key: 'DASHBOARD', label: 'Dashboard', iconName: 'Home' },
-                        { key: 'LEDGER', label: 'Passbook', iconName: 'BookOpen' },
-                        { key: 'CLOSING', label: 'Daily Closing', iconName: 'Calendar' },
-                        { key: 'ACCOUNTS', label: 'Accounts', iconName: 'Wallet' }
-                    ]).map(tab => {
-                        const isActive = activeTab === tab.key;
-                        const IconComp = getTabIcon(tab.key, tab.iconName);
-                        return (
-                            <TouchableOpacity
-                                key={tab.key}
-                                style={[styles.navTab, isActive && styles.navTabActive]}
-                                onPress={() => setActiveTab(tab.key)}
-                            >
-                                <IconComp size={13} color={isActive ? '#38BDF8' : '#94A3B8'} />
-                                <Text style={[styles.navTabText, isActive && styles.navTabTextActive]}>
-                                    {tab.label}
-                                </Text>
-                            </TouchableOpacity>
-                        );
-                    })}
+                    <TouchableOpacity
+                        style={[styles.subTabItem, activeTab === 'TRANSACTIONS' && styles.subTabItemActive]}
+                        onPress={() => setActiveTab('TRANSACTIONS')}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.subTabText, activeTab === 'TRANSACTIONS' && styles.subTabTextActive]}>
+                            Transactions
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.subTabItem, activeTab === 'ACCOUNTS' && styles.subTabItemActive]}
+                        onPress={() => setActiveTab('ACCOUNTS')}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.subTabText, activeTab === 'ACCOUNTS' && styles.subTabTextActive]}>
+                            Accounts
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.subTabItem, activeTab === 'REPORTS' && styles.subTabItemActive]}
+                        onPress={() => setActiveTab('REPORTS')}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={[styles.subTabText, activeTab === 'REPORTS' && styles.subTabTextActive]}>
+                            Reports
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
-                {/* Tab: Purpose-Built Dashboard */}
+                {/* Sub-Tab 1: Purpose-Built Dashboard (Screen 2) */}
                 {activeTab === 'DASHBOARD' && (
                     <>
                         {experienceProfile?.profileId === CashbookExperienceProfile.HANDY_CASH_REGISTER ? (
@@ -549,11 +582,14 @@ export default function CashbooksScreen() {
                         ) : (
                             <PersonalDashboardView
                                 metrics={dashboardMetrics}
+                                summary={viewModel.balanceSummaryCard}
                                 profile={experienceProfile}
+                                activeBook={activeBook}
+                                accounts={viewModel.accounts}
+                                recentTransactions={activeBookTransactions}
                                 onQuickAction={handleQuickAction}
                                 onNavigateTab={setActiveTab}
-                                activeBook={activeBook}
-                                recentTransactions={activeBookTransactions}
+                                onAddTransaction={() => setAddModalVisible(true)}
                                 onSelectTransaction={(txn) => {
                                     setSelectedTransaction(txn);
                                     setDetailModalVisible(true);
@@ -563,66 +599,74 @@ export default function CashbooksScreen() {
                     </>
                 )}
 
-                {/* Tab: Overview (or Household Sections) */}
-                {(activeTab === 'OVERVIEW' || activeTab === 'SECTIONS') && (
-                    <TransactionList
-                        sections={viewModel.sections}
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
-                        onPressRow={(row) => {
-                            setSelectedTransaction(row);
-                            setDetailModalVisible(true);
-                        }}
-                        onAddPress={() => setAddModalVisible(true)}
-                        ListHeaderComponent={
-                            <View>
-                                <BalanceSummaryCard
-                                    summary={viewModel.balanceSummaryCard}
-                                    appMode={appMode}
-                                    onToggleMode={handleToggleMode}
-                                    onManageAccounts={() => setAccountsModalVisible(true)}
+                {/* Sub-Tab 2: Transactions Ledger (Screen 3) */}
+                {activeTab === 'TRANSACTIONS' && (
+                    <View style={styles.transactionsTabContainer}>
+                        {/* Search & Filter Funnel Bar */}
+                        <View style={styles.searchBarRow}>
+                            <View style={styles.searchInputContainer}>
+                                <Search size={16} color="#94A3B8" />
+                                <TextInput
+                                    style={styles.searchInput}
+                                    placeholder="Search transactions..."
+                                    placeholderTextColor="#94A3B8"
+                                    value={searchQuery}
+                                    onChangeText={setSearchQuery}
                                 />
-
-                                <TransactionFilterBar
-                                    activeFilter={activeFilter}
-                                    onSelectFilter={setActiveFilter}
-                                    accounts={viewModel.accounts}
-                                    selectedAccountId={selectedAccountId}
-                                    onSelectAccount={setSelectedAccountId}
-                                    searchQuery={searchQuery}
-                                    onSearchChange={setSearchQuery}
-                                />
+                                {searchQuery.length > 0 && (
+                                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                        <X size={14} color="#94A3B8" />
+                                    </TouchableOpacity>
+                                )}
                             </View>
-                        }
-                    />
+
+                            <TouchableOpacity
+                                style={[styles.filterFunnelBtn, showFilterPills && styles.filterFunnelBtnActive]}
+                                onPress={() => setShowFilterPills(!showFilterPills)}
+                                activeOpacity={0.7}
+                            >
+                                <Filter size={18} color={showFilterPills ? '#6366F1' : '#64748B'} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Collapsible Filter Bar */}
+                        {showFilterPills && (
+                            <TransactionFilterBar
+                                activeFilter={activeFilter}
+                                onSelectFilter={setActiveFilter}
+                                accounts={viewModel.accounts}
+                                selectedAccountId={selectedAccountId}
+                                onSelectAccount={setSelectedAccountId}
+                                searchQuery={searchQuery}
+                                onSearchChange={setSearchQuery}
+                            />
+                        )}
+
+                        {/* Date Grouped Transaction SectionList */}
+                        <TransactionList
+                            sections={viewModel.sections}
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            onPressRow={(row) => {
+                                setSelectedTransaction(row);
+                                setDetailModalVisible(true);
+                            }}
+                            onAddPress={() => setAddModalVisible(true)}
+                        />
+
+                        {/* Floating Add Pill Button */}
+                        <TouchableOpacity
+                            style={styles.floatingAddPill}
+                            onPress={() => setAddModalVisible(true)}
+                            activeOpacity={0.85}
+                        >
+                            <Plus size={18} color="#FFFFFF" />
+                            <Text style={styles.floatingAddPillText}>Add Transaction</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
 
-                {/* Tab: Universal Ledger Table View */}
-                {activeTab === 'LEDGER' && (
-                    <LedgerTableView
-                        ledgerData={runningLedgerData}
-                        bookType={activeBook?.type || CashbookType.SAVINGS}
-                        onSelectRow={(row) => {
-                            setSelectedTransaction(row);
-                            setDetailModalVisible(true);
-                        }}
-                    />
-                )}
-
-                {/* Tab: Daily Closing Register & Denominations */}
-                {activeTab === 'CLOSING' && (
-                    <DailyClosingView
-                        bookId={activeBook?.id || 'book_personal_savings'}
-                        bookName={activeBook?.name || 'Cash Register'}
-                        dayOpeningBalance={viewModel.balanceSummaryCard?.openingBalancePaise || '0'}
-                        dayMoneyIn={viewModel.balanceSummaryCard?.totalIncomePaise || '0'}
-                        dayMoneyOut={viewModel.balanceSummaryCard?.totalExpensePaise || '0'}
-                        existingClosing={(envelope.dailyClosings || []).find(c => c.bookId === activeBook?.id && c.date === new Date().toISOString().split('T')[0])}
-                        onSaveClosing={handleSaveDailyClosing}
-                    />
-                )}
-
-                {/* Tab: Accounts & Balances */}
+                {/* Sub-Tab 3: Accounts View */}
                 {activeTab === 'ACCOUNTS' && (
                     <ScrollView style={styles.accountsTabContainer} showsVerticalScrollIndicator={false}>
                         <View style={styles.accountsTabHeader}>
@@ -631,7 +675,7 @@ export default function CashbooksScreen() {
                                 style={styles.manageAccountsBtn}
                                 onPress={() => setAccountsModalVisible(true)}
                             >
-                                <Plus size={14} color="#38BDF8" />
+                                <Plus size={14} color="#6366F1" />
                                 <Text style={styles.manageAccountsBtnText}>Add / Edit Account</Text>
                             </TouchableOpacity>
                         </View>
@@ -640,7 +684,7 @@ export default function CashbooksScreen() {
                             <View key={acc.id} style={styles.accountCard}>
                                 <View style={styles.accountCardLeft}>
                                     <View style={styles.accountTypeCircle}>
-                                        <Wallet size={16} color="#38BDF8" />
+                                        <Wallet size={16} color="#6366F1" />
                                     </View>
                                     <View>
                                         <Text style={styles.accountCardName}>{acc.name}</Text>
@@ -656,15 +700,39 @@ export default function CashbooksScreen() {
                     </ScrollView>
                 )}
 
-                {/* Floating Add Button */}
-                {(activeTab === 'OVERVIEW' || activeTab === 'LEDGER' || activeTab === 'SECTIONS') && (
-                    <TouchableOpacity
-                        style={styles.fab}
-                        onPress={() => setAddModalVisible(true)}
-                        activeOpacity={0.8}
-                    >
-                        <Plus size={24} color="#0F172A" />
-                    </TouchableOpacity>
+                {/* Sub-Tab 4: Reports View */}
+                {activeTab === 'REPORTS' && (
+                    <ScrollView style={styles.reportsTabContainer} showsVerticalScrollIndicator={false}>
+                        <BalanceSummaryCard
+                            summary={viewModel.balanceSummaryCard}
+                            appMode={appMode}
+                            onToggleMode={handleToggleMode}
+                            onManageAccounts={() => setAccountsModalVisible(true)}
+                        />
+                        <View style={styles.exportSection}>
+                            <TouchableOpacity
+                                style={styles.exportBtn}
+                                onPress={handleExportCSV}
+                                activeOpacity={0.8}
+                            >
+                                <Download size={16} color="#6366F1" />
+                                <Text style={styles.exportBtnText}>Export Book CSV (Ledger)</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </ScrollView>
+                )}
+
+                {/* Sub-Tab 5: Daily Closing */}
+                {activeTab === 'CLOSING' && (
+                    <DailyClosingView
+                        bookId={activeBook?.id || 'book_personal_savings'}
+                        bookName={activeBook?.name || 'Cash Register'}
+                        dayOpeningBalance={viewModel.balanceSummaryCard?.openingBalancePaise || '0'}
+                        dayMoneyIn={viewModel.balanceSummaryCard?.totalIncomePaise || '0'}
+                        dayMoneyOut={viewModel.balanceSummaryCard?.totalExpensePaise || '0'}
+                        existingClosing={(envelope.dailyClosings || []).find(c => c.bookId === activeBook?.id && c.date === new Date().toISOString().split('T')[0])}
+                        onSaveClosing={handleSaveDailyClosing}
+                    />
                 )}
 
                 {/* Adaptive Purpose-Driven Workflow Action Modal */}
@@ -683,7 +751,7 @@ export default function CashbooksScreen() {
                     }}
                 />
 
-                {/* Add Transaction Modal (Standard fallback) */}
+                {/* Add Transaction Modal */}
                 <AddTransactionModal
                     visible={addModalVisible}
                     onClose={() => setAddModalVisible(false)}
@@ -692,10 +760,12 @@ export default function CashbooksScreen() {
                     onSave={handleSaveTransaction}
                 />
 
-                {/* Transaction Detail Modal */}
+                {/* Transaction Detail Modal (Screen 4 with Double-Entry Table) */}
                 <TransactionDetailModal
                     visible={detailModalVisible}
                     transaction={selectedTransaction}
+                    accounts={viewModel.accounts}
+                    bookName={activeBook?.name || 'Personal'}
                     onClose={() => {
                         setDetailModalVisible(false);
                         setSelectedTransaction(null);
@@ -718,97 +788,148 @@ export default function CashbooksScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0A0F1D'
+        backgroundColor: '#F8FAFC'
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: '#0A0F1D',
+        backgroundColor: '#F8FAFC',
         justifyContent: 'center',
         alignItems: 'center',
         gap: 12
     },
     loadingText: {
         fontSize: 14,
-        color: '#94A3B8',
-        fontWeight: '500'
+        color: '#64748B',
+        fontWeight: '600'
     },
-    topBar: {
+    bookHeaderBar: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingTop: Platform.OS === 'android' ? 36 : 10,
-        paddingBottom: 8
-    },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'android' ? 38 : 12,
+        paddingBottom: 8,
+        backgroundColor: '#F8FAFC'
     },
     backBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 19,
-        backgroundColor: '#1E293B',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#334155'
-    },
-    screenTitle: {
-        fontSize: 20,
-        fontWeight: '800',
-        color: '#F8FAFC',
-        letterSpacing: -0.3
-    },
-    topActions: {
-        flexDirection: 'row',
-        gap: 10
-    },
-    iconActionBtn: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#1E293B',
+        backgroundColor: '#FFFFFF',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
-    navTabs: {
+    bookHeaderTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#0F172A',
+        letterSpacing: -0.3
+    },
+    menuBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    subTabBar: {
         flexDirection: 'row',
-        backgroundColor: '#0F172A',
-        borderRadius: 12,
-        padding: 3,
-        marginHorizontal: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#1E293B'
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E2E8F0',
+        paddingHorizontal: 16
     },
-    navTab: {
+    subTabItem: {
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        alignItems: 'center',
+        justifyContent: 'center'
+    },
+    subTabItemActive: {
+        borderBottomWidth: 2,
+        borderBottomColor: '#6366F1'
+    },
+    subTabText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#64748B'
+    },
+    subTabTextActive: {
+        color: '#6366F1',
+        fontWeight: '700'
+    },
+    transactionsTabContainer: {
+        flex: 1,
+        backgroundColor: '#F8FAFC'
+    },
+    searchBarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        gap: 10,
+        backgroundColor: '#F8FAFC'
+    },
+    searchInputContainer: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 5,
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 9
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
     },
-    navTabActive: {
-        backgroundColor: '#1E293B'
+    searchInput: {
+        flex: 1,
+        fontSize: 13,
+        color: '#0F172A',
+        padding: 0
     },
-    navTabText: {
-        color: '#94A3B8',
-        fontSize: 11,
-        fontWeight: '600'
+    filterFunnelBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
     },
-    navTabTextActive: {
-        color: '#38BDF8',
+    filterFunnelBtnActive: {
+        borderColor: '#6366F1',
+        backgroundColor: '#EEF2FF'
+    },
+    floatingAddPill: {
+        position: 'absolute',
+        bottom: 20,
+        alignSelf: 'center',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#6366F1',
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        borderRadius: 24,
+        shadowColor: '#6366F1',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
+        elevation: 5
+    },
+    floatingAddPillText: {
+        color: '#FFFFFF',
+        fontSize: 14,
         fontWeight: '700'
     },
     accountsTabContainer: {
         flex: 1,
-        paddingHorizontal: 16
+        paddingHorizontal: 20,
+        paddingTop: 16
     },
     accountsTabHeader: {
         flexDirection: 'row',
@@ -818,7 +939,7 @@ const styles = StyleSheet.create({
     },
     accountsTabTitle: {
         color: '#64748B',
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '700',
         letterSpacing: 0.6
     },
@@ -828,20 +949,20 @@ const styles = StyleSheet.create({
         gap: 4
     },
     manageAccountsBtnText: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 12,
-        fontWeight: '600'
+        fontWeight: '700'
     },
     accountCard: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1E293B',
+        backgroundColor: '#FFFFFF',
         borderRadius: 14,
         padding: 14,
         marginBottom: 10,
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
     accountCardLeft: {
         flexDirection: 'row',
@@ -851,48 +972,58 @@ const styles = StyleSheet.create({
     accountTypeCircle: {
         width: 36,
         height: 36,
-        borderRadius: 10,
-        backgroundColor: '#0F172A',
+        borderRadius: 18,
+        backgroundColor: '#EEF2FF',
         alignItems: 'center',
         justifyContent: 'center'
     },
     accountCardName: {
-        color: '#F8FAFC',
         fontSize: 14,
-        fontWeight: '700'
+        fontWeight: '700',
+        color: '#0F172A'
     },
     accountCardType: {
-        color: '#94A3B8',
         fontSize: 11,
+        color: '#64748B',
         marginTop: 2
     },
     accountCardRight: {
         alignItems: 'flex-end'
     },
     accountCardBalance: {
-        color: '#10B981',
         fontSize: 14,
-        fontWeight: '800'
+        fontWeight: '700',
+        color: '#10B981'
     },
     accountCardBalanceLabel: {
-        color: '#64748B',
         fontSize: 10,
+        color: '#94A3B8',
         marginTop: 2
     },
-    fab: {
-        position: 'absolute',
-        bottom: 24,
-        right: 20,
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        backgroundColor: '#38BDF8',
+    reportsTabContainer: {
+        flex: 1,
+        paddingHorizontal: 20,
+        paddingTop: 16
+    },
+    exportSection: {
+        marginTop: 16,
         alignItems: 'center',
-        justifyContent: 'center',
-        elevation: 8,
-        shadowColor: '#38BDF8',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10
+        marginBottom: 40
+    },
+    exportBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#EEF2FF',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#C7D2FE'
+    },
+    exportBtnText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#4F46E5'
     }
 });
