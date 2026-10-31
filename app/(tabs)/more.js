@@ -78,9 +78,10 @@ export default function MoreScreen() {
                 { name: 'Gamification Zone', route: '/gamification', icon: Target, color: '#F59E0B' },
                 { name: 'Emergency Fund', route: '/emergency', icon: Shield, color: '#EF4444' },
                 { name: 'Travel Plans', route: '/travel', icon: Plane, color: '#3B82F6' },
-                { name: 'Apartment & Hostel', route: '/apartment', icon: Building, color: '#EC4899' },
+                { name: 'My Apartment', route: '/apartment', icon: Building, color: '#EC4899' },
                 { name: 'Hostel Management', route: '/hostel', icon: Home, color: '#8B5CF6' },
-                { name: 'Validity Tracker', route: '/validity', icon: Clock, color: '#F59E0B' },
+                { name: 'Validities', route: '/validity', icon: Clock, color: '#F59E0B' },
+                { name: 'Expiries', route: '/expiries', icon: Bell, color: '#F97316' },
                 { name: 'Tax Reminders', route: '/tax', icon: FileText, color: '#EF4444' },
                 { name: 'Family Tree', route: '/family', icon: UsersIcon, color: '#EC4899' },
                 { name: 'Education Hub', route: '/education-hub', icon: FileText, color: '#EC4899' },
@@ -96,13 +97,20 @@ export default function MoreScreen() {
                 { name: 'Savings Goals', route: '/savings-goals', icon: Target, color: '#EC4899' },
                 { name: 'Time Management', route: '/time-management', icon: Clock, color: '#3B82F6' },
                 { name: 'Todo List', route: '/todos', icon: CheckSquare, color: '#8B5CF6' },
-                { name: 'Career Goals', route: '/career', icon: Target, color: '#4F46E5' },
+                { name: 'Career', route: '/career', icon: Target, color: '#4F46E5' },
+            ]
+        },
+        {
+            category: 'Business Hub',
+            items: [
+                { name: 'Apartment & Society', route: '/business/apartment', icon: Building, color: '#F43F5E' },
+                { name: 'All Businesses', route: '/(tabs)/business', icon: Building2, color: '#8B5CF6' },
             ]
         },
         {
             category: 'Analytics & Verification',
             items: [
-                { name: 'In-App Testing Hub', route: '/(tabs)/testing', icon: ShieldCheck, color: '#10B981' },
+                { name: 'In-App Testing Hub', route: '/(tabs)/testing', icon: Shield, color: '#10B981' },
                 { name: 'Insights', route: '/insights', icon: Sparkles, color: '#4F46E5' },
                 { name: 'Reports', route: '/reports', icon: BarChart3, color: '#52525B' },
             ]

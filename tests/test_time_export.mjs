@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {saveData,loadData,clearAllData,STORAGE_KEYS} from '../services/storage.js';
+import {collectUserData} from '../services/dataExportCollection.js';
+import {PLANNER_STORAGE_KEY,emptyPlanner} from '../services/time/plannerContracts.js';
+const data=Object.create(null);
+Object.defineProperties(data,{getItem:{value:key=>data[key]??null},setItem:{value:(key,value)=>{data[key]=String(value);}},removeItem:{value:key=>{delete data[key];}},clear:{value:()=>{for(const key of Object.keys(data))delete data[key];}}});
+globalThis.localStorage=data;
+const tasks=[{id:1,title:'Legacy export',completed:false}],planner=emptyPlanner('Asia/Kolkata');
+assert.equal((await saveData(STORAGE_KEYS.TODOS,tasks)).success,true);
+assert.equal((await saveData(PLANNER_STORAGE_KEY,planner,{atomic:true})).success,true);
+const result=await collectUserData();
+assert.deepEqual(result[STORAGE_KEYS.TODOS],tasks);assert.deepEqual(result[PLANNER_STORAGE_KEY],planner);
+assert.equal(Object.keys(result).some(key=>/master_key|secret|token/.test(key)),false);
+assert.equal((await clearAllData()).success,true);
+assert.equal(await loadData(PLANNER_STORAGE_KEY,null,{strict:true}),null);
+assert.equal(await loadData(STORAGE_KEYS.TODOS,null,{strict:true}),null);
+console.log('User-data export includes tasks and planner; encrypted adapter round trip and account-clear ownership passed using mock storage only.');

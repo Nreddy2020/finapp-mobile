@@ -73,8 +73,8 @@ console.log('--- SECTION 1: Financial Command Center Navigation Taxonomy ---');
 const layoutPath = path.resolve(process.cwd(), 'app/(tabs)/_layout.js');
 const layoutContent = fs.readFileSync(layoutPath, 'utf8');
 
-runCheck('NAV-01', 'Navigation group is labeled "Financial Command Center"', () => {
-    assert.ok(layoutContent.includes("label: 'Financial Command Center'"), 'Must contain "label: \'Financial Command Center\'"');
+runCheck('NAV-01', 'Navigation group is labeled "Money & Wealth"', () => {
+    assert.ok(layoutContent.includes("label: 'Money & Wealth'"), 'Must contain "label: \'Money & Wealth\'"');
 });
 
 runCheck('NAV-02', 'Backward-compatible metadata preserved ("Money Flow & Cash" alias)', () => {
@@ -83,14 +83,14 @@ runCheck('NAV-02', 'Backward-compatible metadata preserved ("Money Flow & Cash" 
 });
 
 runCheck('NAV-03', 'Contains exactly 4 visual subsections in moneySections', () => {
-    assert.ok(layoutContent.includes("title: 'DAILY MONEY'"), 'Must have DAILY MONEY section');
+    assert.ok(layoutContent.includes("title: 'CASH FLOW & BUDGETS'"), 'Must have CASH FLOW & BUDGETS section');
     assert.ok(layoutContent.includes("title: 'CREDIT & LENDING'"), 'Must have CREDIT & LENDING section');
     assert.ok(layoutContent.includes("title: 'WEALTH & PROPERTY'"), 'Must have WEALTH & PROPERTY section');
     assert.ok(layoutContent.includes("title: 'REPORTS'"), 'Must have REPORTS section');
 });
 
 runCheck('NAV-04', 'Daily Money subsection contains exactly 5 modules', () => {
-    const dailySectionMatch = layoutContent.match(/title:\s*'DAILY MONEY'[\s\S]*?items:\s*\[([\s\S]*?)\]/);
+    const dailySectionMatch = layoutContent.match(/title:\s*'CASH FLOW & BUDGETS'[\s\S]*?items:\s*\[([\s\S]*?)\]/);
     assert.ok(dailySectionMatch, 'Must find DAILY MONEY items array');
     const items = dailySectionMatch[1];
     assert.ok(items.includes("id: 'flow'"), 'Must include flow');

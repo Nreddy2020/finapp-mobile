@@ -47,7 +47,9 @@ import {
     Layers,
     ChevronRight,
     Lock,
-    Clock
+    Clock,
+    Eye,
+    EyeOff
 } from 'lucide-react-native';
 
 import { useGlobalFinance } from '../../components/context/GlobalFinanceContext';
@@ -115,6 +117,7 @@ export default function Dashboard() {
     const [goalsSolvencyDTO, setGoalsSolvencyDTO] = useState(null);
 
     const upcomingData = useMemo(() => getUpcomingOutflows(), []);
+    const [showWidgets, setShowWidgets] = useState(false);
 
     // Simulation Modal State
     const [activeSimulationDTO, setActiveSimulationDTO] = useState(null);
@@ -325,8 +328,37 @@ export default function Dashboard() {
                 </View>
             </Animated.View>
 
-            {/* 2. Executive Balance Sheet Strip */}
-            <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.balanceSheetCard}>
+            {!showWidgets ? (
+                <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.clearedContainer}>
+                    <View style={styles.clearedIconCircle}>
+                        <Sparkles size={32} color="#818CF8" />
+                    </View>
+                    <Text style={styles.clearedTitle}>Dashboard Cleared</Text>
+                    <Text style={styles.clearedSubtitle}>
+                        Content widgets, balance summaries, and action cards have been removed from your dashboard view.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.clearedToggleBtn}
+                        onPress={() => setShowWidgets(true)}
+                    >
+                        <Eye size={16} color="#818CF8" />
+                        <Text style={styles.clearedToggleBtnText}>Restore Widgets</Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            ) : (
+                <>
+                    <View style={styles.clearedTopBar}>
+                        <TouchableOpacity
+                            style={styles.hideWidgetsBtn}
+                            onPress={() => setShowWidgets(false)}
+                        >
+                            <EyeOff size={13} color="#71717A" />
+                            <Text style={styles.hideWidgetsBtnText}>Clear Dashboard</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* 2. Executive Balance Sheet Strip */}
+                    <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.balanceSheetCard}>
                 <LinearGradient
                     colors={['#1E1B4B', '#0F172A']}
                     style={styles.balanceSheetGradient}
@@ -531,6 +563,8 @@ export default function Dashboard() {
                     </TouchableOpacity>
                 </View>
             </Animated.View>
+            </>
+            )}
 
             {/* 6. Interactive What-If Simulation Modal */}
             <WhatIfSimulationModal
@@ -794,5 +828,80 @@ const styles = StyleSheet.create({
     },
     manualPayBadge: {
         color: '#F97316'
+    },
+    clearedContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 28,
+        paddingVertical: 48,
+        marginHorizontal: 16,
+        marginTop: 24,
+        backgroundColor: '#121215',
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#27272A',
+        borderStyle: 'dashed'
+    },
+    clearedIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#1E1B4B',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: '#312E81'
+    },
+    clearedTitle: {
+        color: '#FFFFFF',
+        fontSize: 18,
+        fontWeight: '800',
+        marginBottom: 8,
+        textAlign: 'center'
+    },
+    clearedSubtitle: {
+        color: '#A1A1AA',
+        fontSize: 13,
+        lineHeight: 20,
+        textAlign: 'center',
+        marginBottom: 24
+    },
+    clearedToggleBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#1E1B4B',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#4338CA'
+    },
+    clearedToggleBtnText: {
+        color: '#818CF8',
+        fontSize: 14,
+        fontWeight: '700'
+    },
+    clearedTopBar: {
+        alignItems: 'flex-end',
+        paddingHorizontal: 16,
+        marginBottom: 8
+    },
+    hideWidgetsBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        backgroundColor: '#18181B',
+        borderWidth: 1,
+        borderColor: '#27272A'
+    },
+    hideWidgetsBtnText: {
+        color: '#71717A',
+        fontSize: 11,
+        fontWeight: '600'
     }
 });

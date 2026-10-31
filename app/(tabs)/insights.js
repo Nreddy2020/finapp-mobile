@@ -1,433 +1,172 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, Text, StyleSheet, TouchableOpacity, RefreshControl, Dimensions, TextInput, BackHandler, KeyboardAvoidingView, Platform } from 'react-native';
-import { Brain, TrendingUp, AlertTriangle, MessageSquare, Sparkles, User, Lightbulb, ArrowRight, Zap, History, X, Send, ArrowLeft } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
-import LuxuryCard from '../../components/ui/LuxuryCard';
-import StackHeader from '../../components/ui/StackHeader';
-import { COLORS } from '../../constants/theme';
+/**
+ * app/(tabs)/insights.js — Insights (Decision Intelligence)
+ * Spending DNA, wealth forecast and alerts from the intelligence engine, plus a Decision
+ * Studio: can-I-afford, what-if, subscription audit, savings leaks, goal feasibility,
+ * debt payoff, a prioritised action plan, a weekly digest and an assistant that answers
+ * from the user's own numbers. Everything runs on-device.
+ */
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler, TextInput } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Send, Sparkles } from 'lucide-react-native';
+import { Screen, Card, Btn, Field, MoneyField, Choice, Chip, Notice, Empty, Badge, Stat, Progress, KeyValue, ListItem, useAsyncAction, useMoney, ui, palette, todayLocal } from '../../components/ui/ModuleUI';
 import { FinlifeIntelligenceEngine, SPENDING_PERSONAS } from '../../services/intelligence/finlifeIntelligenceEngine.js';
+import { loadDecisionContext, affordability, whatIf, subscriptionAudit, savingsLeaks, goalFeasibility, debtPayoff, actionPlan, weeklyDigest, answerQuestion } from '../../services/intelligence/decisionEngine.js';
+import { ValidityService, summary as validitySummary } from '../../services/validity/validityService';
+import { TodoService } from '../../services/todos';
+import { taskStats } from '../../services/life/taskViews';
+import { LifeGoalsService, goalPlan } from '../../services/life/lifeGoalsService';
+
+const TABS = [{ value: 'overview', label: 'Overview' }, { value: 'decide', label: 'Decision Studio' }, { value: 'plan', label: 'Action plan' }, { value: 'ask', label: 'Ask' }];
+const VERDICT = { comfortable: ['Comfortable', palette.success], stretch: ['A stretch', palette.warning], avoid: ['Wait', palette.danger] };
 
 export default function InsightsScreen() {
     const router = useRouter();
-    const insets = useSafeAreaInsets();
-
-    const [refreshing, setRefreshing] = useState(false);
+    const money = useMoney();
+    const moneyRef = useRef(money); moneyRef.current = money;
+    const { error, setError } = useAsyncAction();
     const [loading, setLoading] = useState(true);
-    const [snapshot, setSnapshot] = useState(null);
+    const [tab, setTab] = useState('overview');
+    const [ctx, setCtx] = useState(null);
     const [persona, setPersona] = useState(SPENDING_PERSONAS.BALANCED_STRATEGIST);
-    const [forecastData, setForecastData] = useState([]);
-    const [aiTips, setAiTips] = useState([]);
-    const [chatVisible, setChatVisible] = useState(false);
-    const [chatInput, setChatInput] = useState('');
-    const [chatMessages, setChatMessages] = useState([]);
+    const [forecast, setForecast] = useState([]);
+    const [alerts, setAlerts] = useState([]);
+    const [extras, setExtras] = useState({});
+    const [tool, setTool] = useState('afford');
+    const [afford, setAfford] = useState({ price: '', financed: false, downPayment: '', rate: '12', months: '12' });
+    const [wi, setWi] = useState({ incomeDelta: '0', expenseDelta: '0', shock: '', months: '12' });
+    const [usage, setUsage] = useState({});
+    const [goal, setGoal] = useState({ target: '', saved: '', monthly: '', months: '12', rate: '6' });
+    const [extraDebt, setExtraDebt] = useState('');
+    const [strategy, setStrategy] = useState('avalanche');
+    const [chat, setChat] = useState([]);
+    const [input, setInput] = useState('');
+    const today = todayLocal();
 
-    const handleBack = useCallback(() => {
-        if (chatVisible) {
-            setChatVisible(false);
-            return;
-        }
-        if (router.canGoBack()) {
-            router.back();
-        } else {
-            router.replace('/(tabs)');
-        }
-    }, [chatVisible, router]);
-
-    useEffect(() => {
-        const onBackPress = () => {
-            handleBack();
-            return true;
-        };
-        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-        return () => sub.remove();
-    }, [handleBack]);
-
-    const loadIntelligence = async () => {
+    useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); return true; }); return () => sub.remove(); }, [router]);
+    const load = useCallback(async () => {
+        setLoading(true);
         try {
-            const snap = await FinlifeIntelligenceEngine.loadFinancialSnapshot();
-            setSnapshot(snap);
+            const c = await loadDecisionContext();
+            setCtx(c);
+            setPersona(FinlifeIntelligenceEngine.computeSpendingDNA(c.snapshot));
+            setForecast(FinlifeIntelligenceEngine.computeWealthForecast(c.snapshot, 12));
+            setAlerts(FinlifeIntelligenceEngine.generateIntelligenceAlerts(c.snapshot));
+            const [validityItems, tasks, goals] = await Promise.all([ValidityService.list().catch(() => []), TodoService.getTodos().catch(() => []), LifeGoalsService.list().catch(() => [])]);
+            const plans = goals.filter(g => g.status === 'active').map(g => goalPlan(g, today));
+            setExtras({ validity: validitySummary(validityItems, today), tasks: taskStats(tasks, today), goals: { total: plans.length, onTrack: plans.filter(p => p.pace === 'on-track').length, behind: plans.filter(p => p.pace !== 'on-track' && p.pace !== 'achieved').length }, subscriptions: subscriptionAudit(c.recurring.map(r => ({ ...r, usage: usage[r.id] || r.usage }))) });
+            setChat(prev => (prev.length ? prev : [{ sender: 'ai', text: `I read your numbers: income ${moneyRef.current.format(c.monthlyIncome)} a month, spending ${moneyRef.current.format(c.monthlyExpenses)}, cash ${moneyRef.current.format(c.liquidCash)}. Ask me things like "can I afford 30,000", "my runway" or "subscriptions".` }]));
+            setError('');
+        } catch (e) { setError(e.message || 'Insights could not be loaded. Retry.'); }
+        finally { setLoading(false); }
+    }, [today, usage, setError]);
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
-            const computedPersona = FinlifeIntelligenceEngine.computeSpendingDNA(snap);
-            setPersona(computedPersona);
-
-            const forecast = FinlifeIntelligenceEngine.computeWealthForecast(snap, 12);
-            setForecastData(forecast);
-
-            const alerts = FinlifeIntelligenceEngine.generateIntelligenceAlerts(snap);
-            setAiTips(alerts);
-
-            // Initialize chat welcome message
-            const netWorthLakhs = (snap.netWorthPaise / 10000000).toFixed(2);
-            const monthlyBurn = (snap.monthlyExpensePaise / 100).toLocaleString('en-IN');
-            setChatMessages([
-                {
-                    sender: 'ai',
-                    text: `Hello! I have analyzed your financial ledger. Your current tracked net worth is ₹${netWorthLakhs} Lakhs with a monthly burn rate of ₹${monthlyBurn}. How can I assist your financial strategy today?`
-                }
-            ]);
-        } catch (err) {
-            console.warn('[Insights] Failed to load intelligence snapshot:', err);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    useEffect(() => {
-        loadIntelligence();
-    }, []);
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadIntelligence();
-    };
-
-    const handleSendMessage = (userQuery) => {
-        const query = (userQuery || chatInput).trim();
-        if (!query) return;
-
-        const newMessages = [...chatMessages, { sender: 'user', text: query }];
-        setChatMessages(newMessages);
-        setChatInput('');
-
-        // Generate context-aware AI response based on real snapshot
-        setTimeout(() => {
-            let reply = '';
-            const q = query.toLowerCase();
-
-            if (!snapshot) {
-                reply = "I am currently loading your financial state. Please try again in a moment.";
-            } else if (q.includes('tax') || q.includes('save tax')) {
-                reply = "Under Section 80C, you can invest up to ₹1.5L in ELSS, PPF, or EPF. If opting for the New Regime, focus on standard deductions and NPS under 80CCD(2).";
-            } else if (q.includes('debt') || q.includes('loan')) {
-                const debt = (snapshot.outstandingDebtPaise / 100).toLocaleString('en-IN');
-                reply = `You have ₹${debt} in outstanding liabilities. We recommend deploying any surplus bonus to high-interest loans first to eliminate finance charges.`;
-            } else if (q.includes('invest') || q.includes('wealth') || q.includes('stocks')) {
-                const invVal = (snapshot.investmentValuationPaise / 100).toLocaleString('en-IN');
-                reply = `Your active investments stand at ₹${invVal}. At an average 12% CAGR, compounding will double your portfolio in approximately 6 years (Rule of 72).`;
-            } else if (q.includes('emergency') || q.includes('buffer') || q.includes('runway')) {
-                const burn = snapshot.monthlyExpensePaise / 100;
-                const liquid = snapshot.liquidCashPaise / 100;
-                const months = burn > 0 ? (liquid / burn).toFixed(1) : '12+';
-                reply = `You currently have ₹${liquid.toLocaleString('en-IN')} in liquid cash, covering ${months} months of your monthly expenses. Target at least 6 months.`;
-            } else {
-                reply = `Based on your ${persona.title} profile, ${persona.advice}`;
-            }
-
-            setChatMessages([...newMessages, { sender: 'ai', text: reply }]);
-        }, 400);
-    };
-
-    const maxForecastVal = forecastData.length > 0 ? Math.max(...forecastData.map(p => p.value), 1) : 1;
-    const finalPoint = forecastData.length > 0 ? forecastData[forecastData.length - 1] : null;
+    const plan = useMemo(() => (ctx ? actionPlan(ctx.snapshot, { ...extras, tax: extras.tax }) : []), [ctx, extras]);
+    const digest = useMemo(() => (ctx ? weeklyDigest(ctx.snapshot, extras) : []), [ctx, extras]);
+    const affordResult = useMemo(() => { if (!ctx || !afford.price) return null; try { return affordability({ price: afford.price, monthlyIncome: ctx.monthlyIncome, monthlyExpenses: ctx.monthlyExpenses, liquidCash: ctx.liquidCash, monthlyDebt: ctx.monthlyDebt, financing: afford.financed ? { downPayment: afford.downPayment, annualRatePct: afford.rate, months: afford.months } : null }); } catch (e) { return { error: e.message }; } }, [ctx, afford]);
+    const wiResult = useMemo(() => (ctx ? whatIf({ monthlyIncome: ctx.monthlyIncome, monthlyExpenses: ctx.monthlyExpenses, liquidCash: ctx.liquidCash, netWorth: ctx.netWorth, incomeDeltaPct: Number(wi.incomeDelta) || 0, expenseDeltaPct: Number(wi.expenseDelta) || 0, oneTimeShock: Number(wi.shock) || 0, months: Number(wi.months) || 12 }) : null), [ctx, wi]);
+    const subs = useMemo(() => (ctx ? subscriptionAudit(ctx.recurring.map(r => ({ ...r, usage: usage[r.id] || r.usage }))) : null), [ctx, usage]);
+    const leaks = useMemo(() => (ctx ? savingsLeaks(ctx.transactions) : null), [ctx]);
+    const goalResult = useMemo(() => { if (!goal.target) return null; try { return goalFeasibility({ target: goal.target, saved: goal.saved || 0, monthlyContribution: goal.monthly || 0, months: goal.months || 12, annualReturnPct: goal.rate || 0 }); } catch (e) { return { error: e.message }; } }, [goal]);
+    const debt = useMemo(() => (ctx ? debtPayoff([...ctx.loans, ...ctx.emis.map(e => ({ name: e.name || 'EMI', balance: e.outstanding ?? e.outstanding_amount, ratePct: e.interest_rate ?? e.rate, minPayment: e.amount }))], Number(extraDebt) || 0, strategy) : null), [ctx, extraDebt, strategy]);
+    const maxForecast = forecast.length ? Math.max(...forecast.map(p => p.value), 1) : 1;
+    const send = text => { const q = (text ?? input).trim(); if (!q) return; const reply = answerQuestion(q, ctx); setChat(c => [...c, { sender: 'user', text: q }, { sender: 'ai', text: reply }]); setInput(''); };
 
     return (
-        <AnimatedScreen style={styles.container}>
-            <ScrollView
-                contentContainerStyle={[styles.scrollContent, { paddingTop: Math.max(insets.top, 24) + 12 }]}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} progressBackgroundColor="#18181B" />}
-            >
-                {/* Header with Back Button */}
-                <View style={styles.topBar}>
-                    <TouchableOpacity
-                        onPress={handleBack}
-                        style={styles.backBtn}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                        <ArrowLeft size={20} color="#F8FAFC" />
-                    </TouchableOpacity>
-                    <View style={styles.headerTitles}>
-                        <Text style={styles.headerCategory}>DECISION INTELLIGENCE</Text>
-                        <Text style={styles.headerTitle}>Insights 🧠</Text>
-                    </View>
-                    <View style={styles.aiBadge}>
-                        <Sparkles size={14} color="#8B5CF6" />
-                        <Text style={styles.aiBadgeText}>AI Active</Text>
-                    </View>
+        <Screen title="Insights" subtitle="Decisions from your own numbers, not guesses." loading={loading} error={error} retry={load} tabs={TABS} tab={tab} onTab={setTab}
+            right={<View style={[ui.row, { gap: 6 }]}><Sparkles size={14} color="#8B5CF6" /><Text style={{ color: '#8B5CF6', fontWeight: '700', fontSize: 12 }}>On-device</Text></View>}>
+            {ctx && tab === 'overview' && <>
+                {!ctx.snapshot.transactionsCount && !ctx.hasIncomeData && <Notice warning>No transactions or income recorded yet. Add a few in Money Flow or Income so these insights reflect you, not a placeholder.</Notice>}
+                <View style={ui.wrap}>
+                    <Stat label="Monthly income" value={money.format(ctx.monthlyIncome)} />
+                    <Stat label="Monthly spend" value={money.format(ctx.monthlyExpenses)} />
+                    <Stat label="Cash runway" value={ctx.monthlyExpenses > 0 ? `${(ctx.liquidCash / ctx.monthlyExpenses).toFixed(1)} mo` : '—'} color={ctx.monthlyExpenses > 0 && ctx.liquidCash / ctx.monthlyExpenses < 3 ? palette.danger : palette.success} />
+                    <Stat label="Net worth" value={money.format(ctx.netWorth)} />
                 </View>
-
-                {/* Spending DNA Card */}
-                <View style={styles.section}>
-                    <LuxuryCard style={styles.dnaCard}>
-                        <LinearGradient
-                            colors={[`${persona.color}25`, '#00000000']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.cardGlow}
-                        />
-                        <View style={styles.dnaHeader}>
-                            <View style={[styles.iconBox, { backgroundColor: `${persona.color}20` }]}>
-                                <User size={24} color={persona.color} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.dnaLabel, { color: persona.color }]}>SPENDING DNA PERSONA</Text>
-                                <Text style={styles.dnaTitle}>{persona.title}</Text>
-                            </View>
-                        </View>
-                        <Text style={styles.dnaDesc}>{persona.desc}</Text>
-                        <View style={styles.adviceBox}>
-                            <Lightbulb size={16} color={persona.color} style={{ marginTop: 2 }} />
-                            <Text style={[styles.adviceText, { color: '#D4D4D8' }]}>{persona.advice}</Text>
-                        </View>
-                    </LuxuryCard>
-                </View>
-
-                {/* Wealth Forecast */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Wealth Forecast (5 Years @ 12% CAGR)</Text>
-                    <LuxuryCard style={styles.forecastCard}>
-                        <View style={styles.chartContainer}>
-                            {forecastData.map((point, index) => {
-                                const heightPct = Math.max(12, Math.round((point.value / maxForecastVal) * 100));
-                                const isFinal = index === forecastData.length - 1;
-                                return (
-                                    <View key={point.year} style={styles.chartBarWrapper}>
-                                        <View style={[styles.chartBar, { height: `${heightPct}%`, backgroundColor: isFinal ? '#10B981' : '#3F3F46' }]}>
-                                            {isFinal && (
-                                                <View style={styles.chartTooltip}>
-                                                    <Text style={styles.tooltipText}>{point.formattedValue}</Text>
-                                                </View>
-                                            )}
-                                        </View>
-                                        <Text style={styles.chartLabel}>{point.year}</Text>
-                                    </View>
-                                );
-                            })}
-                        </View>
-                        <Text style={styles.forecastCaption}>
-                            At your current savings rate, projected net worth reaches <Text style={{ color: '#10B981', fontWeight: '700' }}>{finalPoint?.formattedValue || '₹0'}</Text> by {finalPoint?.year || '2031'}.
-                        </Text>
-                    </LuxuryCard>
-                </View>
-
-                {/* Smart Alerts */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Smart Algorithmic Alerts</Text>
-                    <View style={{ gap: 12 }}>
-                        {aiTips.map((tip) => (
-                            <LuxuryCard key={tip.id} style={styles.alertCard}>
-                                <View style={[styles.alertIcon, { backgroundColor: `${tip.color}20` }]}>
-                                    <AlertTriangle size={20} color={tip.color} />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.alertTitle}>{tip.title}</Text>
-                                    <Text style={styles.alertMsg}>{tip.msg}</Text>
-                                </View>
-                                <ArrowRight size={16} color="#52525B" />
-                            </LuxuryCard>
-                        ))}
+                {(ctx.snapshot.transactionsCount > 0 || ctx.hasIncomeData) ? <Card title={persona.title} subtitle="Spending DNA"><Text style={ui.text}>{persona.desc}</Text><Text style={ui.muted}>{persona.advice}</Text></Card>
+                    : <Card title="Spending DNA" subtitle="Not enough data yet"><Text style={ui.muted}>Your spending style appears after a month of transactions or a declared income.</Text></Card>}
+                <Card title="Wealth forecast (5 years at 12%)" subtitle="Compounds your current savings rate. Change the rate in Markets calculators.">
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 120 }}>
+                        {forecast.map((p, i) => <View key={p.year} style={{ alignItems: 'center', flex: 1, gap: 6 }}><View style={{ width: 12, borderRadius: 6, height: `${Math.max(8, Math.round((p.value / maxForecast) * 100))}%`, backgroundColor: i === forecast.length - 1 ? palette.success : '#3F3F46' }} /><Text style={ui.muted}>{p.year}</Text></View>)}
                     </View>
-                </View>
+                    {!!forecast.length && <Text style={ui.muted}>Projected net worth {money.format(forecast[forecast.length - 1].value)} by {forecast[forecast.length - 1].year}.</Text>}
+                </Card>
+                <Card title="Alerts">{alerts.map(a => <ListItem key={a.id}><Text style={[ui.text, { fontWeight: '700', color: a.color }]}>{a.title}</Text><Text style={ui.muted}>{a.msg}</Text></ListItem>)}</Card>
+                <Card title="This week in one glance">{digest.map((l, i) => <Text key={i} style={ui.text}>• {l}</Text>)}</Card>
+            </>}
 
-            </ScrollView>
+            {ctx && tab === 'decide' && <>
+                <View style={ui.wrap}>{[['afford', 'Can I afford it?'], ['whatif', 'What if…'], ['subs', 'Subscriptions'], ['leaks', 'Small leaks'], ['goal', 'Reach a goal'], ['debt', 'Pay off debt']].map(([v, l]) => <Chip key={v} label={l} active={tool === v} onPress={() => setTool(v)} />)}</View>
+                {tool === 'afford' && <Card title="Can I afford it?" subtitle="Uses your cash, spending, debt payments and a 6-month buffer.">
+                    <MoneyField label="Price" value={afford.price} onChangeText={v => setAfford(a => ({ ...a, price: v }))} />
+                    <Choice options={[{ value: false, label: 'Pay in full' }, { value: true, label: 'On instalments' }]} value={afford.financed} onChange={v => setAfford(a => ({ ...a, financed: v }))} />
+                    {afford.financed && <View style={ui.row}><View style={ui.flex}><MoneyField label="Down payment" value={afford.downPayment} onChangeText={v => setAfford(a => ({ ...a, downPayment: v }))} /></View><View style={ui.flex}><Field label="Rate %" numeric value={afford.rate} onChangeText={v => setAfford(a => ({ ...a, rate: v }))} /></View><View style={ui.flex}><Field label="Months" numeric value={afford.months} onChangeText={v => setAfford(a => ({ ...a, months: v }))} /></View></View>}
+                    {affordResult?.error && <Notice>{affordResult.error}</Notice>}
+                    {affordResult && !affordResult.error && <>
+                        <Badge text={VERDICT[affordResult.verdict][0].toUpperCase()} color={VERDICT[affordResult.verdict][1]} />
+                        {affordResult.reasons.map((r, i) => <Text key={i} style={ui.text}>• {r}</Text>)}
+                        {affordResult.emi > 0 && <KeyValue label="Monthly instalment" value={money.format(affordResult.emi)} />}
+                        <KeyValue label="Cash left after" value={money.format(affordResult.cashAfter)} color={affordResult.cashAfter < 0 ? palette.danger : undefined} />
+                        <KeyValue label="Runway after" value={`${affordResult.runwayAfterMonths} months`} />
+                        {affordResult.monthsToSaveBeforeBuying > 0 && <KeyValue label="Comfortable if you wait" value={`${affordResult.monthsToSaveBeforeBuying} months`} color={palette.warning} />}
+                    </>}
+                </Card>}
+                {tool === 'whatif' && wiResult && <Card title="What if…" subtitle="Change income or spending, add a one-time shock, and see the path.">
+                    <View style={ui.row}><View style={ui.flex}><Field label="Income change %" numeric value={wi.incomeDelta} onChangeText={v => setWi(w => ({ ...w, incomeDelta: v }))} /></View><View style={ui.flex}><Field label="Spending change %" numeric value={wi.expenseDelta} onChangeText={v => setWi(w => ({ ...w, expenseDelta: v }))} /></View></View>
+                    <View style={ui.row}><View style={ui.flex}><MoneyField label="One-time shock" value={wi.shock} onChangeText={v => setWi(w => ({ ...w, shock: v }))} /></View><View style={ui.flex}><Field label="Months" numeric value={wi.months} onChangeText={v => setWi(w => ({ ...w, months: v }))} /></View></View>
+                    <View style={ui.wrap}><Chip label="Lose job" onPress={() => setWi(w => ({ ...w, incomeDelta: '-100' }))} /><Chip label="Medical bill" onPress={() => setWi(w => ({ ...w, shock: String(Math.round(ctx.monthlyExpenses * 3)) }))} /><Chip label="10% raise" onPress={() => setWi(w => ({ ...w, incomeDelta: '10' }))} /><Chip label="Cut spending 15%" onPress={() => setWi(w => ({ ...w, expenseDelta: '-15' }))} /><Chip label="Reset" onPress={() => setWi({ incomeDelta: '0', expenseDelta: '0', shock: '', months: '12' })} /></View>
+                    <KeyValue label="Monthly surplus" value={money.format(wiResult.monthlySurplus)} color={wiResult.monthlySurplus >= 0 ? palette.success : palette.danger} />
+                    {wiResult.runsOutInMonth && <KeyValue label="Cash runs out in" value={`month ${wiResult.runsOutInMonth}`} color={palette.danger} />}
+                    <KeyValue label={`Cash after ${wiResult.path.length} months`} value={money.format(wiResult.endCash)} />
+                    <KeyValue label="Net worth then" value={money.format(wiResult.endNetWorth)} />
+                </Card>}
+                {tool === 'subs' && subs && <Card title="Subscription audit" subtitle={`${subs.items.length} recurring payments from Recurring Commitments. Mark how much you use each.`}>
+                    {!subs.items.length && <Empty title="No recurring payments" body="Add them in Recurring so this audit can find waste." action="Open Recurring" onAction={() => router.push('/(tabs)/recurring')} />}
+                    <KeyValue label="Per year" value={money.format(subs.annualTotal)} /><KeyValue label="Per month" value={money.format(subs.monthlyTotal)} />
+                    {subs.wastePerYear > 0 && <KeyValue label="Rarely used, per year" value={money.format(subs.wastePerYear)} color={palette.danger} />}
+                    {ctx.recurring.map(r => <ListItem key={r.id}><KeyValue label={`${r.name || r.title} · ${r.frequency || 'monthly'}`} value={money.format(r.amount)} /><View style={ui.wrap}>{['daily', 'weekly', 'rarely', 'never'].map(u => <Chip key={u} label={u} active={(usage[r.id] || r.usage) === u} onPress={() => setUsage(s => ({ ...s, [r.id]: u }))} />)}</View></ListItem>)}
+                    {subs.suggestions.map((s, i) => <Text key={i} style={ui.text}>• {s}</Text>)}
+                </Card>}
+                {tool === 'leaks' && leaks && <Card title="Small leaks" subtitle={`Spends under ${money.format(500)} that repeat, over the last ${leaks.days} days.`}>
+                    {!leaks.leaks.length && <Text style={ui.muted}>{leaks.considered ? 'No repeating small spends found.' : 'No small transactions recorded in this window.'}</Text>}
+                    {leaks.leaks.map(l => <KeyValue key={l.name} label={`${l.name} · ${l.count}× · avg ${money.format(l.average)}`} value={`${money.format(l.monthly)}/mo`} />)}
+                    {!!leaks.leaks.length && <KeyValue label="Adds up to, per year" value={money.format(leaks.yearlyTotal)} color={palette.warning} />}
+                </Card>}
+                {tool === 'goal' && <Card title="Reach a goal" subtitle="How much per month gets you there, and where your current pace lands.">
+                    <View style={ui.row}><View style={ui.flex}><MoneyField label="Target" value={goal.target} onChangeText={v => setGoal(g => ({ ...g, target: v }))} /></View><View style={ui.flex}><MoneyField label="Saved so far" value={goal.saved} onChangeText={v => setGoal(g => ({ ...g, saved: v }))} /></View></View>
+                    <View style={ui.row}><View style={ui.flex}><MoneyField label="Monthly now" value={goal.monthly} onChangeText={v => setGoal(g => ({ ...g, monthly: v }))} /></View><View style={ui.flex}><Field label="Months" numeric value={goal.months} onChangeText={v => setGoal(g => ({ ...g, months: v }))} /></View><View style={ui.flex}><Field label="Return %" numeric value={goal.rate} onChangeText={v => setGoal(g => ({ ...g, rate: v }))} /></View></View>
+                    {goalResult?.error && <Notice>{goalResult.error}</Notice>}
+                    {goalResult && !goalResult.error && <><KeyValue label="You would reach" value={money.format(goalResult.projected)} color={goalResult.onTrack ? palette.success : palette.warning} /><KeyValue label="Needed per month" value={money.format(goalResult.requiredMonthly)} />{goalResult.monthsToTargetAtCurrentPace !== null && <KeyValue label="At current pace" value={`${goalResult.monthsToTargetAtCurrentPace} months`} />}</>}
+                    <Btn title="Save as a goal in Tasks & Goals" secondary onPress={() => router.push({ pathname: '/(tabs)/todos', params: { tab: 'goals' } })} />
+                </Card>}
+                {tool === 'debt' && debt && <Card title="Pay off debt" subtitle="From your saved loans and EMIs.">
+                    {!debt.order.length && <Empty title="No debt recorded" body="Add loans or EMIs to plan the payoff." action="Open Loans" onAction={() => router.push('/(tabs)/loans')} />}
+                    {!!debt.order.length && <>
+                        <Choice options={[{ value: 'avalanche', label: 'Highest rate first (cheapest)' }, { value: 'snowball', label: 'Smallest first (motivating)' }]} value={strategy} onChange={setStrategy} />
+                        <MoneyField label="Extra per month" value={extraDebt} onChangeText={setExtraDebt} />
+                        <KeyValue label="Debt-free in" value={`${debt.months} months`} color={palette.success} /><KeyValue label="Interest paid" value={money.format(debt.totalInterest)} />
+                        <Text style={ui.muted}>Order: {debt.order.join(' → ')}</Text>
+                    </>}
+                </Card>}
+            </>}
 
-            {/* "Ask AI" Fab */}
-            <TouchableOpacity style={[styles.fab, { bottom: insets.bottom + 90 }]} onPress={() => setChatVisible(!chatVisible)}>
-                <LinearGradient
-                    colors={['#8B5CF6', '#6366F1']}
-                    style={styles.fabGradient}
-                >
-                    {chatVisible ? <X size={24} color="#FFF" /> : <MessageSquare size={24} color="#FFF" />}
-                </LinearGradient>
-            </TouchableOpacity>
+            {ctx && tab === 'plan' && <>
+                <Text style={ui.muted}>Ranked by what protects you most. Each item opens the module where you act.</Text>
+                {plan.map((a, i) => <TouchableOpacity key={a.id} accessibilityRole="button" accessibilityLabel={a.title} onPress={() => router.push(a.route)} style={ui.card}><View style={ui.row}><Badge text={`#${i + 1}`} color={a.priority === 1 ? palette.danger : a.priority === 2 ? palette.warning : palette.info} /><Text style={[ui.heading, ui.flex]}>{a.title}</Text></View><Text style={ui.muted}>{a.why}</Text></TouchableOpacity>)}
+                {extras.validity && <Card title="Life admin"><KeyValue label="Documents needing action" value={String(extras.validity.needsAction)} color={extras.validity.needsAction ? palette.warning : palette.success} /><KeyValue label="Tasks overdue" value={String(extras.tasks?.overdue ?? 0)} color={extras.tasks?.overdue ? palette.danger : undefined} /><KeyValue label="Goals behind pace" value={String(extras.goals?.behind ?? 0)} /></Card>}
+            </>}
 
-            {/* Interactive Context-Aware AI Chat Overlay */}
-            {chatVisible && (
-                <View style={[styles.chatOverlay, { bottom: insets.bottom + 155 }]}>
-                    <View style={styles.chatHeader}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Sparkles size={16} color="#8B5CF6" />
-                            <Text style={styles.chatTitle}>FinLife AI Assistant</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setChatVisible(false)}>
-                            <X size={18} color="#A1A1AA" />
-                        </TouchableOpacity>
+            {ctx && tab === 'ask' && <>
+                <Card title="Ask about your money" subtitle="Answers come from your saved data, on this device.">
+                    {chat.map((m, i) => <View key={i} style={{ alignSelf: m.sender === 'user' ? 'flex-end' : 'flex-start', backgroundColor: m.sender === 'user' ? '#6366F1' : '#27272A', padding: 12, borderRadius: 14, maxWidth: '90%' }}><Text style={[ui.text, m.sender === 'user' && { color: '#FFF' }]}>{m.text}</Text></View>)}
+                    <View style={ui.wrap}>{['Can I afford 25,000?', 'My runway', 'My debt', 'Subscriptions', 'How much should I save?'].map(q => <Chip key={q} label={q} onPress={() => send(q)} />)}</View>
+                    <View style={ui.row}>
+                        <TextInput accessibilityLabel="Your question" style={[ui.input, ui.flex]} placeholder="Type a question" placeholderTextColor="#87879C" value={input} onChangeText={setInput} onSubmitEditing={() => send()} returnKeyType="send" />
+                        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send" onPress={() => send()} style={[ui.button, { width: 48, paddingHorizontal: 0 }]}><Send size={18} color="#FFF" /></TouchableOpacity>
                     </View>
-                    <ScrollView style={styles.chatMessagesScroll} contentContainerStyle={{ gap: 10 }}>
-                        {chatMessages.map((msg, idx) => (
-                            <View
-                                key={idx}
-                                style={[
-                                    styles.chatBubble,
-                                    msg.sender === 'user' ? styles.userBubble : styles.aiBubble
-                                ]}
-                            >
-                                <Text style={msg.sender === 'user' ? styles.userBubbleText : styles.aiBubbleText}>
-                                    {msg.text}
-                                </Text>
-                            </View>
-                        ))}
-                    </ScrollView>
-
-                    {/* Quick suggestion chips */}
-                    <View style={styles.chatSuggestions}>
-                        <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSendMessage('How to save tax?')}>
-                            <Text style={styles.suggestionText}>Tax Tips</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSendMessage('Analyze my debt')}>
-                            <Text style={styles.suggestionText}>Debt Strategy</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.suggestionChip} onPress={() => handleSendMessage('Emergency fund runway')}>
-                            <Text style={styles.suggestionText}>Runway</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Chat Input Bar */}
-                    <View style={styles.chatInputRow}>
-                        <TextInput
-                            style={styles.chatTextInput}
-                            placeholder="Ask about your finances..."
-                            placeholderTextColor="#71717A"
-                            value={chatInput}
-                            onChangeText={setChatInput}
-                            onSubmitEditing={() => handleSendMessage()}
-                        />
-                        <TouchableOpacity style={styles.sendBtn} onPress={() => handleSendMessage()}>
-                            <Send size={16} color="#FFF" />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
-        </AnimatedScreen>
+                </Card>
+            </>}
+        </Screen>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000000' },
-    scrollContent: { paddingBottom: 120 },
-    topBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 24,
-        marginBottom: 20
-    },
-    backBtn: {
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        backgroundColor: '#18181B',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    headerTitles: { flex: 1, marginLeft: 16 },
-    headerCategory: { fontSize: 11, fontWeight: '800', color: '#71717A', letterSpacing: 1.5 },
-    headerTitle: { fontSize: 24, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-
-    aiBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: '#8B5CF620',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#8B5CF640'
-    },
-    aiBadgeText: { color: '#8B5CF6', fontWeight: '700', fontSize: 12 },
-
-    section: { paddingHorizontal: 24, marginBottom: 28 },
-    sectionTitle: { fontSize: 12, fontWeight: '800', color: '#71717A', marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase' },
-
-    dnaCard: { padding: 20, backgroundColor: '#18181B', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#FFFFFF10' },
-    cardGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.5 },
-    dnaHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 12 },
-    iconBox: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    dnaLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-    dnaTitle: { fontSize: 22, fontWeight: '800', color: '#FFF' },
-    dnaDesc: { fontSize: 14, color: '#A1A1AA', lineHeight: 20, marginBottom: 12 },
-    adviceBox: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        gap: 10,
-        backgroundColor: '#27272A80',
-        padding: 12,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#3F3F4650'
-    },
-    adviceText: { flex: 1, fontSize: 13, lineHeight: 18 },
-
-    forecastCard: { padding: 20, backgroundColor: '#18181B', borderRadius: 24, borderWidth: 1, borderColor: '#FFFFFF10' },
-    chartContainer: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 150, marginBottom: 16 },
-    chartBarWrapper: { alignItems: 'center', gap: 8, flex: 1 },
-    chartBar: { width: 10, borderRadius: 5, position: 'relative', alignItems: 'center' },
-    chartLabel: { fontSize: 11, color: '#71717A', fontWeight: '600' },
-    chartTooltip: { position: 'absolute', top: -30, backgroundColor: '#10B981', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-    tooltipText: { fontSize: 10, color: '#000', fontWeight: '800' },
-    forecastCaption: { color: '#A1A1AA', fontSize: 13, textAlign: 'center', lineHeight: 20 },
-
-    alertCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, backgroundColor: '#18181B', borderRadius: 18, borderWidth: 1, borderColor: '#FFFFFF08' },
-    alertIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-    alertTitle: { color: '#FFF', fontWeight: '700', fontSize: 14, marginBottom: 2 },
-    alertMsg: { color: '#A1A1AA', fontSize: 13, lineHeight: 18 },
-
-    fab: {
-        position: 'absolute',
-        right: 20,
-        width: 54,
-        height: 54,
-        borderRadius: 27,
-        elevation: 8,
-        shadowColor: '#8B5CF6',
-        shadowOpacity: 0.4,
-        shadowRadius: 10
-    },
-    fabGradient: { flex: 1, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
-
-    chatOverlay: {
-        position: 'absolute',
-        right: 20,
-        left: 20,
-        height: 380,
-        backgroundColor: '#18181B',
-        borderRadius: 24,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: '#8B5CF660',
-        elevation: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.6,
-        shadowRadius: 16
-    },
-    chatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-    chatTitle: { color: '#8B5CF6', fontWeight: '800', fontSize: 14 },
-    chatMessagesScroll: { flex: 1, marginBottom: 12 },
-    chatBubble: { padding: 12, borderRadius: 14, maxWidth: '85%' },
-    userBubble: { alignSelf: 'flex-end', backgroundColor: '#6366F1' },
-    userBubbleText: { color: '#FFF', fontSize: 13, fontWeight: '500' },
-    aiBubble: { alignSelf: 'flex-start', backgroundColor: '#27272A', borderWidth: 1, borderColor: '#3F3F4650' },
-    aiBubbleText: { color: '#F4F4F5', fontSize: 13, lineHeight: 18 },
-
-    chatSuggestions: { flexDirection: 'row', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
-    suggestionChip: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: '#27272A', borderRadius: 10, borderWidth: 1, borderColor: '#3F3F46' },
-    suggestionText: { color: '#A1A1AA', fontSize: 11, fontWeight: '700' },
-
-    chatInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    chatTextInput: {
-        flex: 1,
-        height: 40,
-        backgroundColor: '#09090B',
-        borderRadius: 12,
-        paddingHorizontal: 14,
-        color: '#FFF',
-        fontSize: 13,
-        borderWidth: 1,
-        borderColor: '#27272A'
-    },
-    sendBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: '#8B5CF6',
-        alignItems: 'center',
-        justifyContent: 'center'
-    }
-});

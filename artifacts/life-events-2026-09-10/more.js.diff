@@ -1,0 +1,12 @@
+diff --git "a/C:\\Users\\nirwa\\.codex\\worktrees\\0685\\fintech-mobile\\.life-events-work\\originals\\more.js" "b/E:\\fintech-mobile\\app\\family\\more.js"
+index 25b0c03..de3c4e7 100644
+--- "a/C:\\Users\\nirwa\\.codex\\worktrees\\0685\\fintech-mobile\\.life-events-work\\originals\\more.js"
++++ "b/E:\\fintech-mobile\\app\\family\\more.js"
+@@ -37,6 +37,7 @@ export default function FamilyMoreScreen() {
+     }, []);
+ 
+     const gateways = [
++        { id: 'life-events', title: 'Life Events', subtitle: 'Prepare for a new school year with linked Operations tasks', icon: Calendar, route: '/family/more/life-events' },
+         {
+             id: 'goals',
+             title: 'Family Goals & Milestones',

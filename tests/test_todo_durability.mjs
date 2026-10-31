@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {StorageService as storage,STORAGE_KEYS} from '../services/storage.js';
+import {TodoService as todos} from '../services/todos.js';
+let disk=[],writes=0,fail=false,readFail=false,count=0;
+storage.load=async(key,fallback,options)=>{assert.equal(key,STORAGE_KEYS.TODOS);assert.equal(options.strict,true);if(readFail)throw Error('read unavailable');return structuredClone(disk);};
+storage.save=async(key,value)=>{writes++;if(fail){fail=false;return{success:false};}disk=structuredClone(value);return{success:true};};
+async function test(name,fn){await fn();count++;console.log('PASS '+name);}
+await test('Legacy numeric IDs/title/completed/dueDate adapt without write',async()=>{disk=[{id:1,title:'Legacy',completed:true,dueDate:'2026-09-20',extra:{preserved:true}}];const before=writes;const data=await todos.getTodos();assert.equal(data[0].id,1);assert.equal(data[0].task,'Legacy');assert.equal(data[0].status,'completed');assert.equal(data[0].deadline,'2026-09-20');assert.equal(writes,before);assert.equal(disk[0].task,undefined);});
+await test('Updates retain legacy ID and unknown fields',async()=>{await todos.setStatus(1,'pending');assert.equal(disk[0].id,1);assert.deepEqual(disk[0].extra,{preserved:true});assert.equal(disk[0].title,'Legacy');});
+await test('Concurrent additions retain both records with unique IDs',async()=>{await Promise.all([todos.addTodo({task:'A'}),todos.addTodo({task:'B'})]);assert.equal(disk.length,3);assert.equal(new Set(disk.map(t=>t.id)).size,3);});
+await test('Failed save rejects and preserves confirmed records; retry works',async()=>{const before=structuredClone(disk);fail=true;await assert.rejects(todos.addTodo({task:'Retry'},{requestId:'r1'}),/could not be saved/);assert.deepEqual(disk,before);await todos.addTodo({task:'Retry'},{requestId:'r1'});assert.equal(disk.filter(t=>t.task==='Retry').length,1);});
+await test('Duplicate request retry is no-write and conflicting reuse rejects',async()=>{const before=writes;await todos.addTodo({task:'Retry'},{requestId:'r1'});assert.equal(writes,before);await assert.rejects(todos.addTodo({task:'Different'},{requestId:'r1'}),/already saved/);});
+await test('Explicit completion is idempotent and queued changes survive',async()=>{const id=disk.find(t=>t.task==='A').id;await Promise.all([todos.setStatus(id,'completed'),todos.addTodo({task:'C'})]);const before=writes;await todos.setStatus(id,'completed');assert.equal(writes,before);assert.ok(disk.some(t=>t.task==='C'));assert.equal(disk.find(t=>t.id===id).status,'completed');});
+await test('Read failure never permits overwrite',async()=>{const before=writes;readFail=true;await assert.rejects(todos.addTodo({task:'No overwrite'}),/read unavailable/);assert.equal(writes,before);readFail=false;});
+await test('Malformed and duplicate saved records reject without writes',async()=>{const saved=structuredClone(disk),before=writes;for(const bad of [{bad:true},[{id:'x',task:'A'},{id:'x',task:'B'}],[null]]){disk=bad;await assert.rejects(todos.addTodo({task:'No overwrite'}),/could not be read/);}assert.equal(writes,before);disk=saved;});
+await test('Blank titles and unknown status reject without mutation',async()=>{const before=writes;await assert.rejects(todos.addTodo({task:' '}),/title/);await assert.rejects(todos.setStatus(1,'invented'),/Invalid task status/);assert.equal(writes,before);});
+await test('Returned rows cannot mutate stored records',async()=>{const rows=await todos.getTodos();rows[0].task='changed outside';assert.notEqual((await todos.getTodos())[0].task,'changed outside');});
+console.log(count+' task durability cases passed using fixture storage only.');

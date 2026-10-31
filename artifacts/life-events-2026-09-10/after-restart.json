@@ -1,0 +1,38 @@
+{
+  "displayedPreparations": [
+    {
+      "id": "life_1789035464959_yzx3w05d2m",
+      "resolved": true,
+      "sourceState": "COMPLETED",
+      "taskId": "task_1789035569247_6f3ld3u",
+      "taskTitle": "School uniforms - Life Events test",
+      "title": "Uniforms ready"
+    }
+  ],
+  "eventId": "life_1789035435804_39dgrhliup8",
+  "eventStorageKeys": [
+    "id",
+    "householdId",
+    "kind",
+    "title",
+    "targetDate",
+    "coordinatorPersonId",
+    "beneficiaryPersonId",
+    "preparations",
+    "createdAt"
+  ],
+  "persistedPreparations": [
+    {
+      "id": "life_1789035464959_yzx3w05d2m",
+      "taskId": "task_1789035569247_6f3ld3u",
+      "title": "Uniforms ready"
+    }
+  ],
+  "sourceTasks": [
+    {
+      "id": "task_1789035569247_6f3ld3u",
+      "status": "COMPLETED"
+    }
+  ],
+  "testTaskCount": 1
+}

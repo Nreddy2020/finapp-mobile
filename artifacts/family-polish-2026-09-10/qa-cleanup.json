@@ -1,0 +1,55 @@
+{
+  "qaHouseholdAbsent": true,
+  "qaPersonAbsent": true,
+  "remainingCollections": {
+    "budgetPools": 5,
+    "documents": 2,
+    "emergencyContacts": 1,
+    "financialLinks": 1,
+    "forecastScenarios": 0,
+    "goals": 0,
+    "households": 1,
+    "memberIncomeStreams": 0,
+    "memberships": 1,
+    "people": 1,
+    "protectionItems": 1,
+    "relationships": 0,
+    "responsibilities": 1,
+    "tasks": 3,
+    "trustedCircle": 0
+  },
+  "removed": [
+    {
+      "collection": "people",
+      "id": "p_mtvg37e7_qtanyu"
+    },
+    {
+      "collection": "households",
+      "id": "hh_mtvg37e8_3pyae2"
+    },
+    {
+      "collection": "memberships",
+      "id": "hm_mtvg37ek_33b65w"
+    },
+    {
+      "collection": "tasks",
+      "id": "task_1789042334760_050gm1i"
+    },
+    {
+      "collection": "emergencyContacts",
+      "id": "emc_mtvhy0wv_0h8cg3"
+    },
+    {
+      "collection": "budgetPools",
+      "id": "pool_1789043431075_5xy995"
+    },
+    {
+      "collection": "memberIncomeStreams",
+      "id": "inc_1789041539576_b82yu"
+    },
+    {
+      "collection": "goals",
+      "id": "goal_1789040414433_uhuup"
+    }
+  ]
+}

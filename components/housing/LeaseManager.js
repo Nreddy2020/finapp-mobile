@@ -1,88 +1,60 @@
-import React from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { X, FileText, Calendar, Phone, AlertTriangle } from 'lucide-react-native';
+/**
+ * components/housing/LeaseManager.js
+ * Real lease record: address, landlord, rent, deposit, dates, notice period, escalation.
+ * Shows renewal window and notice deadline derived from the saved dates.
+ */
+import React, { useEffect, useState } from 'react';
+import { View, Text, Linking } from 'react-native';
+import { Sheet, Card, Btn, Field, MoneyField, DateField, Notice, Badge, KeyValue, useAsyncAction, useMoney, ui, palette, todayLocal, confirm } from '../ui/ModuleUI';
+import { ApartmentService, leaseStatus } from '../../services/apartment';
 
-export default function LeaseManager({ visible, onClose }) {
+const blank = { address: '', landlordName: '', landlordPhone: '', rent: '', deposit: '', startDate: '', endDate: '', noticeDays: '30', rentDueDay: '1', escalationPercent: '0', notes: '' };
+export default function LeaseManager({ visible, onClose, lease, onSaved }) {
+    const money = useMoney();
+    const { busy, error, run } = useAsyncAction();
+    const [editing, setEditing] = useState(!lease);
+    const [form, setForm] = useState(blank);
+    useEffect(() => { if (!visible) return; setEditing(!lease); setForm(lease ? { address: lease.address, landlordName: lease.landlordName, landlordPhone: lease.landlordPhone, rent: String(lease.rent), deposit: String(lease.deposit), startDate: lease.startDate || '', endDate: lease.endDate || '', noticeDays: String(lease.noticeDays), rentDueDay: String(lease.rentDueDay), escalationPercent: String(lease.escalationPercent), notes: lease.notes } : blank); }, [visible, lease]);
+    const set = patch => setForm(f => ({ ...f, ...patch }));
+    const status = lease ? leaseStatus(lease, todayLocal()) : null;
+    const save = () => run(async () => { const doc = await ApartmentService.saveLease(form); onSaved(doc); setEditing(false); });
+    const remove = () => confirm('Remove lease', 'Delete the saved lease details?', () => run(async () => { onSaved(await ApartmentService.saveLease(null)); onClose(); }), 'Delete');
     return (
-        <Modal visible={visible} animationType="slide" transparent={true}>
-            <View style={styles.overlay}>
-                <View style={styles.container}>
-                    <View style={styles.header}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <FileText size={24} color="#8B5CF6" />
-                            <Text style={styles.title}>Lease Agreement</Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose}>
-                            <X size={24} color="#A1A1AA" />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Lease Status */}
-                    <View style={styles.statusCard}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                            <View style={styles.activeDot} />
-                            <Text style={styles.statusText}>Active Lease</Text>
-                        </View>
-                        <Text style={styles.address}>Flat 402, Sunshine Heights, Mumbai</Text>
-                    </View>
-
-                    <Text style={styles.sectionTitle}>Key Dates</Text>
-                    <View style={styles.datesRow}>
-                        <View style={styles.dateBox}>
-                            <Text style={styles.dateLabel}>Start Date</Text>
-                            <Text style={styles.dateValue}>01 Apr 2024</Text>
-                        </View>
-                        <View style={styles.dateBox}>
-                            <Text style={styles.dateLabel}>End Date</Text>
-                            <Text style={styles.dateValue}>31 Mar 2025</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.renewalAlert}>
-                        <AlertTriangle size={20} color="#F59E0B" />
-                        <Text style={styles.alertText}>Renewal due in 85 days</Text>
-                    </View>
-
-                    <Text style={styles.sectionTitle}>Landlord Details</Text>
-                    <View style={styles.landlordCard}>
-                        <View>
-                            <Text style={styles.landlordName}>Mr. Sharma</Text>
-                            <Text style={styles.landlordRole}>Points of Contact</Text>
-                        </View>
-                        <TouchableOpacity style={styles.callBtn}>
-                            <Phone size={20} color="#FFF" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity style={styles.viewDocBtn}>
-                        <Text style={styles.viewDocText}>View Digital Contract</Text>
-                    </TouchableOpacity>
+        <Sheet visible={visible} title={editing ? (lease ? 'Edit lease' : 'Add your lease') : 'Lease'} onClose={onClose}>
+            <Notice>{error}</Notice>
+            {!editing && lease && status && <>
+                <View style={ui.row}><Badge text={{ active: 'ACTIVE', 'renewal-window': 'RENEWAL WINDOW', ended: 'ENDED', open: 'OPEN-ENDED' }[status.state]} color={status.state === 'active' ? palette.success : status.state === 'ended' ? palette.danger : palette.warning} /></View>
+                <Text style={[ui.text, { fontWeight: '700' }]}>{lease.address}</Text>
+                <Card>
+                    <KeyValue label="Monthly rent" value={money.format(lease.rent)} />
+                    <KeyValue label="Deposit" value={`${money.format(lease.deposit)}${status.depositMonths ? ` (${status.depositMonths} months)` : ''}`} />
+                    <KeyValue label="Rent per year" value={money.format(status.yearlyRent)} />
+                    {status.nextRentDue && <KeyValue label="Next rent due" value={status.nextRentDue} />}
+                    {lease.startDate && <KeyValue label="Started" value={lease.startDate} />}
+                    {lease.endDate && <KeyValue label="Ends" value={`${lease.endDate}${status.daysToEnd !== null ? ` (${status.daysToEnd < 0 ? `${-status.daysToEnd} days ago` : `in ${status.daysToEnd} days`})` : ''}`} color={status.state === 'renewal-window' ? palette.warning : undefined} />}
+                    {status.noticeBy && <KeyValue label={`Give notice by (${lease.noticeDays} days)`} value={status.noticeBy} color={status.daysToNotice !== null && status.daysToNotice <= 14 ? palette.danger : undefined} />}
+                    {status.escalatedRent && <KeyValue label={`Rent after ${lease.escalationPercent}% escalation`} value={money.format(status.escalatedRent)} />}
+                    {!!lease.landlordName && <KeyValue label="Landlord" value={`${lease.landlordName}${lease.landlordPhone ? ` · ${lease.landlordPhone}` : ''}`} />}
+                    {!!lease.notes && <Text style={ui.muted}>{lease.notes}</Text>}
+                </Card>
+                {status.state === 'renewal-window' && <Notice warning>Renewal window is open. Decide on renewal terms now; missing the notice date can cost your deposit.</Notice>}
+                <View style={ui.row}>
+                    {!!lease.landlordPhone && <View style={ui.flex}><Btn title="Call landlord" secondary onPress={() => Linking.openURL(`tel:${lease.landlordPhone}`).catch(() => {})} /></View>}
+                    <View style={ui.flex}><Btn title="Edit" secondary onPress={() => setEditing(true)} /></View>
                 </View>
-            </View>
-        </Modal>
+                <Btn title="Remove lease" danger onPress={remove} disabled={busy} />
+            </>}
+            {editing && <>
+                <Field label="Address" value={form.address} onChangeText={v => set({ address: v })} placeholder="Flat, building, area" autoFocus={!lease} />
+                <View style={ui.row}><View style={ui.flex}><MoneyField label="Monthly rent" value={form.rent} onChangeText={v => set({ rent: v })} /></View><View style={ui.flex}><MoneyField label="Deposit" value={form.deposit} onChangeText={v => set({ deposit: v })} /></View></View>
+                <DateField label="Start date" value={form.startDate} onChangeText={v => set({ startDate: v })} quick={false} />
+                <DateField label="End date" value={form.endDate} onChangeText={v => set({ endDate: v })} />
+                <View style={ui.row}><View style={ui.flex}><Field label="Notice period (days)" numeric value={form.noticeDays} onChangeText={v => set({ noticeDays: v })} /></View><View style={ui.flex}><Field label="Rent due day" numeric value={form.rentDueDay} onChangeText={v => set({ rentDueDay: v })} /></View><View style={ui.flex}><Field label="Yearly increase %" numeric value={form.escalationPercent} onChangeText={v => set({ escalationPercent: v })} /></View></View>
+                <View style={ui.row}><View style={ui.flex}><Field label="Landlord name" value={form.landlordName} onChangeText={v => set({ landlordName: v })} /></View><View style={ui.flex}><Field label="Landlord phone" value={form.landlordPhone} onChangeText={v => set({ landlordPhone: v })} keyboardType="phone-pad" /></View></View>
+                <Field label="Notes" multiline value={form.notes} onChangeText={v => set({ notes: v })} placeholder="Agreement number, maintenance included, restrictions" />
+                <Btn title={busy ? 'Saving…' : 'Save lease'} disabled={busy} onPress={save} />
+                {lease && <Btn title="Cancel" secondary onPress={() => setEditing(false)} />}
+            </>}
+        </Sheet>
     );
 }
-
-const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
-    container: { backgroundColor: '#18181B', height: '60%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    title: { fontSize: 20, fontWeight: '700', color: '#FFF' },
-    statusCard: { backgroundColor: '#8B5CF620', padding: 16, borderRadius: 16, marginBottom: 24, borderLeftWidth: 4, borderLeftColor: '#8B5CF6' },
-    activeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10B981' },
-    statusText: { color: '#10B981', fontWeight: '700', fontSize: 13, textTransform: 'uppercase' },
-    address: { color: '#FFF', fontSize: 15, fontWeight: '600' },
-    sectionTitle: { color: '#71717A', fontSize: 13, marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
-    datesRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
-    dateBox: { flex: 1, backgroundColor: '#27272A', padding: 16, borderRadius: 12 },
-    dateLabel: { color: '#A1A1AA', fontSize: 12, marginBottom: 4 },
-    dateValue: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-    renewalAlert: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#F59E0B20', padding: 16, borderRadius: 12, marginBottom: 24 },
-    alertText: { color: '#F59E0B', fontWeight: '600' },
-    landlordCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#27272A', padding: 16, borderRadius: 16, marginBottom: 24 },
-    landlordName: { color: '#FFF', fontSize: 16, fontWeight: '700', marginBottom: 2 },
-    landlordRole: { color: '#A1A1AA', fontSize: 12 },
-    callBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#10B981', alignItems: 'center', justifyContent: 'center' },
-    viewDocBtn: { width: '100%', padding: 16, backgroundColor: '#3F3F46', borderRadius: 12, alignItems: 'center' },
-    viewDocText: { color: '#FFF', fontWeight: '700' }
-});

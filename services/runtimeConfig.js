@@ -10,8 +10,7 @@ export const API_BASE_URL = API_ORIGIN ? `${API_ORIGIN}/api` : '/api';
 export const AUTH_API_URL = `${API_BASE_URL}/auth`;
 
 // Demo access is convenient locally, but must never activate silently in a release.
-export const DEMO_MODE_ENABLED = env.EXPO_PUBLIC_ENABLE_DEMO_MODE === 'true'
-    || (isDevelopment && env.EXPO_PUBLIC_ENABLE_DEMO_MODE !== 'false');
+export const DEMO_MODE_ENABLED = env.EXPO_PUBLIC_ENABLE_DEMO_MODE === 'true';
 
 export const assertApiConfigured = () => {
     if (!API_ORIGIN && Platform.OS !== 'web') {

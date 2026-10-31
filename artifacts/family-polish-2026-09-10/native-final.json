@@ -1,0 +1,77 @@
+{
+  "preservation": [
+    {
+      "changedOrMissing": 0,
+      "collection": "people",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "households",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "memberships",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "relationships",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "trustedCircle",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "documents",
+      "originalCount": 2
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "responsibilities",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "tasks",
+      "originalCount": 3
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "emergencyContacts",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "protectionItems",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "financialLinks",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "budgetPools",
+      "originalCount": 5
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "forecastScenarios",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "goals",
+      "originalCount": 0
+    }
+  ],
+  "qaHouseholdAbsent": true,
+  "qaPersonAbsent": true,
+  "selectedHousehold": "Primary Household"
+}

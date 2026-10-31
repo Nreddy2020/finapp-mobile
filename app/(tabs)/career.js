@@ -1,326 +1,221 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { Briefcase, Plus, Target, Sparkles, TrendingUp, DollarSign, ChevronDown, ChevronUp } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getCareerGoals } from '../../services/api';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
-import LuxuryCard from '../../components/ui/LuxuryCard';
-import StackHeader from '../../components/ui/StackHeader';
-import { COLORS } from '../../constants/theme';
+/**
+ * app/(tabs)/career.js — Career
+ * Overview, goals with milestones, skills gap, learning with ROI, certifications,
+ * job pipeline, income history and a negotiation planner. All user-entered.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Plus, CheckCircle2, Circle } from 'lucide-react-native';
+import { Screen, Card, Btn, Field, MoneyField, DateField, Choice, Chip, Sheet, Notice, Empty, Badge, Stat, Progress, ListItem, KeyValue, useAsyncAction, useMoney, ui, palette, todayLocal, confirm } from '../../components/ui/ModuleUI';
+import { CareerOsService, careerSummary, goalProgress, learningRoi, negotiationPlan, skillGap, GOAL_TYPES, LEARNING_STATUSES, APPLICATION_STAGES } from '../../services/career/careerOsService';
+
+const TABS = [{ value: 'overview', label: 'Overview' }, { value: 'goals', label: 'Goals' }, { value: 'skills', label: 'Skills' }, { value: 'learning', label: 'Learning' }, { value: 'jobs', label: 'Jobs' }, { value: 'income', label: 'Income' }];
+const STAGE_COLORS = { saved: palette.muted, applied: palette.info, interview: palette.warning, offer: palette.success, accepted: palette.success, rejected: palette.danger, withdrawn: palette.muted };
 
 export default function CareerScreen() {
-    const [goals, setGoals] = useState([]);
-    const [refreshing, setRefreshing] = useState(false);
-    const [expandedGoal, setExpandedGoal] = useState(null);
+    const router = useRouter();
+    const money = useMoney();
+    const { busy, error, setError, run } = useAsyncAction();
+    const [doc, setDoc] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState('overview');
+    const [sheet, setSheet] = useState(null); // {kind, form, id?}
+    const [roi, setRoi] = useState({ cost: '', increase: '' });
+    const [nego, setNego] = useState({ low: '', high: '', raise: '20' });
+    const [milestoneText, setMilestoneText] = useState('');
+    const today = todayLocal();
 
-    const fetchGoals = async () => {
-        try {
-            const data = await getCareerGoals();
-            setGoals(data);
-        } catch (error) {
-            console.error('Error fetching career goals:', error);
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchGoals();
-    }, []);
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchGoals();
-    };
-
-    const toggleFinancials = (id) => {
-        setExpandedGoal(expandedGoal === id ? null : id);
-    }
-
-    const activeGoals = goals.filter(g => g.status === 'In Progress' || g.status === 'Planning').length; // Corrected status matching
-    const THEME_COLOR = '#E11D48'; // Rose/Red
-
-    // Modal State
-    const [modalVisible, setModalVisible] = useState(false);
-    const [newGoal, setNewGoal] = useState({ goal: '', target_date: '', investment: '', progress: '0' });
-
-    const handleAddGoal = async () => {
-        if (!newGoal.goal || !newGoal.investment) {
-            alert("Please fill in required fields");
-            return;
-        }
-
-        const goalEntry = {
-            id: Date.now().toString(),
-            status: 'Planning',
-            ...newGoal,
-            target_date: newGoal.target_date || new Date(Date.now() + 31536000000).toISOString(), // +1 year default
-            progress: parseInt(newGoal.progress) || 0
-        };
-
-        const updatedGoals = [goalEntry, ...goals];
-        setGoals(updatedGoals);
-
-        // Persist
-        await import('../../services/storage').then(mod => mod.updateCareerStats(updatedGoals));
-
-        setModalVisible(false);
-        setNewGoal({ goal: '', target_date: '', investment: '', progress: '0' });
-    };
+    useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (sheet) { setSheet(null); return true; } if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); return true; }); return () => sub.remove(); }, [sheet, router]);
+    const load = useCallback(async () => { setLoading(true); try { setDoc(await CareerOsService.load()); setError(''); } catch (e) { setError(e.message || 'Career data could not be loaded. Retry.'); } finally { setLoading(false); } }, [setError]);
+    useFocusEffect(useCallback(() => { load(); }, [load]));
+    const summary = useMemo(() => (doc ? careerSummary(doc, today) : null), [doc, today]);
+    const act = fn => run(async () => setDoc(await fn()));
+    const open = (kind, form, id = null) => { setError(''); setSheet({ kind, form, id }); };
+    const setF = patch => setSheet(s => ({ ...s, form: { ...s.form, ...patch } }));
+    const submit = () => run(async () => {
+        const f = sheet.form;
+        let next;
+        if (sheet.kind === 'profile') next = await CareerOsService.updateProfile(f);
+        if (sheet.kind === 'goal') next = sheet.id ? await CareerOsService.updateGoal(sheet.id, f) : await CareerOsService.addGoal(f);
+        if (sheet.kind === 'skill') next = sheet.id ? await CareerOsService.updateSkill(sheet.id, f) : await CareerOsService.addSkill(f);
+        if (sheet.kind === 'learning') next = await CareerOsService.addLearning(f);
+        if (sheet.kind === 'cert') next = await CareerOsService.addCertification(f);
+        if (sheet.kind === 'job') next = await CareerOsService.addApplication(f);
+        if (sheet.kind === 'income') next = await CareerOsService.addIncomeRecord(f);
+        setDoc(next); setSheet(null);
+    });
+    const addButton = (kind, form, label) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={() => open(kind, form)} style={ui.back}><Plus color="#F4F4F5" size={22} /></TouchableOpacity>;
+    const rightFor = { overview: null, goals: addButton('goal', { title: '', type: 'promotion', targetDate: '', notes: '' }, 'Add goal'), skills: addButton('skill', { name: '', current: '3', target: '8', evidence: '' }, 'Add skill'), learning: addButton('learning', { title: '', provider: '', cost: '', hours: '', status: 'planned', monthlyIncrease: '', notes: '' }, 'Add learning'), jobs: addButton('job', { company: '', role: '', stage: 'saved', appliedDate: '', offeredMonthly: '', notes: '' }, 'Add application'), income: addButton('income', { date: today, monthlyAmount: '', note: '' }, 'Add income record') };
+    const roiResult = (() => { try { return roi.cost && roi.increase ? learningRoi({ cost: roi.cost, monthlyIncrease: roi.increase }) : null; } catch { return null; } })();
+    const negoResult = (() => { try { return doc?.profile.monthlyIncome && nego.low && nego.high ? negotiationPlan({ currentMonthly: doc.profile.monthlyIncome, marketLow: nego.low, marketHigh: nego.high, targetRaisePercent: Number(nego.raise) || 0 }) : null; } catch (e) { return { error: e.message }; } })();
 
     return (
-        <AnimatedScreen style={styles.container}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={THEME_COLOR}
-                        colors={[THEME_COLOR]}
-                        progressBackgroundColor="#18181B"
-                    />
-                }
-                showsVerticalScrollIndicator={false}
-            >
-                <StackHeader title="Career" subtitle="Ambitions" />
-
-                {/* Hero Card */}
-                <View style={styles.heroCardWrapper}>
-                    <View style={styles.heroCard}>
-                        <LinearGradient
-                            colors={[`${THEME_COLOR}60`, '#00000000']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.heroGlow}
-                        />
-                        <View style={styles.heroContent}>
-                            <Text style={styles.heroLabel}>Active Targets</Text>
-                            <Text style={styles.heroAmount}>{activeGoals}</Text>
-                            <View style={styles.heroFooter}>
-                                <View style={styles.heroIconBadge}>
-                                    <Target size={14} color="#FFFFFF" strokeWidth={2.5} />
-                                </View>
-                                <Text style={styles.heroSubtext}>goals for professional growth</Text>
-                            </View>
-                        </View>
+        <Screen title="Career" subtitle="Grow income, skills and options on purpose." loading={loading} error={error} retry={load} tabs={TABS} tab={tab} onTab={setTab} right={rightFor[tab]}>
+            {doc && summary && tab === 'overview' && <>
+                <Card title={doc.profile.role || 'Set up your profile'} subtitle={[doc.profile.company, doc.profile.industry, doc.profile.startDate ? `since ${doc.profile.startDate}` : null].filter(Boolean).join(' · ') || 'Role, company and income make every other number here meaningful.'}>
+                    <View style={ui.wrap}>
+                        <Stat label="Monthly income" value={doc.profile.monthlyIncome != null ? money.format(doc.profile.monthlyIncome) : '—'} />
+                        <Stat label="Target income" value={doc.profile.targetMonthlyIncome != null ? money.format(doc.profile.targetMonthlyIncome) : '—'} color={palette.success} />
+                        {summary.incomeGapToTarget != null && <Stat label="Gap to target" value={money.format(summary.incomeGapToTarget)} color={summary.incomeGapToTarget > 0 ? palette.warning : palette.success} />}
                     </View>
+                    <Btn title="Edit profile" secondary onPress={() => open('profile', { role: doc.profile.role, company: doc.profile.company, industry: doc.profile.industry, startDate: doc.profile.startDate || '', monthlyIncome: doc.profile.monthlyIncome != null ? String(doc.profile.monthlyIncome) : '', targetMonthlyIncome: doc.profile.targetMonthlyIncome != null ? String(doc.profile.targetMonthlyIncome) : '', notes: doc.profile.notes })} />
+                </Card>
+                <View style={ui.wrap}>
+                    <Stat label="Active goals" value={String(summary.activeGoals)} />
+                    <Stat label="Applications live" value={String(summary.activeApplications)} />
+                    <Stat label="Learning hours" value={String(summary.learningHours)} />
+                    <Stat label="Learning spend" value={money.format(summary.learningSpend)} />
                 </View>
+                {summary.nextGoal && <Card title="Next goal" subtitle={summary.nextGoal.targetDate ? `Target ${summary.nextGoal.targetDate}` : 'No date set'}><Text style={ui.text}>{summary.nextGoal.title}</Text><Progress value={goalProgress(summary.nextGoal)} /></Card>}
+                {summary.biggestGap && <Card title="Biggest skill gap"><Text style={ui.text}>{summary.biggestGap.name}: {summary.biggestGap.current} → {summary.biggestGap.target}</Text><Text style={ui.muted}>Close it with one course or one project in Learning.</Text></Card>}
+                {!!summary.expiringCerts.length && <Notice warning>{`${summary.expiringCerts.length} certification${summary.expiringCerts.length === 1 ? '' : 's'} expire within 60 days: ${summary.expiringCerts.map(c => c.name).join(', ')}.`}</Notice>}
+                {summary.growth.growthPercent !== null && <Card title="Income growth"><KeyValue label={`Since ${summary.growth.first.date}`} value={`${summary.growth.growthPercent}%`} color={summary.growth.growthPercent >= 0 ? palette.success : palette.danger} /><KeyValue label="Yearly growth rate" value={`${summary.growth.cagrPercent}%`} /></Card>}
+                <Card title="Is this course worth it?" subtitle="Payback from an income increase you believe is realistic.">
+                    <View style={ui.row}><View style={ui.flex}><MoneyField label="Cost" value={roi.cost} onChangeText={v => setRoi(r => ({ ...r, cost: v }))} /></View><View style={ui.flex}><MoneyField label="Extra per month" value={roi.increase} onChangeText={v => setRoi(r => ({ ...r, increase: v }))} /></View></View>
+                    {roiResult && <><KeyValue label="Pays back in" value={roiResult.paybackMonths === null ? 'Never at this increase' : `${roiResult.paybackMonths} months`} color={roiResult.worthIt ? palette.success : palette.danger} /><KeyValue label="Net gain over 5 years" value={money.format(roiResult.netOverYears)} /></>}
+                </Card>
+                <Btn title="Older career tools (skills gap, resume, mentors)" secondary onPress={() => router.push('/career-growth')} />
+            </>}
 
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Milestones</Text>
-
-                    {goals.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <View style={styles.emptyIconContainer}>
-                                <Briefcase size={32} color={THEME_COLOR} strokeWidth={2.5} />
-                            </View>
-                            <Text style={styles.emptyText}>No goals set</Text>
-                            <Text style={styles.emptySubtext}>Define your path to success</Text>
+            {doc && tab === 'goals' && <>
+                {!doc.goals.length && <Empty title="No career goals" body="A promotion, a switch, a certification or an income target. Add milestones so progress is visible." action="Add goal" onAction={() => open('goal', { title: '', type: 'promotion', targetDate: '', notes: '' })} />}
+                {doc.goals.map(g => (
+                    <Card key={g.id} title={g.title} subtitle={[g.type, g.targetDate ? `by ${g.targetDate}` : null].filter(Boolean).join(' · ')}>
+                        <View style={ui.row}><Badge text={g.status.toUpperCase()} color={g.status === 'achieved' ? palette.success : g.status === 'active' ? palette.info : palette.muted} /></View>
+                        <Progress value={goalProgress(g)} />
+                        {g.milestones.map(m => <View key={m.id} style={ui.row}><TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: m.done }} accessibilityLabel={m.title} disabled={busy} onPress={() => act(() => CareerOsService.toggleMilestone(g.id, m.id))} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>{m.done ? <CheckCircle2 size={22} color={palette.success} /> : <Circle size={22} color="#71717A" />}</TouchableOpacity><Text style={[ui.text, ui.flex, m.done && { color: palette.muted, textDecorationLine: 'line-through' }]}>{m.title}</Text></View>)}
+                        <View style={ui.row}><View style={ui.flex}><Field value={milestoneText} onChangeText={setMilestoneText} placeholder="Add milestone" /></View><Btn title="Add" secondary disabled={busy || !milestoneText.trim()} onPress={() => act(async () => { const d = await CareerOsService.addMilestone(g.id, milestoneText); setMilestoneText(''); return d; })} /></View>
+                        {!!g.notes && <Text style={ui.muted}>{g.notes}</Text>}
+                        <View style={ui.wrap}>
+                            {g.status !== 'achieved' && <Chip label="Mark achieved" onPress={() => act(() => CareerOsService.updateGoal(g.id, { status: 'achieved' }))} />}
+                            {g.status === 'active' && <Chip label="Drop" onPress={() => act(() => CareerOsService.updateGoal(g.id, { status: 'dropped' }))} />}
+                            {g.status !== 'active' && <Chip label="Reactivate" onPress={() => act(() => CareerOsService.updateGoal(g.id, { status: 'active' }))} />}
+                            <Chip label="Edit" onPress={() => open('goal', { title: g.title, type: g.type, targetDate: g.targetDate || '', notes: g.notes }, g.id)} />
+                            <Chip label="Delete" onPress={() => confirm('Delete goal', `Remove "${g.title}"?`, () => act(() => CareerOsService.removeGoal(g.id)), 'Delete')} />
                         </View>
-                    ) : (
-                        goals.map((goal, index) => {
-                            const investment = parseFloat(goal.investment || 0);
-                            const remaining = investment * (1 - (goal.progress / 100));
+                    </Card>
+                ))}
+            </>}
 
-                            return (
-                                <LuxuryCard
-                                    key={index}
-                                    index={index}
-                                    style={styles.goalCard}
-                                    onPress={() => toggleFinancials(goal.id)}
-                                >
-                                    <View style={styles.cardHeader}>
-                                        <View style={styles.cardIcon}>
-                                            <TrendingUp size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                                        </View>
-                                        <View style={styles.headerContent}>
-                                            <Text style={styles.goalName}>{goal.goal || goal.title || goal.name || 'Career Goal'}</Text>
-                                            <Text style={styles.targetDate}>
-                                                Target: {(() => {
-                                                    const rawDate = goal.target_date || goal.targetDate || goal.deadline;
-                                                    if (!rawDate) return 'Dec 2026';
-                                                    const parsed = new Date(rawDate);
-                                                    return isNaN(parsed.getTime()) ? String(rawDate) : parsed.toLocaleDateString();
-                                                })()}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.headerRight}>
-                                            <View style={styles.progressBadge}>
-                                                <Text style={styles.progressText}>{goal.progress}%</Text>
-                                            </View>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.progressBarBg}>
-                                        <View style={[styles.progressBarFill, { width: `${goal.progress || 0}%`, backgroundColor: THEME_COLOR }]} />
-                                    </View>
-
-                                    {/* Collapsible Financial Section */}
-                                    {expandedGoal === goal.id && (
-                                        <View style={styles.financialSection}>
-                                            <View style={styles.divider} />
-                                            <View style={styles.finHeader}>
-                                                <Text style={styles.finTitle}>Financial Plan</Text>
-                                                <DollarSign size={14} color="#10B981" />
-                                            </View>
-                                            <View style={styles.finRow}>
-                                                <View>
-                                                    <Text style={styles.finLabel}>Total Required</Text>
-                                                    <Text style={styles.finValue}>₹{investment.toLocaleString('en-IN')}</Text>
-                                                </View>
-                                                <View style={{ alignItems: 'flex-end' }}>
-                                                    <Text style={styles.finLabel}>Remaining</Text>
-                                                    <Text style={[styles.finValue, { color: '#F59E0B' }]}>₹{remaining.toLocaleString('en-IN')}</Text>
-                                                </View>
-                                            </View>
-                                            <View style={styles.actionBtn}>
-                                                <Text style={styles.actionBtnText}>Add Funds</Text>
-                                            </View>
-                                        </View>
-                                    )}
-
-                                    <View style={styles.expandHint}>
-                                        <Text style={styles.expandText}>{expandedGoal === goal.id ? 'Close Financials' : 'View Financials'}</Text>
-                                        {expandedGoal === goal.id ? <ChevronUp size={14} color="#71717A" /> : <ChevronDown size={14} color="#71717A" />}
-                                    </View>
-                                </LuxuryCard>
-                            );
-                        })
-                    )}
-                </View>
-
-                <LuxuryCard
-                    style={styles.addButton}
-                    onPress={() => setModalVisible(true)}
-                    index={goals.length + 1}
-                >
-                    <Plus size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                    <Text style={styles.addButtonText}>Set New Goal</Text>
-                </LuxuryCard>
-
-                {/* ADD GOAL MODAL */}
-                <React.Fragment>
-                    {modalVisible && (
-                        <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <Text style={styles.modalTitle}>New Career Goal</Text>
-
-                                <View style={styles.inputContainer}>
-                                    <Text style={styles.inputLabel}>GOAL NAME</Text>
-                                    <View style={styles.textInputWrapper}>
-                                        <Briefcase size={20} color={COLORS.gray400} />
-                                        <TextInput
-                                            style={styles.textInput}
-                                            placeholder="e.g. Senior Developer"
-                                            placeholderTextColor={COLORS.gray500}
-                                            value={newGoal.goal}
-                                            onChangeText={(t) => setNewGoal({ ...newGoal, goal: t })}
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={styles.inputContainer}>
-                                    <Text style={styles.inputLabel}>ESTIMATED COST / SALARY INCREASE (₹)</Text>
-                                    <View style={styles.textInputWrapper}>
-                                        <DollarSign size={20} color={COLORS.gray400} />
-                                        <TextInput
-                                            style={styles.textInput}
-                                            placeholder="1,00,000"
-                                            placeholderTextColor={COLORS.gray500}
-                                            keyboardType="numeric"
-                                            value={newGoal.investment}
-                                            onChangeText={(t) => setNewGoal({ ...newGoal, investment: t })}
-                                        />
-                                    </View>
-                                </View>
-
-                                <View style={styles.modalActions}>
-                                    <Pressable style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
-                                        <Text style={styles.cancelBtnText}>Cancel</Text>
-                                    </Pressable>
-                                    <Pressable style={styles.saveBtn} onPress={handleAddGoal}>
-                                        <LinearGradient
-                                            colors={[THEME_COLOR, '#BE123C']}
-                                            style={styles.saveBtnGradient}
-                                        >
-                                            <Text style={styles.saveBtnText}>Save Goal</Text>
-                                        </LinearGradient>
-                                    </Pressable>
-                                </View>
-                            </View>
+            {doc && tab === 'skills' && <>
+                {!doc.skills.length && <Empty title="No skills mapped" body="Rate where you are and where the next role needs you to be. Be honest; this is only for you." action="Add skill" onAction={() => open('skill', { name: '', current: '3', target: '8', evidence: '' })} />}
+                {[...doc.skills].sort((a, b) => skillGap(b) - skillGap(a)).map(s => (
+                    <Card key={s.id} title={s.name} subtitle={s.evidence || undefined}>
+                        <KeyValue label="Now → target" value={`${s.current} → ${s.target}`} color={skillGap(s) > 3 ? palette.warning : palette.success} />
+                        <Progress value={s.target ? (s.current / s.target) * 100 : 0} label={`gap ${skillGap(s)}`} />
+                        <View style={ui.wrap}>
+                            <Chip label="+1 level" onPress={() => act(() => CareerOsService.updateSkill(s.id, { current: Math.min(10, s.current + 1) }))} />
+                            <Chip label="Edit" onPress={() => open('skill', { name: s.name, current: String(s.current), target: String(s.target), evidence: s.evidence }, s.id)} />
+                            <Chip label="Delete" onPress={() => confirm('Delete skill', `Remove "${s.name}"?`, () => act(() => CareerOsService.removeSkill(s.id)), 'Delete')} />
                         </View>
-                    )}
-                </React.Fragment>
-            </ScrollView>
-        </AnimatedScreen>
+                    </Card>
+                ))}
+            </>}
+
+            {doc && tab === 'learning' && <>
+                {!doc.learning.length && !doc.certifications.length && <Empty title="No learning planned" body="Courses, books, certifications. Add the cost and hours so you can see what learning really costs and returns." action="Add learning" onAction={() => open('learning', { title: '', provider: '', cost: '', hours: '', status: 'planned', monthlyIncrease: '', notes: '' })} />}
+                {doc.learning.map(l => { const r = l.monthlyIncrease ? learningRoi({ cost: l.cost, monthlyIncrease: l.monthlyIncrease }) : null; return (
+                    <Card key={l.id} title={l.title} subtitle={[l.provider, `${money.format(l.cost)}`, `${l.hours} h`, l.skillId ? doc.skills.find(s => s.id === l.skillId)?.name : null].filter(Boolean).join(' · ')}>
+                        <View style={ui.row}><Badge text={l.status.toUpperCase()} color={l.status === 'done' ? palette.success : l.status === 'in-progress' ? palette.info : palette.muted} />{r && <Badge text={r.paybackMonths === null ? 'No payback' : `Pays back in ${r.paybackMonths} mo`} color={r.worthIt ? palette.success : palette.danger} />}</View>
+                        <Choice options={LEARNING_STATUSES} value={l.status} onChange={v => act(() => CareerOsService.updateLearning(l.id, { status: v }))} />
+                        <Chip label="Delete" onPress={() => confirm('Delete', `Remove "${l.title}"?`, () => act(() => CareerOsService.removeLearning(l.id)), 'Delete')} />
+                    </Card>
+                ); })}
+                <Card title="Certifications" subtitle="Track expiry so renewals never surprise you.">
+                    {doc.certifications.map(c => <ListItem key={c.id}><View style={[ui.row, { justifyContent: 'space-between' }]}><View style={ui.flex}><Text style={[ui.text, { fontWeight: '700' }]}>{c.name}</Text><Text style={ui.muted}>{[c.issuer, c.obtainedDate ? `obtained ${c.obtainedDate}` : null, c.expiryDate ? `expires ${c.expiryDate}` : 'no expiry'].filter(Boolean).join(' · ')}</Text></View><Chip label="Remove" onPress={() => act(() => CareerOsService.removeCertification(c.id))} /></View></ListItem>)}
+                    <Btn title="Add certification" secondary onPress={() => open('cert', { name: '', issuer: '', obtainedDate: '', expiryDate: '', cost: '' })} />
+                    <Btn title="Track renewals in Validities" secondary onPress={() => router.push('/(tabs)/validity')} />
+                </Card>
+            </>}
+
+            {doc && tab === 'jobs' && <>
+                <View style={ui.wrap}>{APPLICATION_STAGES.filter(s => summary.pipeline[s]).map(s => <Badge key={s} text={`${s} ${summary.pipeline[s]}`} color={STAGE_COLORS[s]} />)}</View>
+                {!doc.applications.length && <Empty title="No applications tracked" body="Keep every opportunity in one place with its stage and offer, so you negotiate from facts." action="Add application" onAction={() => open('job', { company: '', role: '', stage: 'saved', appliedDate: '', offeredMonthly: '', notes: '' })} />}
+                {doc.applications.map(a => (
+                    <Card key={a.id} title={`${a.role} · ${a.company}`} subtitle={[a.appliedDate ? `applied ${a.appliedDate}` : null, a.offeredMonthly ? `offer ${money.format(a.offeredMonthly)}/mo` : null].filter(Boolean).join(' · ') || undefined}>
+                        <Choice options={APPLICATION_STAGES} value={a.stage} onChange={v => act(() => CareerOsService.setApplicationStage(a.id, v))} />
+                        {!!a.notes && <Text style={ui.muted}>{a.notes}</Text>}
+                        <Chip label="Delete" onPress={() => confirm('Delete', `Remove ${a.company}?`, () => act(() => CareerOsService.removeApplication(a.id)), 'Delete')} />
+                    </Card>
+                ))}
+                <Card title="Negotiation planner" subtitle="Enter the market range you researched; the plan gives you an anchor, a target and a walk-away.">
+                    {doc.profile.monthlyIncome == null && <Text style={ui.muted}>Add your current monthly income in the profile first.</Text>}
+                    <View style={ui.row}><View style={ui.flex}><MoneyField label="Market low" value={nego.low} onChangeText={v => setNego(n => ({ ...n, low: v }))} /></View><View style={ui.flex}><MoneyField label="Market high" value={nego.high} onChangeText={v => setNego(n => ({ ...n, high: v }))} /></View></View>
+                    <Field label="Raise you want (%)" numeric value={nego.raise} onChangeText={v => setNego(n => ({ ...n, raise: v }))} />
+                    {negoResult?.error && <Notice>{negoResult.error}</Notice>}
+                    {negoResult && !negoResult.error && <>
+                        <KeyValue label="Anchor (ask first)" value={money.format(negoResult.anchor)} color={palette.success} />
+                        <KeyValue label="Target" value={money.format(negoResult.target)} />
+                        <KeyValue label="Walk-away" value={money.format(negoResult.walkAway)} color={palette.warning} />
+                        {negoResult.talkingPoints.map((t, i) => <Text key={i} style={ui.muted}>• {t}</Text>)}
+                    </>}
+                </Card>
+            </>}
+
+            {doc && tab === 'income' && <>
+                {summary.growth.growthPercent !== null && <View style={ui.wrap}><Stat label="Total growth" value={`${summary.growth.growthPercent}%`} color={palette.success} /><Stat label="Per year" value={`${summary.growth.cagrPercent}%`} /></View>}
+                {!doc.incomeHistory.length && <Empty title="No income history" body="Record each salary change. Growth over time tells you whether to push, switch or stay." action="Add record" onAction={() => open('income', { date: today, monthlyAmount: '', note: '' })} />}
+                <Card title="History">
+                    {[...doc.incomeHistory].reverse().map(r => <ListItem key={r.id}><View style={[ui.row, { justifyContent: 'space-between' }]}><View style={ui.flex}><Text style={[ui.text, { fontWeight: '700' }]}>{money.format(r.monthlyAmount)} / month</Text><Text style={ui.muted}>{r.date}{r.note ? ` · ${r.note}` : ''}</Text></View><Chip label="Remove" onPress={() => act(() => CareerOsService.removeIncomeRecord(r.id))} /></View></ListItem>)}
+                </Card>
+                <Btn title="See how income compares with spending in Insights" secondary onPress={() => router.push('/(tabs)/insights')} />
+            </>}
+
+            <Sheet visible={!!sheet} title={sheet ? ({ profile: 'Profile', goal: sheet.id ? 'Edit goal' : 'New career goal', skill: sheet.id ? 'Edit skill' : 'New skill', learning: 'New learning', cert: 'New certification', job: 'New application', income: 'Income record' })[sheet.kind] : ''} onClose={() => setSheet(null)}>
+                {sheet && <>
+                    <Notice>{error}</Notice>
+                    {sheet.kind === 'profile' && <>
+                        <Field label="Current role" value={sheet.form.role} onChangeText={v => setF({ role: v })} placeholder="e.g. Nurse, Driver, Analyst" />
+                        <Field label="Company / employer" value={sheet.form.company} onChangeText={v => setF({ company: v })} />
+                        <Field label="Industry" value={sheet.form.industry} onChangeText={v => setF({ industry: v })} />
+                        <DateField label="Started on" value={sheet.form.startDate} onChangeText={v => setF({ startDate: v })} quick={false} />
+                        <MoneyField label="Monthly income (take-home)" value={sheet.form.monthlyIncome} onChangeText={v => setF({ monthlyIncome: v })} />
+                        <MoneyField label="Target monthly income" value={sheet.form.targetMonthlyIncome} onChangeText={v => setF({ targetMonthlyIncome: v })} />
+                        <Field label="Notes" multiline value={sheet.form.notes} onChangeText={v => setF({ notes: v })} />
+                    </>}
+                    {sheet.kind === 'goal' && <>
+                        <Field label="Goal" value={sheet.form.title} onChangeText={v => setF({ title: v })} placeholder="e.g. Get promoted to team lead" autoFocus />
+                        <Choice label="Type" options={GOAL_TYPES} value={sheet.form.type} onChange={v => setF({ type: v })} />
+                        <DateField label="Target date" value={sheet.form.targetDate} onChangeText={v => setF({ targetDate: v })} />
+                        <Field label="Notes" multiline value={sheet.form.notes} onChangeText={v => setF({ notes: v })} />
+                    </>}
+                    {sheet.kind === 'skill' && <>
+                        <Field label="Skill" value={sheet.form.name} onChangeText={v => setF({ name: v })} placeholder="e.g. Spoken English, Excel, Welding" autoFocus />
+                        <View style={ui.row}><View style={ui.flex}><Field label="Now (0-10)" numeric value={sheet.form.current} onChangeText={v => setF({ current: v })} /></View><View style={ui.flex}><Field label="Target (0-10)" numeric value={sheet.form.target} onChangeText={v => setF({ target: v })} /></View></View>
+                        <Field label="Evidence" value={sheet.form.evidence} onChangeText={v => setF({ evidence: v })} placeholder="How you know your level" />
+                    </>}
+                    {sheet.kind === 'learning' && <>
+                        <Field label="Course / book / programme" value={sheet.form.title} onChangeText={v => setF({ title: v })} autoFocus />
+                        <Field label="Provider" value={sheet.form.provider} onChangeText={v => setF({ provider: v })} />
+                        <View style={ui.row}><View style={ui.flex}><MoneyField label="Cost" value={sheet.form.cost} onChangeText={v => setF({ cost: v })} /></View><View style={ui.flex}><Field label="Hours" numeric value={sheet.form.hours} onChangeText={v => setF({ hours: v })} /></View></View>
+                        <MoneyField label="Extra income per month it could unlock" value={sheet.form.monthlyIncrease} onChangeText={v => setF({ monthlyIncrease: v })} hint="Optional, used for payback." />
+                        {!!doc.skills.length && <Choice label="Builds skill" options={[{ value: '', label: 'None' }, ...doc.skills.map(s => ({ value: s.id, label: s.name }))]} value={sheet.form.skillId || ''} onChange={v => setF({ skillId: v || null })} />}
+                        <Choice label="Status" options={LEARNING_STATUSES} value={sheet.form.status} onChange={v => setF({ status: v })} />
+                    </>}
+                    {sheet.kind === 'cert' && <>
+                        <Field label="Certification" value={sheet.form.name} onChangeText={v => setF({ name: v })} autoFocus />
+                        <Field label="Issuer" value={sheet.form.issuer} onChangeText={v => setF({ issuer: v })} />
+                        <DateField label="Obtained on" value={sheet.form.obtainedDate} onChangeText={v => setF({ obtainedDate: v })} quick={false} />
+                        <DateField label="Expires on" value={sheet.form.expiryDate} onChangeText={v => setF({ expiryDate: v })} />
+                        <MoneyField label="Cost" value={sheet.form.cost} onChangeText={v => setF({ cost: v })} />
+                    </>}
+                    {sheet.kind === 'job' && <>
+                        <Field label="Company" value={sheet.form.company} onChangeText={v => setF({ company: v })} autoFocus />
+                        <Field label="Role" value={sheet.form.role} onChangeText={v => setF({ role: v })} />
+                        <Choice label="Stage" options={APPLICATION_STAGES} value={sheet.form.stage} onChange={v => setF({ stage: v })} />
+                        <DateField label="Applied on" value={sheet.form.appliedDate} onChangeText={v => setF({ appliedDate: v })} />
+                        <MoneyField label="Offered monthly (if any)" value={sheet.form.offeredMonthly} onChangeText={v => setF({ offeredMonthly: v })} />
+                        <Field label="Notes" multiline value={sheet.form.notes} onChangeText={v => setF({ notes: v })} />
+                    </>}
+                    {sheet.kind === 'income' && <>
+                        <DateField label="From" value={sheet.form.date} onChangeText={v => setF({ date: v })} quick={false} />
+                        <MoneyField label="Monthly income" value={sheet.form.monthlyAmount} onChangeText={v => setF({ monthlyAmount: v })} autoFocus />
+                        <Field label="Note" value={sheet.form.note} onChangeText={v => setF({ note: v })} placeholder="Raise, new job, side income" />
+                    </>}
+                    <Btn title={busy ? 'Saving…' : 'Save'} disabled={busy} onPress={submit} />
+                </>}
+            </Sheet>
+        </Screen>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000000' },
-    scrollView: { flex: 1 },
-    scrollContent: { paddingBottom: 24 },
-    header: { padding: 24, paddingTop: 60, paddingBottom: 24 },
-    headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-    title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
-    heroCardWrapper: { marginHorizontal: 24, marginBottom: 40 },
-    heroCard: { position: 'relative', borderRadius: 32, overflow: 'hidden', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#FFFFFF08' },
-    heroGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.6 },
-    heroContent: { padding: 32 },
-    heroLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 16, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
-    heroAmount: { fontSize: 52, fontWeight: '900', color: '#FFFFFF', marginBottom: 24, letterSpacing: -2 },
-    heroFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    heroIconBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#E11D48', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFFFFF20' },
-    heroSubtext: { fontSize: 13, color: '#FFFFFF80', fontWeight: '600', letterSpacing: 0.5 },
-    section: { paddingHorizontal: 24, marginBottom: 24 },
-    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#71717A', marginBottom: 20, letterSpacing: 2, textTransform: 'uppercase' },
-
-    goalCard: { backgroundColor: '#18181B', borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#FFFFFF08', overflow: 'hidden' },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-    cardIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: '#E11D4810', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 1, borderColor: '#E11D4820' },
-    headerContent: { flex: 1 },
-    goalName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', marginBottom: 4, letterSpacing: -0.3 },
-    targetDate: { fontSize: 13, color: '#71717A', fontWeight: '500' },
-    headerRight: { alignItems: 'flex-end' },
-    progressBadge: { backgroundColor: '#E11D4820', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    progressText: { color: '#E11D48', fontSize: 12, fontWeight: '800' },
-    progressBarBg: { height: 6, backgroundColor: '#FFFFFF10', borderRadius: 3, width: '100%', marginBottom: 12 },
-    progressBarFill: { height: '100%', borderRadius: 3 },
-
-    financialSection: { marginTop: 8 },
-    divider: { height: 1, backgroundColor: '#FFFFFF10', marginBottom: 16 },
-    finHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    finTitle: { color: '#10B981', fontWeight: '700', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5 },
-    finRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-    finLabel: { color: '#A1A1AA', fontSize: 12, marginBottom: 4 },
-    finValue: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-    actionBtn: { backgroundColor: '#10B98120', paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-    actionBtnText: { color: '#10B981', fontWeight: '700', fontSize: 13 },
-
-    expandHint: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, gap: 4 },
-    expandText: { color: '#71717A', fontSize: 11, fontWeight: '500' },
-
-    emptyCard: { backgroundColor: '#18181B', borderRadius: 24, padding: 48, alignItems: 'center', borderWidth: 1, borderColor: '#FFFFFF08', borderStyle: 'dashed' },
-    emptyIconContainer: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E11D4808', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#E11D4815' },
-    emptyText: { fontSize: 17, color: '#FFFFFF', fontWeight: '700', marginBottom: 8 },
-    emptySubtext: { fontSize: 14, color: '#71717A', textAlign: 'center', fontWeight: '500', lineHeight: 20 },
-    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', marginHorizontal: 24, marginBottom: 24, padding: 20, borderRadius: 24, gap: 12, borderWidth: 1, borderColor: '#E11D4850' },
-    addButtonText: { fontSize: 16, fontWeight: '700', color: '#E11D48', letterSpacing: 0.5 },
-
-    // Modal Styles
-    modalOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-    modalContent: { width: '100%', backgroundColor: '#18181B', borderRadius: 32, padding: 32, borderWidth: 1, borderColor: '#FFFFFF10' },
-    modalTitle: { fontSize: 24, fontWeight: '900', color: '#FFF', marginBottom: 32, textAlign: 'center' },
-    inputContainer: { marginBottom: 24 },
-    inputLabel: { color: '#71717A', fontSize: 12, fontWeight: '700', marginBottom: 12, letterSpacing: 1 },
-    textInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', borderRadius: 16, paddingHorizontal: 16, borderWidth: 1, borderColor: '#FFFFFF10', height: 56 },
-    textInput: { flex: 1, color: '#FFF', fontSize: 16, fontWeight: '600', marginLeft: 12 },
-    modalActions: { flexDirection: 'row', gap: 16, marginTop: 16 },
-    cancelBtn: { flex: 1, height: 56, justifyContent: 'center', alignItems: 'center', borderRadius: 16, backgroundColor: '#FFFFFF10' },
-    cancelBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-    saveBtn: { flex: 1, height: 56, borderRadius: 16, overflow: 'hidden' },
-    saveBtnGradient: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 }
-});

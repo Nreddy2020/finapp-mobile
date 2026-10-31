@@ -26,7 +26,6 @@ import {
     rupeesToMoneyPaise,
     validateCommitment
 } from '../../services/commitments/commitmentContracts.js';
-import { FamilyRepository } from '../../services/family/familyRepository.js';
 
 const TYPE_OPTIONS = [
     { label: 'Subscription', value: CommitmentType.SUBSCRIPTION, defaultNature: FinancialNature.EXPENSE, defaultCat: 'Entertainment' },
@@ -81,22 +80,7 @@ export default function AddCommitmentModal({
     // Load active family members on open
     React.useEffect(() => {
         if (visible) {
-            FamilyRepository.loadFamilyEnvelope()
-                .then(envelope => {
-                    const rawPersons = envelope?.data?.persons || [];
-                    const active = rawPersons
-                        .filter(p => {
-                            const status = p.status || p.core?.status || 'ACTIVE';
-                            return status !== 'ARCHIVED' && status !== 'DELETED';
-                        })
-                        .map(p => ({
-                            id: p.id || p.core?.id,
-                            name: p.name || p.profile?.displayName || p.core?.fullName || 'Family Member',
-                            role: p.role || p.core?.relationship || p.profile?.relationship || 'MEMBER'
-                        }));
-                    setFamilyMembers(active);
-                })
-                .catch(() => setFamilyMembers([]));
+            setFamilyMembers([]);
 
             if (initialValues) {
                 if (initialValues.name) setName(initialValues.name);

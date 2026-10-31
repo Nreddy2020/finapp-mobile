@@ -292,6 +292,29 @@ export function computeEmergencyRunwayMetrics(currentReserve = 105000, essential
     };
 }
 
+export const STANDARD_CATEGORIES = new Set([
+    'Groceries & Food',
+    'Rent & Housing',
+    'Utilities',
+    'Utilities & Bills',
+    'Transportation',
+    'Travel & Fuel',
+    'Entertainment',
+    'Health & Medical',
+    'Shopping',
+    'Investments',
+    'Investments / Dividends',
+    'Salary / Income',
+    'Business / Consulting',
+    'Rental Income',
+    'Gifts / Transfers',
+    'Transfer',
+    'Internal Transfer',
+    'Refund / Reversal',
+    'General Cash Outflow',
+    'General'
+]);
+
 // ── 5. PERIOD CASH FLOW TRUTH & TRANSACTION NORMALIZATION ─────────────────────
 export function computePeriodCashFlowTruth(transactions = [], periodBounds = getPeriodBounds('month')) {
     const startMs = new Date(periodBounds.startDateISO).getTime();
@@ -317,7 +340,8 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
         const category = rawTx.category || 'Other';
         const rawDesc = rawTx.description || rawTx.text || rawTx.smsBody || 'Transaction';
         const canonicalMerchant = rawTx.merchant || normalizeMerchant(rawDesc);
-        const account = rawTx.account || 'HDFC Savings Account';
+        const account = rawTx.account || rawTx.accountName || 'HDFC Bank';
+        const isCustom = Boolean(rawTx.isCustom || (category && !STANDARD_CATEGORIES.has(category)));
 
         const normalizedTx = {
             ...rawTx,
@@ -325,9 +349,11 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
             amount,
             type,
             category,
+            isCustom,
             rawDescription: rawDesc,
             merchant: canonicalMerchant,
             account,
+            accountName: rawTx.accountName || account,
             date: rawTx.date || new Date().toISOString().split('T')[0],
             needsSort: Boolean(rawTx.needsSort || rawTx.status === 'UNPARSED')
         };
@@ -345,7 +371,15 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
                 totalSpending += amount;
 
                 // Category aggregate
-                categorySpendingMap[category] = (categorySpendingMap[category] || 0) + amount;
+                if (!categorySpendingMap[category]) {
+                    categorySpendingMap[category] = {
+                        category,
+                        amount: 0,
+                        transactions: []
+                    };
+                }
+                categorySpendingMap[category].amount += amount;
+                categorySpendingMap[category].transactions.push(normalizedTx);
 
                 // Merchant aggregate
                 if (!merchantSpendingMap[canonicalMerchant]) {
@@ -363,7 +397,15 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
                 merchantSpendingMap[canonicalMerchant].transactions.push(normalizedTx);
 
                 // Account aggregate
-                accountSpendingMap[account] = (accountSpendingMap[account] || 0) + amount;
+                if (!accountSpendingMap[account]) {
+                    accountSpendingMap[account] = {
+                        account,
+                        amount: 0,
+                        transactions: []
+                    };
+                }
+                accountSpendingMap[account].amount += amount;
+                accountSpendingMap[account].transactions.push(normalizedTx);
             } else if (type === 'TRANSFER') {
                 // Transfer does not count towards period income or period spending
                 totalTransfers += amount;
@@ -375,12 +417,14 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
     const savingsRate = totalIncome > 0 ? Math.max(0, Math.round((netCashFlow / totalIncome) * 100)) : 0;
 
     // Build Category breakdown array
-    const categoryBreakdown = Object.entries(categorySpendingMap)
-        .map(([category, amount]) => ({
-            category,
-            amount,
-            amountFormatted: formatCurrencyINR(amount, false),
-            percentage: totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0
+    const categoryBreakdown = Object.values(categorySpendingMap)
+        .map(cat => ({
+            category: cat.category,
+            amount: cat.amount,
+            amountFormatted: formatCurrencyINR(cat.amount, false),
+            percentage: totalSpending > 0 ? Math.round((cat.amount / totalSpending) * 100) : 0,
+            transactionCount: cat.transactions.length,
+            transactions: cat.transactions
         }))
         .sort((a, b) => b.amount - a.amount);
 
@@ -402,12 +446,14 @@ export function computePeriodCashFlowTruth(transactions = [], periodBounds = get
         .sort((a, b) => b.amount - a.amount);
 
     // Build Account breakdown array
-    const accountBreakdown = Object.entries(accountSpendingMap)
-        .map(([account, amount]) => ({
-            account,
-            amount,
-            amountFormatted: formatCurrencyINR(amount, false),
-            percentage: totalSpending > 0 ? Math.round((amount / totalSpending) * 100) : 0
+    const accountBreakdown = Object.values(accountSpendingMap)
+        .map(acc => ({
+            account: acc.account,
+            amount: acc.amount,
+            amountFormatted: formatCurrencyINR(acc.amount, false),
+            percentage: totalSpending > 0 ? Math.round((acc.amount / totalSpending) * 100) : 0,
+            transactionCount: acc.transactions.length,
+            transactions: acc.transactions
         }))
         .sort((a, b) => b.amount - a.amount);
 

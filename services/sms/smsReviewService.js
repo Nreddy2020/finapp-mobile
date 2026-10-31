@@ -39,13 +39,14 @@ export function partitionTransactionsByReviewStatus(transactions = []) {
 /**
  * Confirms a transaction from the review queue and promotes it to COMMITTED status.
  */
-export function confirmReviewTransaction(tx, selectedCategory, customType = null) {
+export function confirmReviewTransaction(tx, selectedCategory, customType = null, isCustom = false) {
     if (!tx) return null;
 
     return {
         ...tx,
         category: selectedCategory || tx.category || 'General Cash Activity',
         type: customType || tx.type || 'EXPENSE',
+        isCustom: Boolean(isCustom || tx.isCustom),
         status: 'COMMITTED',
         needsSort: false,
         reviewedAt: new Date().toISOString()

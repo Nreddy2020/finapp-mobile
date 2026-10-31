@@ -1,315 +1,110 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, Modal, TextInput, TouchableOpacity, BackHandler, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Building, Plus, Receipt, Sparkles, AlertCircle, Calculator, Zap, FileText, CheckCircle, X } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-
-// New Components
+/**
+ * app/(tabs)/apartment.js — My Apartment (personal)
+ * Society dues you pay, your lease, flatmates and shared bills, rent-vs-buy.
+ * Honest empty states; nothing is seeded. Society committees use the Business Hub module.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
+import { Screen, Card, Btn, Field, MoneyField, DateField, Sheet, Notice, Empty, Badge, Stat, KeyValue, ListItem, Chip, useAsyncAction, useMoney, ui, palette, todayLocal, confirm } from '../../components/ui/ModuleUI';
 import RentVsBuy from '../../components/housing/RentVsBuy';
 import UtilitySplitter from '../../components/housing/UtilitySplitter';
 import LeaseManager from '../../components/housing/LeaseManager';
-import { ApartmentService } from '../../services/apartment';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
-import LuxuryCard from '../../components/ui/LuxuryCard';
+import { ApartmentService, leaseStatus, settleShared } from '../../services/apartment';
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function ApartmentScreen() {
     const router = useRouter();
-    const insets = useSafeAreaInsets();
-    const [maintenance, setMaintenance] = useState([]);
-    const [refreshing, setRefreshing] = useState(false);
-
-    // Modals
+    const money = useMoney();
+    const { busy, error, setError, run } = useAsyncAction();
+    const [logs, setLogs] = useState([]);
+    const [home, setHome] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [showRentVsBuy, setShowRentVsBuy] = useState(false);
     const [showUtility, setShowUtility] = useState(false);
     const [showLease, setShowLease] = useState(false);
     const [showAddLog, setShowAddLog] = useState(false);
+    const [form, setForm] = useState({ month: MONTHS[new Date().getMonth()], year: String(new Date().getFullYear()), amount: '', due_date: '' });
+    const today = todayLocal();
 
-    const handleBack = useCallback(() => {
-        if (router.canGoBack()) {
-            router.back();
-        } else {
-            router.replace('/(tabs)');
-        }
-    }, [router]);
-
+    const handleBack = useCallback(() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); }, [router]);
     useEffect(() => {
-        const onBackPress = () => {
+        const sub = BackHandler.addEventListener('hardwareBackPress', () => {
             if (showRentVsBuy) { setShowRentVsBuy(false); return true; }
             if (showUtility) { setShowUtility(false); return true; }
             if (showLease) { setShowLease(false); return true; }
             if (showAddLog) { setShowAddLog(false); return true; }
-            handleBack();
-            return true;
-        };
-        const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            handleBack(); return true;
+        });
         return () => sub.remove();
     }, [showRentVsBuy, showUtility, showLease, showAddLog, handleBack]);
 
-    // Form
-    const [month, setMonth] = useState('');
-    const [year, setYear] = useState('2024');
-    const [amount, setAmount] = useState('');
-    const [date, setDate] = useState('');
+    const load = useCallback(async () => { setLoading(true); try { const [l, h] = await Promise.all([ApartmentService.getMaintenanceLogs(), ApartmentService.getHome()]); setLogs(l); setHome(h); setError(''); } catch (e) { setError(e.message || 'Could not load. Retry.'); } finally { setLoading(false); } }, [setError]);
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
-    const fetchMaintenance = async () => {
-        const data = await ApartmentService.seedDefaults();
-        setMaintenance(data);
-        setRefreshing(false);
-    };
+    const totalUnpaid = logs.filter(m => m.status === 'pending').reduce((sum, m) => sum + Number(m.amount || 0), 0);
+    const overdue = logs.filter(m => m.status === 'pending' && m.due_date && m.due_date < today);
+    const lease = home?.lease || null;
+    const ls = useMemo(() => (lease ? leaseStatus(lease, today) : null), [lease, today]);
+    const month = today.slice(0, 7);
+    const shared = useMemo(() => (home ? settleShared(home.sharedBills.filter(b => b.month === month), ['You', ...(home.flatmates || [])]) : null), [home, month]);
+    const monthlyHousing = (lease?.rent || 0) + (logs.find(m => m.status === 'pending') ? Number(logs[0]?.amount || 0) : 0) + (shared ? shared.perPerson : 0);
 
-    useEffect(() => {
-        fetchMaintenance();
-    }, []);
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchMaintenance();
-    };
-
-    const handleAddLog = async () => {
-        if (!month || !amount) return;
-        await ApartmentService.addMaintenanceLog({ month, year, amount, due_date: date, status: 'pending' });
-        setShowAddLog(false);
-        setMonth('');
-        setAmount('');
-        setDate('');
-        fetchMaintenance();
-    };
-
-    const markAsPaid = async (id) => {
-        const updated = await ApartmentService.updateLogStatus(id, 'paid');
-        setMaintenance(updated);
-    };
-
-    const totalUnpaid = maintenance.filter(m => m.status === 'pending').reduce((sum, m) => sum + parseFloat(m.amount || 0), 0);
-    const THEME_COLOR = '#F43F5E'; // Rose
+    const addLog = () => run(async () => { setLogs(await ApartmentService.addMaintenanceLog({ ...form, status: 'pending' })); setShowAddLog(false); setForm(f => ({ ...f, amount: '', due_date: '' })); });
 
     return (
-        <AnimatedScreen style={styles.container}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={THEME_COLOR}
-                        colors={[THEME_COLOR]}
-                        progressBackgroundColor="#18181B"
-                    />
-                }
-                showsVerticalScrollIndicator={false}
-            >
-                <View style={[styles.header, { paddingTop: Math.max(insets.top, 24) + 12 }]}>
-                    <View style={styles.headerLeft}>
-                        <TouchableOpacity
-                            onPress={handleBack}
-                            style={styles.backBtn}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            accessibilityLabel="Go back"
-                            accessibilityRole="button"
-                        >
-                            <ArrowLeft size={20} color="#F8FAFC" />
-                        </TouchableOpacity>
-                        <View>
-                            <Text style={styles.headerLabel}>Society Dues</Text>
-                            <Text style={styles.title}>Apartment</Text>
+        <Screen title="My Apartment" subtitle="Rent, dues, flatmates and the roof over your head." onBack={handleBack} loading={loading} error={error} retry={load}
+            right={<TouchableOpacity accessibilityRole="button" accessibilityLabel="Record society dues" onPress={() => setShowAddLog(true)} style={ui.back}><Plus color="#F4F4F5" size={22} /></TouchableOpacity>}>
+            <View style={ui.wrap}>
+                <Stat label="Dues pending" value={money.format(totalUnpaid)} color={totalUnpaid ? palette.warning : palette.success} />
+                <Stat label="Rent" value={lease ? money.format(lease.rent) : '—'} />
+                <Stat label="Shared bills, my share" value={shared ? money.format(shared.perPerson) : '—'} />
+            </View>
+            {!!overdue.length && <Notice warning>{`${overdue.length} society due${overdue.length === 1 ? ' is' : 's are'} past the due date.`}</Notice>}
+            <View style={ui.row}>
+                <View style={ui.flex}><Btn title="Rent vs buy" secondary onPress={() => setShowRentVsBuy(true)} /></View>
+                <View style={ui.flex}><Btn title="Shared bills" secondary onPress={() => setShowUtility(true)} /></View>
+                <View style={ui.flex}><Btn title={lease ? 'Lease' : 'Add lease'} secondary onPress={() => setShowLease(true)} /></View>
+            </View>
+            {lease && ls && <Card title="Lease" subtitle={lease.address}>
+                <View style={ui.row}><Badge text={{ active: 'ACTIVE', 'renewal-window': 'RENEWAL WINDOW', ended: 'ENDED', open: 'OPEN-ENDED' }[ls.state]} color={ls.state === 'active' ? palette.success : ls.state === 'ended' ? palette.danger : palette.warning} /></View>
+                {ls.nextRentDue && <KeyValue label="Next rent due" value={ls.nextRentDue} />}
+                {lease.endDate && <KeyValue label="Ends" value={`${lease.endDate}${ls.daysToEnd !== null && ls.daysToEnd >= 0 ? ` · in ${ls.daysToEnd} days` : ''}`} />}
+                {ls.noticeBy && <KeyValue label="Give notice by" value={ls.noticeBy} color={ls.daysToNotice !== null && ls.daysToNotice <= 14 ? palette.danger : undefined} />}
+                <KeyValue label="Deposit held" value={money.format(lease.deposit)} />
+            </Card>}
+            {monthlyHousing > 0 && <Card title="What home costs you"><KeyValue label="Per month (rent + dues + shared bills)" value={money.format(monthlyHousing)} /><KeyValue label="Per year" value={money.format(monthlyHousing * 12)} /><Text style={ui.muted}>A common rule: keep housing under 30–35% of take-home pay.</Text></Card>}
+            <Card title="Society dues">
+                {!logs.length && <Empty title="No dues recorded" body="Log each month's maintenance so you can see what is pending and what you paid over the year." action="Record dues" onAction={() => setShowAddLog(true)} />}
+                {logs.map(m => (
+                    <ListItem key={m.id}>
+                        <View style={[ui.row, { justifyContent: 'space-between' }]}>
+                            <View style={ui.flex}><Text style={[ui.text, { fontWeight: '700' }]}>{m.month} {m.year}</Text><Text style={ui.muted}>{m.due_date ? `Due ${m.due_date}` : 'No due date'}{m.paid_date ? ` · paid ${m.paid_date}` : ''}</Text></View>
+                            <View style={{ alignItems: 'flex-end', gap: 6 }}><Text style={[ui.text, { fontWeight: '800' }]}>{money.format(m.amount)}</Text><Badge text={String(m.status || 'pending').toUpperCase()} color={m.status === 'paid' ? palette.success : palette.warning} /></View>
                         </View>
-                    </View>
-                </View>
-
-                {/* Hero Card */}
-                <View style={styles.heroCardWrapper}>
-                    <View style={styles.heroCard}>
-                        <LinearGradient
-                            colors={[`${THEME_COLOR}60`, '#00000000']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.heroGlow}
-                        />
-                        <View style={styles.heroContent}>
-                            <Text style={styles.heroLabel}>Total Outstanding</Text>
-                            <Text style={styles.heroAmount}>₹{totalUnpaid.toLocaleString('en-IN')}</Text>
-                            <View style={styles.heroFooter}>
-                                <View style={styles.heroIconBadge}>
-                                    <AlertCircle size={14} color="#FFFFFF" strokeWidth={2.5} />
-                                </View>
-                                <Text style={styles.heroSubtext}>pending for current quarter</Text>
-                            </View>
+                        <View style={ui.wrap}>
+                            {m.status === 'pending' ? <Chip label="Mark paid" onPress={() => run(async () => setLogs(await ApartmentService.updateLogStatus(m.id, 'paid')))} /> : <Chip label="Mark unpaid" onPress={() => run(async () => setLogs(await ApartmentService.updateLogStatus(m.id, 'pending')))} />}
+                            <Chip label="Delete" onPress={() => confirm('Delete entry', `Remove ${m.month} ${m.year}?`, () => run(async () => setLogs(await ApartmentService.removeLog(m.id))), 'Delete')} />
                         </View>
-                    </View>
-                </View>
+                    </ListItem>
+                ))}
+            </Card>
+            <Btn title="Manage a society as a committee (Business Hub)" secondary onPress={() => router.push('/business/apartment')} />
 
-                {/* Housing Tools */}
-                <View style={styles.toolsRow}>
-                    <Pressable style={styles.toolBtn} onPress={() => setShowRentVsBuy(true)}>
-                        <View style={[styles.iconBox, { backgroundColor: '#F43F5E20' }]}>
-                            <Calculator size={20} color="#F43F5E" />
-                        </View>
-                        <Text style={styles.toolText}>Rent vs Buy</Text>
-                    </Pressable>
-                    <Pressable style={styles.toolBtn} onPress={() => setShowUtility(true)}>
-                        <View style={[styles.iconBox, { backgroundColor: '#F59E0B20' }]}>
-                            <Zap size={20} color="#F59E0B" />
-                        </View>
-                        <Text style={styles.toolText}>Split Bills</Text>
-                    </Pressable>
-                    <Pressable style={styles.toolBtn} onPress={() => setShowLease(true)}>
-                        <View style={[styles.iconBox, { backgroundColor: '#8B5CF620' }]}>
-                            <FileText size={20} color="#8B5CF6" />
-                        </View>
-                        <Text style={styles.toolText}>Lease</Text>
-                    </Pressable>
-                </View>
-
-                <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Maintenance Logs</Text>
-
-                    {maintenance.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <View style={styles.emptyIconContainer}>
-                                <Building size={32} color={THEME_COLOR} strokeWidth={2.5} />
-                            </View>
-                            <Text style={styles.emptyText}>No logs found</Text>
-                            <Text style={styles.emptySubtext}>Your maintenance history is clean</Text>
-                        </View>
-                    ) : (
-                        maintenance.map((m, index) => (
-                            <LuxuryCard
-                                key={m.id || index}
-                                index={index}
-                                style={styles.maintCard}
-                                onPress={() => { if (m.status === 'pending') markAsPaid(m.id); }}
-                            >
-                                <LinearGradient
-                                    colors={[`${THEME_COLOR}10`, '#00000000']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={styles.cardGlow}
-                                />
-                                <View style={styles.cardIcon}>
-                                    <Receipt size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                                </View>
-                                <View style={styles.cardContent}>
-                                    <View style={styles.maintHeader}>
-                                        <Text style={styles.monthName}>{m.month ? `${m.month} ${m.year || ''}` : (m.unit || m.title || 'Unit 402')}</Text>
-                                        <View style={[styles.statusBadge, { backgroundColor: m.status === 'paid' ? '#10B98120' : '#EF444420' }]}>
-                                            <Text style={[styles.statusText, { color: m.status === 'paid' ? '#10B981' : '#EF4444' }]}>
-                                                {(m.status || 'pending').toUpperCase()}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                    <Text style={styles.dueDate}>Due by {m.due_date || m.dueDate || '10th of month'}</Text>
-                                </View>
-                                <View style={styles.cardRight}>
-                                    <Text style={styles.amount}>₹{(parseFloat(m.amount) || 0).toLocaleString('en-IN')}</Text>
-                                    {m.status === 'pending' && <Text style={{ fontSize: 10, color: '#A1A1AA', marginTop: 4 }}>Tap to Pay</Text>}
-                                </View>
-                            </LuxuryCard>
-                        ))
-                    )}
-                </View>
-
-                <LuxuryCard
-                    style={styles.addButton}
-                    onPress={() => setShowAddLog(true)}
-                    index={maintenance.length + 1}
-                >
-                    <Plus size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                    <Text style={styles.addButtonText}>Record Payment</Text>
-                </LuxuryCard>
-            </ScrollView>
-
-            {/* Add Log Modal */}
-            <Modal visible={showAddLog} transparent animationType="fade">
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Add Dues</Text>
-                            <TouchableOpacity onPress={() => setShowAddLog(false)}>
-                                <X size={24} color="#A1A1AA" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.inputLabel}>Month</Text>
-                        <TextInput style={styles.input} placeholder="e.g. August" placeholderTextColor="#52525B" value={month} onChangeText={setMonth} />
-
-                        <Text style={styles.inputLabel}>Year</Text>
-                        <TextInput style={styles.input} placeholder="2024" placeholderTextColor="#52525B" keyboardType="numeric" value={year} onChangeText={setYear} />
-
-                        <Text style={styles.inputLabel}>Amount (₹)</Text>
-                        <TextInput style={styles.input} placeholder="3500" placeholderTextColor="#52525B" keyboardType="numeric" value={amount} onChangeText={setAmount} />
-
-                        <Text style={styles.inputLabel}>Due Date</Text>
-                        <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor="#52525B" value={date} onChangeText={setDate} />
-
-                        <TouchableOpacity style={styles.saveBtn} onPress={handleAddLog}>
-                            <Text style={styles.saveBtnText}>Save</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            </Modal>
-
+            <Sheet visible={showAddLog} title="Record society dues" onClose={() => setShowAddLog(false)}>
+                <Notice>{error}</Notice>
+                <Text style={ui.label}>Month</Text>
+                <View style={ui.wrap}>{MONTHS.map(mo => <Chip key={mo} label={mo.slice(0, 3)} active={form.month === mo} onPress={() => setForm(f => ({ ...f, month: mo }))} />)}</View>
+                <Field label="Year" numeric value={form.year} onChangeText={v => setForm(f => ({ ...f, year: v }))} />
+                <MoneyField label="Amount" value={form.amount} onChangeText={v => setForm(f => ({ ...f, amount: v }))} />
+                <DateField label="Due date" value={form.due_date} onChangeText={v => setForm(f => ({ ...f, due_date: v }))} />
+                <Btn title={busy ? 'Saving…' : 'Save'} disabled={busy} onPress={addLog} />
+            </Sheet>
             <RentVsBuy visible={showRentVsBuy} onClose={() => setShowRentVsBuy(false)} />
-            <UtilitySplitter visible={showUtility} onClose={() => setShowUtility(false)} />
-            <LeaseManager visible={showLease} onClose={() => setShowLease(false)} />
-        </AnimatedScreen>
+            <UtilitySplitter visible={showUtility} onClose={() => setShowUtility(false)} home={home} onSaved={setHome} />
+            <LeaseManager visible={showLease} onClose={() => setShowLease(false)} lease={lease} onSaved={setHome} />
+        </Screen>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000000' },
-    scrollView: { flex: 1 },
-    scrollContent: { paddingBottom: 24 },
-    header: { padding: 24, paddingTop: 60, paddingBottom: 24 },
-    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-    backBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#18181B', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#27272A' },
-    headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-    title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
-    heroCardWrapper: { marginHorizontal: 24, marginBottom: 24 },
-    heroCard: { position: 'relative', borderRadius: 32, overflow: 'hidden', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#FFFFFF08' },
-
-    toolsRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 24, marginBottom: 32 },
-    toolBtn: { flex: 1, backgroundColor: '#18181B', padding: 12, borderRadius: 16, alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#FFFFFF08' },
-    iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-    toolText: { color: '#FFF', fontSize: 12, fontWeight: '600' },
-
-    heroGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.6 },
-    heroContent: { padding: 32 },
-    heroLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 16, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
-    heroAmount: { fontSize: 52, fontWeight: '900', color: '#FFFFFF', marginBottom: 24, letterSpacing: -2 },
-    heroFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    heroIconBadge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#F43F5E', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFFFFF20' },
-    heroSubtext: { fontSize: 13, color: '#FFFFFF80', fontWeight: '600', letterSpacing: 0.5 },
-    section: { paddingHorizontal: 24, marginBottom: 24 },
-    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#71717A', marginBottom: 20, letterSpacing: 2, textTransform: 'uppercase' },
-    maintCard: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#18181B', borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#FFFFFF08', overflow: 'hidden' },
-    cardGlow: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 140, opacity: 1 },
-    cardIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: '#F43F5E10', justifyContent: 'center', alignItems: 'center', marginRight: 20, borderWidth: 1, borderColor: '#F43F5E20' },
-    cardContent: { flex: 1 },
-    maintHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-    monthName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 },
-    statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-    statusText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-    dueDate: { fontSize: 13, color: '#71717A', fontWeight: '500' },
-    cardRight: { alignItems: 'flex-end' },
-    amount: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
-    emptyCard: { backgroundColor: '#18181B', borderRadius: 24, padding: 48, alignItems: 'center', borderWidth: 1, borderColor: '#FFFFFF08', borderStyle: 'dashed' },
-    emptyIconContainer: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#F43F5E08', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#F43F5E15' },
-    emptyText: { fontSize: 17, color: '#FFFFFF', fontWeight: '700', marginBottom: 8 },
-    emptySubtext: { fontSize: 14, color: '#71717A', textAlign: 'center', fontWeight: '500', lineHeight: 20 },
-    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', marginHorizontal: 24, marginBottom: 24, padding: 20, borderRadius: 24, gap: 12, borderWidth: 1, borderColor: '#F43F5E50' },
-    addButtonText: { fontSize: 16, fontWeight: '700', color: '#F43F5E', letterSpacing: 0.5 },
-
-    // Modal
-    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 24 },
-    modalContent: { backgroundColor: '#18181B', padding: 24, borderRadius: 24, borderWidth: 1, borderColor: '#333' },
-    modalHeader: { flexDirection: 'row', justifyConent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: '#FFF' },
-    inputLabel: { color: '#A1A1AA', fontSize: 12, fontWeight: '700', marginBottom: 8, textTransform: 'uppercase' },
-    input: { backgroundColor: '#000', color: '#FFF', padding: 16, borderRadius: 12, marginBottom: 20, fontSize: 16, borderWidth: 1, borderColor: '#3F3F46' },
-    saveBtn: { backgroundColor: '#F43F5E', padding: 16, borderRadius: 12, alignItems: 'center' },
-    saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
-});

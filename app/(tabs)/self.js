@@ -9,6 +9,8 @@ import { evaluatePortfolioHealthScore } from '../../services/portfolioHealthScor
 import { aggregateFinancialOpportunities } from '../../services/financialOpportunityAggregator';
 import { prioritizeNextBestActions } from '../../services/actionPrioritizationEngine';
 import MoneyFlowView from '../../components/moneyflow/MoneyFlowView';
+import { loadData, saveData, STORAGE_KEYS } from '../../services/storage.js';
+import { persistTransactions } from '../../services/moneyFlowService.js';
 import P2PMainView from '../../components/p2p/P2PMainView';
 import BankingMainView from '../../components/banking/BankingMainView';
 const { width } = Dimensions.get('window');
@@ -756,6 +758,21 @@ export default function SelfScreen() {
             { id: '11', desc: 'Groceries - Prev', amount: 6500, type: 'EXPENSE', category: 'Groceries & Food', date: `${prevY}-${prevM}-03`, syncedFromSms: false, smsBody: null, isLogged: true, merchant: 'BigBasket', account: 'HDFC Savings Account' }
         ];
     });
+
+    useEffect(() => {
+        let isMounted = true;
+        (async () => {
+            try {
+                const stored = await loadData(STORAGE_KEYS.TRANSACTIONS);
+                if (isMounted && stored && Array.isArray(stored) && stored.length > 0) {
+                    setTransactions(stored);
+                }
+            } catch (err) {
+                console.warn('[self.js] Failed to load stored transactions:', err);
+            }
+        })();
+        return () => { isMounted = false; };
+    }, []);
     const [newTxDesc, setNewTxDesc] = useState('');
     const [newTxAmt, setNewTxAmt] = useState('');
     const [newTxType, setNewTxType] = useState('EXPENSE');
@@ -2343,13 +2360,50 @@ export default function SelfScreen() {
                 <View style={styles.statusBarSpacer} />
                 <MoneyFlowView
                     transactions={transactions}
-                    onAddTransaction={(newTx) => setTransactions(prev => [newTx, ...prev])}
-                    onCategorizeTransaction={(txId, cat) => {
-                        setTransactions(prev => prev.map(t => t.id === txId ? { ...t, category: cat, needsSort: false } : t));
+                    onAddTransaction={(newTx) => {
+                        setTransactions(prev => {
+                            const updated = [newTx, ...prev];
+                            saveData(STORAGE_KEYS.TRANSACTIONS, updated);
+                            persistTransactions(updated);
+                            return updated;
+                        });
+                        if (newTx.category && (newTx.isCustom || newTx.category === 'Custom')) {
+                            setCustomCategories(prev => prev.includes(newTx.category) ? prev : [...prev, newTx.category]);
+                        }
                     }}
-                    onDeleteTransaction={(txId) => setTransactions(prev => prev.filter(t => t.id !== txId))}
+                    onCategorizeTransaction={(txId, cat, customType, isCustom) => {
+                        setTransactions(prev => {
+                            const updated = prev.map(t => t.id === txId ? {
+                                ...t,
+                                category: cat,
+                                isCustom: Boolean(isCustom || t.isCustom),
+                                ...(customType ? { type: customType } : {}),
+                                needsSort: false,
+                                status: 'COMMITTED'
+                            } : t);
+                            saveData(STORAGE_KEYS.TRANSACTIONS, updated);
+                            persistTransactions(updated);
+                            return updated;
+                        });
+                        if (isCustom && cat && !customCategories.includes(cat)) {
+                            setCustomCategories(prev => [...prev, cat]);
+                        }
+                    }}
+                    onDeleteTransaction={(txId) => {
+                        setTransactions(prev => {
+                            const updated = prev.filter(t => t.id !== txId);
+                            saveData(STORAGE_KEYS.TRANSACTIONS, updated);
+                            persistTransactions(updated);
+                            return updated;
+                        });
+                    }}
                     onUpdateTransaction={(updatedTx) => {
-                        setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+                        setTransactions(prev => {
+                            const updated = prev.map(t => t.id === updatedTx.id ? updatedTx : t);
+                            saveData(STORAGE_KEYS.TRANSACTIONS, updated);
+                            persistTransactions(updated);
+                            return updated;
+                        });
                     }}
                     onOpenDrawer={() => setIsDrawerOpen(true)}
                     hideHeader={false}

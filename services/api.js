@@ -13,9 +13,9 @@ const simulateApiResponse = (endpoint, options) => {
     if (cleanEndpoint.startsWith('/inflation/current')) {
         return {
             rate: 5.4,
-            source: 'RBI',
+            source: 'Demo sample',
             category: 'overall',
-            period_end: new Date().toISOString(),
+            period_end: null, is_demo: true,
             is_forecast: false
         };
     }
@@ -31,8 +31,8 @@ const simulateApiResponse = (endpoint, options) => {
         return {
             rate: 5.8,
             personalized_rate: 5.8,
-            source: 'RBI',
-            period_end: new Date().toISOString(),
+            source: 'Demo sample',
+            period_end: null, is_demo: true,
             is_forecast: false
         };
     }
@@ -99,10 +99,12 @@ export const api = {
         }
 
         const { API_ORIGIN, DEMO_MODE_ENABLED } = require('./runtimeConfig');
-        if (!API_ORIGIN && (DEMO_MODE_ENABLED || (Platform && Platform.OS !== 'web'))) {
+        if (!API_ORIGIN && DEMO_MODE_ENABLED) {
             console.log(`[API Interceptor] Simulating response for endpoint: ${endpoint}`);
             return simulateApiResponse(endpoint, options);
         }
+
+        if (!API_ORIGIN && Platform.OS !== 'web') throw new Error('Online data is unavailable: no API server is configured.');
 
         const config = {
             ...options,

@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { mfStyles, MF_COLORS } from '../moneyFlowStyles.js';
 
@@ -22,22 +22,26 @@ const QUICK_CATEGORIES = [
     { label: 'Utilities & Bills', emoji: '⚡', type: 'EXPENSE' },
     { label: 'Shopping', emoji: '🛍️', type: 'EXPENSE' },
     { label: 'Travel & Fuel', emoji: '🚗', type: 'EXPENSE' },
-    { label: 'General Cash Outflow', emoji: '📋', type: 'EXPENSE' }
+    { label: 'General Cash Outflow', emoji: '📋', type: 'EXPENSE' },
+    { label: 'Custom', emoji: '✨', type: 'EXPENSE' }
 ];
 
 export function ReviewTransactionModal({
     visible,
     onClose,
     transaction,
-    onConfirmReview
+    onConfirmReview,
+    onDelete
 }) {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [selectedType, setSelectedType] = useState(null);
+    const [customCategoryText, setCustomCategoryText] = useState('');
 
     useEffect(() => {
         if (transaction) {
             setSelectedCategory(transaction.category || 'Salary / Income');
             setSelectedType(transaction.type || 'INCOME');
+            setCustomCategoryText('');
         }
     }, [transaction]);
 
@@ -46,8 +50,19 @@ export function ReviewTransactionModal({
     const rawSnippet = transaction.rawSource?.rawBody || transaction.rawDescription || null;
 
     const handleConfirm = () => {
+        let finalCat = selectedCategory;
+        const isCustomCat = selectedCategory === 'Custom';
+        if (selectedCategory === 'Custom') {
+            const trimmed = customCategoryText.trim();
+            if (!trimmed) {
+                Alert.alert('Missing Category', 'Please enter a name for your custom category.');
+                return;
+            }
+            finalCat = trimmed;
+        }
+
         if (onConfirmReview) {
-            onConfirmReview(transaction.id, selectedCategory, selectedType);
+            onConfirmReview(transaction.id, finalCat, selectedType, isCustomCat);
         }
         onClose();
     };
@@ -119,7 +134,7 @@ export function ReviewTransactionModal({
                             What was this transaction?
                         </Text>
 
-                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                             {QUICK_CATEGORIES.map((cat) => {
                                 const isSelected = selectedCategory === cat.label;
                                 return (
@@ -154,6 +169,32 @@ export function ReviewTransactionModal({
                             })}
                         </View>
 
+                        {selectedCategory === 'Custom' && (
+                            <View style={{ marginBottom: 16 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: MF_COLORS.textMuted, marginBottom: 6, textTransform: 'uppercase' }}>
+                                    Custom Category Name
+                                </Text>
+                                <TextInput
+                                    style={{
+                                        backgroundColor: MF_COLORS.cardBgElevated,
+                                        borderRadius: 10,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 10,
+                                        color: MF_COLORS.textPrimary,
+                                        fontSize: 14,
+                                        borderWidth: 1,
+                                        borderColor: MF_COLORS.primaryBlueLight
+                                    }}
+                                    placeholder="e.g. Freelance, Pet Care, Subscription"
+                                    placeholderTextColor={MF_COLORS.textMuted}
+                                    value={customCategoryText}
+                                    onChangeText={setCustomCategoryText}
+                                    autoCapitalize="words"
+                                    autoFocus
+                                />
+                            </View>
+                        )}
+
                         {/* Confirm Button */}
                         <TouchableOpacity
                             style={mfStyles.primaryActionBtn}
@@ -163,6 +204,45 @@ export function ReviewTransactionModal({
                             <Ionicons name="checkmark-circle" size={18} color="#FFFFFF" />
                             <Text style={mfStyles.primaryActionBtnText}>Confirm & Sort Cash Flow</Text>
                         </TouchableOpacity>
+
+                        {/* Delete / Discard Option */}
+                        {onDelete && (
+                            <TouchableOpacity
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: MF_COLORS.dangerRedBg,
+                                    borderRadius: 12,
+                                    paddingVertical: 12,
+                                    marginTop: 10,
+                                    marginBottom: 6,
+                                }}
+                                onPress={() => {
+                                    Alert.alert(
+                                        'Delete Transaction',
+                                        'Are you sure you want to delete this transaction from cash flow?',
+                                        [
+                                            { text: 'Cancel', style: 'cancel' },
+                                            {
+                                                text: 'Delete',
+                                                style: 'destructive',
+                                                onPress: () => {
+                                                    onDelete(transaction.id);
+                                                    onClose();
+                                                }
+                                            }
+                                        ]
+                                    );
+                                }}
+                                activeOpacity={0.8}
+                            >
+                                <Ionicons name="trash-outline" size={16} color={MF_COLORS.dangerRedLight} />
+                                <Text style={{ color: MF_COLORS.dangerRedLight, fontSize: 13, fontWeight: '700', marginLeft: 6 }}>
+                                    Delete Transaction
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </ScrollView>
                 </View>
             </View>

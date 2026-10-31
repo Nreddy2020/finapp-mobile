@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {FamilyRepository as repo} from '../../services/family/familyRepository.js';
+import {StorageService,STORAGE_KEYS} from '../../services/storage.js';
+const oldLoad=StorageService.load,oldSave=StorageService.save;
+let disk,fail=false,writes=0;
+const collections=Object.fromEntries(['people','households','memberships','relationships','trustedCircle','documents','responsibilities','tasks','emergencyContacts','protectionItems','financialLinks','budgetPools','forecastScenarios','memberIncomeStreams','goals'].map(name=>[name,[]]));
+collections.households=[{id:'remove',name:'Fixture A'},{id:'keep',name:'Fixture B'}];
+collections.people=[{id:'shared',fullName:'Shared person'}];
+collections.relationships=[{id:'relationship',fromPersonId:'shared',toPersonId:'second'}];
+const owned=['memberships','trustedCircle','documents','responsibilities','tasks','emergencyContacts','protectionItems','financialLinks','budgetPools','forecastScenarios','memberIncomeStreams','goals'];
+for(const name of owned)collections[name]=[{id:name+'-a',householdId:'remove',nested:{preserve:'data'}},{id:name+'-b',householdId:'keep',nested:{preserve:'data'}}];
+disk={version:2,collections};
+StorageService.load=async(key,fallback)=>key===STORAGE_KEYS.FAMILY_SNAPSHOT?structuredClone(disk):fallback;
+StorageService.save=async(key,value)=>{assert.equal(key,STORAGE_KEYS.FAMILY_SNAPSHOT);writes++;if(fail)return {success:false,error:Error('fixture failure')};disk=structuredClone(value);return {success:true};};
+repo.setTestMode(false);
+try {
+ const original=structuredClone(disk);
+ fail=true;
+ await assert.rejects(repo.deleteHousehold('remove'),/save failed/);
+ assert.deepEqual(disk,original);
+ assert.equal((await repo.listHouseholds()).length,2);
+ fail=false;
+ assert.equal(await repo.deleteHousehold('remove'),true);
+ assert.equal(writes,2);
+ for(const name of owned)assert.deepEqual(disk.collections[name],[original.collections[name][1]],name+' scoped cascade');
+ assert.deepEqual(disk.collections.people,original.collections.people);
+ assert.deepEqual(disk.collections.relationships,original.collections.relationships);
+ assert.deepEqual(disk.collections.households,[original.collections.households[1]]);
+ const after=structuredClone(disk);
+ await assert.rejects(repo.deleteHousehold('remove'),/not found/);
+ assert.deepEqual(disk,after);
+ assert.equal(writes,2);
+ console.log('Household cascade passed: all 12 owned collections, other-household isolation, shared people/relationships retained, failed-save rollback, retry and absent-household no-write. Fixture storage only.');
+} finally {StorageService.load=oldLoad;StorageService.save=oldSave;repo.setTestMode(true);}

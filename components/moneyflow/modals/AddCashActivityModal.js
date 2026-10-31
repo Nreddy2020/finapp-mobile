@@ -16,7 +16,8 @@ import { mfStyles, MF_COLORS } from '../moneyFlowStyles.js';
 import { parseAndEvaluateArithmetic } from '../mathParser.js';
 
 const TRANSACTION_TYPES = ['EXPENSE', 'INCOME', 'TRANSFER'];
-const DEFAULT_CATEGORIES = [
+const DEFAULT_EXPENSE_CATEGORIES = [
+    'Custom',
     'Groceries & Food',
     'Rent & Housing',
     'Utilities',
@@ -24,24 +25,56 @@ const DEFAULT_CATEGORIES = [
     'Entertainment',
     'Health & Medical',
     'Shopping',
-    'Investments',
+    'Investments'
+];
+const DEFAULT_INCOME_CATEGORIES = [
+    'Custom',
     'Salary / Income',
-    'Other'
+    'Business / Consulting',
+    'Investments / Dividends',
+    'Rental Income',
+    'Gifts / Transfers'
 ];
 
-export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], initialType = 'EXPENSE' }) {
+export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], initialType = 'EXPENSE', existingCustomCategories = [] }) {
     const [type, setType] = useState(initialType || 'EXPENSE');
     const [amountExpr, setAmountExpr] = useState('');
     const [merchant, setMerchant] = useState('');
     const [category, setCategory] = useState('Groceries & Food');
+    const [customCategory, setCustomCategory] = useState('');
+    const [userCustomCategories, setUserCustomCategories] = useState([]);
     const [selectedAccount, setSelectedAccount] = useState(accounts[0]?.name || 'HDFC Bank');
     const [toAccount, setToAccount] = useState(accounts[1]?.name || 'SBI Bank');
+
+    const baseCategories = type === 'INCOME' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES;
+    const combinedCustom = Array.from(new Set([...userCustomCategories, ...existingCustomCategories]));
+    const activeCategories = [
+        'Custom',
+        ...combinedCustom,
+        ...baseCategories.filter(c => c !== 'Custom')
+    ];
 
     React.useEffect(() => {
         if (visible && initialType) {
             setType(initialType);
+            if (initialType === 'INCOME') {
+                setCategory('Salary / Income');
+            } else {
+                setCategory('Groceries & Food');
+            }
+            setCustomCategory('');
         }
     }, [visible, initialType]);
+
+    const handleTypeChange = (newType) => {
+        setType(newType);
+        if (newType === 'INCOME') {
+            setCategory('Salary / Income');
+        } else if (newType === 'EXPENSE') {
+            setCategory('Groceries & Food');
+        }
+        setCustomCategory('');
+    };
 
     const handleSave = () => {
         let evaluatedAmount = 0;
@@ -57,22 +90,45 @@ export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], 
             return;
         }
 
+        let finalCategory = category;
+        const isCustomCat = category === 'Custom';
+        if (type === 'TRANSFER') {
+            finalCategory = 'Transfer';
+        } else if (category === 'Custom') {
+            const trimmed = customCategory.trim();
+            if (!trimmed) {
+                Alert.alert('Missing Category', 'Please enter a name for your custom category.');
+                return;
+            }
+            finalCategory = trimmed;
+            if (!userCustomCategories.includes(trimmed)) {
+                setUserCustomCategories(prev => [...prev, trimmed]);
+            }
+        }
+
         const newTx = {
             id: `tx_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
             amount: evaluatedAmount,
             type,
-            category: type === 'TRANSFER' ? 'Transfer' : category,
+            category: finalCategory,
+            isCustom: isCustomCat,
             merchant: merchant.trim() || (type === 'TRANSFER' ? `Transfer to ${toAccount}` : 'General Cash Activity'),
             description: merchant.trim() || 'Manual Entry',
             date: new Date().toISOString(),
+            account: selectedAccount,
             accountName: selectedAccount,
-            destinationAccountName: type === 'TRANSFER' ? toAccount : undefined
+            destinationAccountName: type === 'TRANSFER' ? toAccount : undefined,
+            source: 'MANUAL',
+            status: 'COMMITTED',
+            needsSort: false,
+            isLogged: true
         };
 
         onSave(newTx);
         // Reset form
         setAmountExpr('');
         setMerchant('');
+        setCustomCategory('');
         onClose();
     };
 
@@ -106,7 +162,7 @@ export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], 
                                         styles.typeBtn,
                                         type === t && styles.typeBtnActive
                                     ]}
-                                    onPress={() => setType(t)}
+                                    onPress={() => handleTypeChange(t)}
                                 >
                                     <Text
                                         style={[
@@ -146,14 +202,19 @@ export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], 
                             <>
                                 <Text style={styles.inputLabel}>Category</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-                                    {DEFAULT_CATEGORIES.map((cat) => (
+                                    {activeCategories.map((cat) => (
                                         <TouchableOpacity
                                             key={cat}
                                             style={[
                                                 styles.catChip,
                                                 category === cat && styles.catChipActive
                                             ]}
-                                            onPress={() => setCategory(cat)}
+                                            onPress={() => {
+                                                setCategory(cat);
+                                                if (cat !== 'Custom') {
+                                                    setCustomCategory('');
+                                                }
+                                            }}
                                         >
                                             <Text
                                                 style={[
@@ -166,6 +227,21 @@ export function AddCashActivityModal({ visible, onClose, onSave, accounts = [], 
                                         </TouchableOpacity>
                                     ))}
                                 </ScrollView>
+
+                                {category === 'Custom' && (
+                                    <View style={{ marginTop: 10 }}>
+                                        <Text style={styles.inputLabel}>Custom Category Name</Text>
+                                        <TextInput
+                                            style={styles.textInput}
+                                            placeholder="e.g. Pet Care, Education, Freelance"
+                                            placeholderTextColor={MF_COLORS.textMuted}
+                                            value={customCategory}
+                                            onChangeText={setCustomCategory}
+                                            autoCapitalize="words"
+                                            autoFocus
+                                        />
+                                    </View>
+                                )}
                             </>
                         )}
 

@@ -1,5 +1,7 @@
+import {collectUserData} from './dataExportCollection.js';
+import { FamilyLifeEventStore, LIFE_EVENTS_STORAGE_KEY } from './family/familyLifeEventStore.js';
 import { Alert, Platform, Share } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { loadData, deleteData, clearAllData, STORAGE_KEYS, getAllKeys } from './storage';
 import { AuthService } from './auth';
@@ -13,21 +15,7 @@ export const ComplianceService = {
      */
     exportUserData: async () => {
         try {
-            const allData = {};
-            const keys = await getAllKeys();
-
-            // Gather all data
-            for (const key of keys) {
-                // Skip sensitive keys if we want to sanitize strict auth tokens?
-                // Actually, GDPR right to access usually implies *everything* stored about them.
-                // But we shouldn't export encryption keys or purely internal system config if not relevant.
-                if (key === 'auth_tokens') continue;
-
-                const data = await loadData(key);
-                if (data) {
-                    allData[key] = data;
-                }
-            }
+            const allData = await collectUserData();
 
             // Create JSON File
             const jsonString = JSON.stringify(allData, null, 2);
@@ -45,11 +33,11 @@ export const ComplianceService = {
                 return { success: true, message: 'Download started' };
             } else {
                 // Native Sharing
-                const fileUri = FileSystem.documentDirectory + fileName;
+                const fileUri = FileSystem.cacheDirectory + fileName;
                 await FileSystem.writeAsStringAsync(fileUri, jsonString, { encoding: FileSystem.EncodingType.UTF8 });
 
                 if (await Sharing.isAvailableAsync()) {
-                    await Sharing.shareAsync(fileUri);
+                    try { await Sharing.shareAsync(fileUri); } finally { await FileSystem.deleteAsync(fileUri, {idempotent:true}); }
                     return { success: true };
                 } else {
                     return { success: false, error: 'Sharing not available' };

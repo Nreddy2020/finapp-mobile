@@ -79,9 +79,17 @@ async function runGate11Suite() {
         const manifestPath = path.join(PROJECT_ROOT, 'android/app/src/main/AndroidManifest.xml');
         const content = fs.readFileSync(manifestPath, 'utf-8');
 
-        assert.ok(!content.includes('android.permission.RECORD_AUDIO'), 'RECORD_AUDIO must be pruned');
-        assert.ok(!content.includes('android.permission.SYSTEM_ALERT_WINDOW'), 'SYSTEM_ALERT_WINDOW must be pruned');
-        assert.ok(!content.includes('android.permission.WRITE_EXTERNAL_STORAGE'), 'WRITE_EXTERNAL_STORAGE must be pruned');
+        // Permissions must not be requested; if declared, they must have tools:node="remove"
+        const isPrunedOrAbsent = (perm) => {
+            const regex = new RegExp(`<uses-permission[^>]*${perm}[^>]*>`, 'g');
+            const matches = content.match(regex);
+            if (!matches) return true;
+            return matches.every(m => m.includes('tools:node="remove"'));
+        };
+
+        assert.ok(isPrunedOrAbsent('android.permission.RECORD_AUDIO'), 'RECORD_AUDIO must be pruned');
+        assert.ok(isPrunedOrAbsent('android.permission.SYSTEM_ALERT_WINDOW'), 'SYSTEM_ALERT_WINDOW must be pruned');
+        assert.ok(isPrunedOrAbsent('android.permission.WRITE_EXTERNAL_STORAGE'), 'WRITE_EXTERNAL_STORAGE must be pruned');
     });
 
     // 3. Fault injection unconditionally rejected in production (cashbookRepository)

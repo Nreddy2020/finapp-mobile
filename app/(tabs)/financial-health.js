@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, ActivityIndicator } from 'react-native';
 import { Brain, TrendingUp, AlertTriangle, MessageSquare, Sparkles, FileText } from 'lucide-react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import api, { getFinancialHealthMetrics } from '../../services/api';
@@ -27,6 +27,7 @@ import SolutionCard from '../../components/analyzer/SolutionCard';
 
 export default function FinancialHealthScreen() {
     const { formatAmount } = useGlobalFinance();
+    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [metrics, setMetrics] = useState(null);
     const [stressScenarios, setStressScenarios] = useState({
@@ -135,6 +136,7 @@ export default function FinancialHealthScreen() {
     // Calculate Health Score (Simplified Logic)
     const calculateScore = () => {
         if (!metrics) return 0;
+        if (Number.isFinite(Number(metrics.health_score))) return Math.min(100, Math.max(0, Math.round(Number(metrics.health_score))));
         let score = 50;
         if (metrics.savingsRate > 20) score += 20;
         else if (metrics.savingsRate > 10) score += 10;
@@ -163,6 +165,11 @@ export default function FinancialHealthScreen() {
 
                 {/* Score Gauge */}
                 <HealthScoreGauge score={healthScore} />
+                {metrics && !(metrics.monthlyIncome || metrics.monthlyExpenses || metrics.liquidAssets || metrics.totalDebt) && (
+                    <View style={{ backgroundColor: '#3A2E12', padding: 14, borderRadius: 12, marginBottom: 16 }} accessibilityRole="alert">
+                        <Text style={{ color: '#FCD34D', fontSize: 14, lineHeight: 21 }}>This score is a placeholder until you record income, expenses and accounts. Add a few in Money Flow and it becomes yours.</Text>
+                    </View>
+                )}
 
                 {/* Key Metrics Grid */}
                 {metrics && (
@@ -217,6 +224,11 @@ export default function FinancialHealthScreen() {
                         </View>
                     )}
                 </LuxuryCard>
+
+                <Pressable accessibilityRole="button" accessibilityLabel="Open action plan" onPress={() => router.push('/(tabs)/insights')} style={[styles.runwayCard, { borderLeftColor: '#8B5CF6' }]}>
+                    <Text style={styles.runwayTitle}>Your prioritised action plan</Text>
+                    <Text style={styles.runwayDesc}>Runway, debt, savings rate, renewals and goals ranked by what protects you most. Opens Insights.</Text>
+                </Pressable>
 
                 {/* Retirement Reality Check (World Class Feature) */}
                 <RetirementReality metrics={metrics} />

@@ -6,7 +6,6 @@ import LuxuryCard from '../components/ui/LuxuryCard';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CareerService } from '../services/career';
-import { FamilyService } from '../services/family'; // Bonus: maybe future integration
 import LuxuryEmptyState from '../components/ui/LuxuryEmptyState';
 
 // New Components

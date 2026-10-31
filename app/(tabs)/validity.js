@@ -1,324 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import { View, ScrollView, RefreshControl, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { ShieldCheck, Plus, Clock, Trash2, Camera, FileText, Search, Filter, CalendarDays as CalendarIcon, Download, Upload as UploadIcon } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { getValidityItems } from '../../services/api';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
-import LuxuryCard from '../../components/ui/LuxuryCard';
-import StackHeader from '../../components/ui/StackHeader';
-
-// New Components
-// New Components
-import AutoRenewalCard from '../../components/validity/AutoRenewalCard';
-import FamilySync from '../../components/validity/FamilySync';
-import AddDocumentModal from '../../components/validity/AddDocumentModal'; // New Import
-import { loadData, saveData, STORAGE_KEYS } from '../../services/storage'; // Persistence
+/**
+ * app/(tabs)/validity.js — Validities
+ * Documents, licences, insurance, subscriptions, warranties and agreements with
+ * derived status, renewal calendar, cost planning and reminders.
+ */
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Plus } from 'lucide-react-native';
+import { Screen, Card, Btn, Field, Chip, Empty, useAsyncAction, useMoney, ui, palette, todayLocal } from '../../components/ui/ModuleUI';
+import { SummaryTiles, ItemRow, ItemSheet } from '../../components/validity/ValidityKit';
+import { ValidityService, summary, sortByUrgency, renewalCalendar, statusOf, VALIDITY_CATEGORIES } from '../../services/validity/validityService';
+import { exportToCSV } from '../../services/export';
 import ErrorBoundary from '../../components/ErrorBoundary';
-import { cancelDocumentNotifications } from '../../services/notifications';
-import { addExpiryToCalendar, authenticateWithBiometrics } from '../../services/calendar';
-import { exportToCSV, bulkUploadDocuments } from '../../services/export';
 
 export default function ValidityScreen() {
+    const router = useRouter();
+    const money = useMoney();
+    const { busy, error, setError, run } = useAsyncAction();
     const [items, setItems] = useState([]);
-    const [refreshing, setRefreshing] = useState(false);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [categoryFilter, setCategoryFilter] = useState('All');
-    const [expiryFilter, setExpiryFilter] = useState('All'); // 'All' or 'Expiring Soon'
+    const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState('action');
+    const [query, setQuery] = useState('');
+    const [category, setCategory] = useState('All');
+    const [sheet, setSheet] = useState({ visible: false, item: null });
+    const today = todayLocal();
 
-    const fetchItems = async () => {
-        try {
-            const data = await loadData(STORAGE_KEYS.VALIDITY, []);
-            setItems(data || []);
-        } catch (error) {
-            console.error('Error fetching items:', error);
-        } finally {
-            setRefreshing(false);
-        }
-    };
+    useEffect(() => { const sub = BackHandler.addEventListener('hardwareBackPress', () => { if (sheet.visible) { setSheet({ visible: false, item: null }); return true; } if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); return true; }); return () => sub.remove(); }, [sheet.visible, router]);
+    const load = useCallback(async () => { setLoading(true); try { setItems(await ValidityService.list('validity')); setError(''); } catch (e) { setError(e.message || 'Documents could not be loaded. Retry.'); } finally { setLoading(false); } }, [setError]);
+    useFocusEffect(useCallback(() => { load(); }, [load]));
 
-    const handleDeleteItem = async (id) => {
-        // Cancel scheduled notifications for this document
-        await cancelDocumentNotifications(id);
-
-        const updatedItems = items.filter(i => i.id !== id);
-        setItems(updatedItems);
-        await saveData(STORAGE_KEYS.VALIDITY, updatedItems);
-    };
-
-    const handleEditItem = (item) => {
-        setEditingItem(item);
-        setEditMode(true);
-        setModalVisible(true);
-    };
-
-    const handleSaveEdit = async (updatedItem) => {
-        const updatedItems = items.map(i => i.id === updatedItem.id ? updatedItem : i);
-        setItems(updatedItems);
-        await saveData(STORAGE_KEYS.VALIDITY, updatedItems);
-        setEditMode(false);
-        setEditingItem(null);
-    };
-
-    useEffect(() => {
-        fetchItems();
-    }, []);
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchItems();
-    };
-
-    // Filter logic
-    const filteredItems = (items || []).filter(item => {
-        const itemName = String(item?.item || item?.title || item?.name || '');
-        const matchesSearch = itemName.toLowerCase().includes(String(searchQuery || '').toLowerCase());
-        const matchesCategory = categoryFilter === 'All' || item?.category === categoryFilter;
-        const matchesExpiry = expiryFilter === 'All' || (expiryFilter === 'Expiring Soon' && (item?.days_left ?? 999) <= 30);
-        return matchesSearch && matchesCategory && matchesExpiry;
-    });
-
-    const expiringSoon = filteredItems.filter(i => (i?.days_left ?? 999) <= 30);
-    const urgentItem = expiringSoon.length > 0 ? expiringSoon[0] : null;
-
-    const THEME_COLOR = '#06B6D4'; // Cyan
-    const CATEGORIES = ['All', 'License', 'Passport', 'Insurance', 'Subscription'];
+    const live = useMemo(() => items.filter(i => !i.archived), [items]);
+    const stats = useMemo(() => summary(items, today, 'validity'), [items, today]);
+    const visible = useMemo(() => {
+        const base = tab === 'archived' ? items.filter(i => i.archived) : live;
+        const q = query.trim().toLowerCase();
+        return sortByUrgency(base.filter(i => (category === 'All' || i.category === category) && (!q || [i.title, i.holder, i.notes, i.category].some(v => String(v || '').toLowerCase().includes(q))) && (tab !== 'action' || ['expired', 'critical', 'expiring', 'unknown'].includes(statusOf(i, today)))), today);
+    }, [items, live, tab, query, category, today]);
+    const calendar = useMemo(() => renewalCalendar(live, today, 12), [live, today]);
+    const onSaved = rows => setItems(rows.filter(r => r.kind === 'validity'));
 
     return (
         <ErrorBoundary>
-            <AnimatedScreen style={styles.container}>
-                <ScrollView
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={onRefresh}
-                            tintColor={THEME_COLOR}
-                            colors={[THEME_COLOR]}
-                            progressBackgroundColor="#18181B"
-                        />
-                    }
-                    showsVerticalScrollIndicator={false}
-                >
-                    <StackHeader title="Validity" subtitle="Expirations" />
-
-                    {/* Search and Filter Bar */}
-                    <View style={{ paddingHorizontal: 24, marginBottom: 16 }}>
-                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-                            <View style={{ flex: 1 }}>
-                                <TextInput
-                                    style={styles.searchInput}
-                                    placeholder="🔍 Search documents..."
-                                    placeholderTextColor="#52525B"
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Filter Pills */}
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            <Text style={{ color: '#71717A', fontSize: 12, fontWeight: '700', marginRight: 8, alignSelf: 'center' }}>FILTER:</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
-                                {CATEGORIES.map(cat => (
-                                    <TouchableOpacity
-                                        key={cat}
-                                        onPress={() => setCategoryFilter(cat)}
-                                        style={[
-                                            styles.filterPill,
-                                            categoryFilter === cat && styles.filterPillActive
-                                        ]}
-                                    >
-                                        <Text style={[
-                                            styles.filterPillText,
-                                            categoryFilter === cat && styles.filterPillTextActive
-                                        ]}>{cat}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                                <TouchableOpacity
-                                    onPress={() => setExpiryFilter(prev => prev === 'All' ? 'Expiring Soon' : 'All')}
-                                    style={[
-                                        styles.filterPill,
-                                        expiryFilter === 'Expiring Soon' && { backgroundColor: '#EF444420', borderColor: '#EF4444' }
-                                    ]}
-                                >
-                                    <Clock size={12} color={expiryFilter === 'Expiring Soon' ? '#EF4444' : '#71717A'} />
-                                    <Text style={[
-                                        styles.filterPillText,
-                                        expiryFilter === 'Expiring Soon' && { color: '#EF4444' }
-                                    ]}>Expiring Soon</Text>
-                                </TouchableOpacity>
-                            </ScrollView>
-                        </View>
-                    </View>
-
-                    <View style={styles.heroCardWrapper}>
-                        <View style={styles.heroCard}>
-                            <LinearGradient
-                                colors={[`${THEME_COLOR}60`, '#00000000']}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                                style={styles.heroGlow}
-                            />
-                            <View style={styles.heroContent}>
-                                <Text style={styles.heroLabel}>Documents Active</Text>
-                                <Text style={styles.heroAmount}>{items.length}</Text>
-                                <View style={styles.heroFooter}>
-                                    <View style={[styles.heroIconBadge, { backgroundColor: expiringSoon.length > 0 ? '#F59E0B' : '#10B981' }]}>
-                                        <Clock size={14} color="#FFFFFF" strokeWidth={2.5} />
-                                    </View>
-                                    <Text style={styles.heroSubtext}>
-                                        {expiringSoon.length > 0 ? `${expiringSoon.length} expiring soon` : 'All valid & secure'}
-                                    </Text>
-                                </View>
-                                <View style={{ height: 6, backgroundColor: '#FFFFFF15', borderRadius: 3, marginTop: 18, overflow: 'hidden' }}>
-                                    <View style={{ height: '100%', width: `${items.length > 0 ? Math.min(100, Math.round(((items.length - expiringSoon.length) / items.length) * 100)) : 100}%`, backgroundColor: expiringSoon.length > 0 ? '#F59E0B' : '#10B981' }} />
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Auto-Renewal Card for most urgent item */}
-                    {urgentItem && <AutoRenewalCard item={urgentItem} />}
-
-                    {/* Family Sync Settings */}
-                    <FamilySync />
-
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Document Vault</Text>
-
-                        {filteredItems.length === 0 ? (
-                            <View style={styles.emptyCard}>
-                                <View style={styles.emptyIconContainer}>
-                                    <ShieldCheck size={32} color={THEME_COLOR} strokeWidth={2.5} />
-                                </View>
-                                <Text style={styles.emptyText}>{searchQuery || categoryFilter !== 'All' || expiryFilter !== 'All' ? 'No matching documents' : 'No documents'}</Text>
-                                <Text style={styles.emptySubtext}>{searchQuery || categoryFilter !== 'All' || expiryFilter !== 'All' ? 'Try adjusting your filters' : 'Track licenses, IDs & subscriptions'}</Text>
-                            </View>
-                        ) : (
-                            filteredItems.map((item, index) => {
-                                const isUrgent = item.days_left <= 30;
-                                return (
-                                    <LuxuryCard
-                                        key={index}
-                                        index={index}
-                                        style={styles.docCard}
-                                        onPress={() => { }}
-                                    >
-                                        <LinearGradient
-                                            colors={[`${THEME_COLOR}10`, '#00000000']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={styles.cardGlow}
-                                        />
-                                        <View style={styles.cardIcon}>
-                                            <ShieldCheck size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                                        </View>
-                                        <View style={styles.cardContent}>
-                                            <Text style={styles.docName}>{item.item}</Text>
-                                            <Text style={styles.docDate}>Expires {item.expiry_date} {item.image && '📷'}</Text>
-                                        </View>
-                                        <View style={styles.cardRight}>
-                                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                                <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: item.days_left <= 0 ? '#EF444420' : item.days_left <= 30 ? '#F59E0B20' : '#10B98120', borderWidth: 1, borderColor: item.days_left <= 0 ? '#EF4444' : item.days_left <= 30 ? '#F59E0B' : '#10B981' }}>
-                                                    <Text style={{ fontSize: 9, fontWeight: '900', color: item.days_left <= 0 ? '#EF4444' : item.days_left <= 30 ? '#F59E0B' : '#10B981' }}>
-                                                        {item.days_left <= 0 ? 'EXPIRED' : item.days_left <= 30 ? 'EXPIRING' : 'VALID'}
-                                                    </Text>
-                                                </View>
-                                                <View style={[styles.daysBadge, { backgroundColor: isUrgent ? '#EF444420' : '#10B98120' }]}>
-                                                    <Text style={[styles.daysText, { color: isUrgent ? '#EF4444' : '#10B981' }]}>
-                                                        {item.days_left <= 0 ? 'Overdue' : `${item.days_left} Days`}
-                                                    </Text>
-                                                </View>
-                                            </View>
-                                            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8, alignSelf: 'flex-end' }}>
-                                                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleEditItem(item) }}>
-                                                    <FileText size={14} color="#A1A1AA" />
-                                                </TouchableOpacity>
-                                                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDeleteItem(item.id) }}>
-                                                    <Trash2 size={14} color="#52525B" />
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    </LuxuryCard>
-                                );
-                            })
-                        )}
-                    </View>
-
-                    <LuxuryCard
-                        style={styles.addButton}
-                        onPress={() => setModalVisible(true)}
-                        index={items.length + 1}
-                    >
-                        <Plus size={24} color={THEME_COLOR} strokeWidth={2.5} />
-                        <Text style={styles.addButtonText}>Add Document</Text>
-                    </LuxuryCard>
-                </ScrollView>
-
-                <AddDocumentModal
-                    visible={modalVisible}
-                    onClose={() => {
-                        setModalVisible(false);
-                        setEditMode(false);
-                        setEditingItem(null);
-                    }}
-                    onAdd={async (item) => {
-                        if (editMode) {
-                            await handleSaveEdit(item);
-                        } else {
-                            const updatedItems = [item, ...items];
-                            setItems(updatedItems);
-                            await saveData(STORAGE_KEYS.VALIDITY, updatedItems);
-                        }
-                    }}
-                    editMode={editMode}
-                    initialData={editingItem}
-                />
-            </AnimatedScreen>
+            <Screen title="Validities" subtitle="Nothing important lapses unnoticed." loading={loading} error={error} retry={load}
+                tabs={[{ value: 'action', label: `Needs action (${stats.needsAction})` }, { value: 'all', label: 'All' }, { value: 'calendar', label: 'Calendar' }, { value: 'archived', label: 'Archived' }]} tab={tab} onTab={setTab}
+                right={<TouchableOpacity accessibilityRole="button" accessibilityLabel="Add document" onPress={() => setSheet({ visible: true, item: null })} style={ui.back}><Plus color="#F4F4F5" size={22} /></TouchableOpacity>}>
+                <SummaryTiles summary={stats} kind="validity" />
+                {tab !== 'calendar' && <>
+                    <Field label="Search" value={query} onChangeText={setQuery} placeholder="Name, holder, category" />
+                    <View style={ui.wrap}>{['All', ...VALIDITY_CATEGORIES.filter(c => items.some(i => i.category === c))].map(c => <Chip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />)}</View>
+                    {!items.length && <Empty title="No documents tracked yet" body="Add your passport, licences, insurance policies, subscriptions and warranties. You will be reminded before each one runs out, with the cost to renew." action="Add first document" onAction={() => setSheet({ visible: true, item: null })} />}
+                    {!!items.length && <Card title={tab === 'action' ? 'Act on these' : tab === 'archived' ? 'Archived' : `${visible.length} document${visible.length === 1 ? '' : 's'}`}>
+                        {!visible.length && <Text style={ui.muted}>{tab === 'action' ? 'Everything is valid. Nice.' : 'Nothing here.'}</Text>}
+                        {visible.map(item => <ItemRow key={item.id} item={item} today={today} onPress={i => setSheet({ visible: true, item: i })} />)}
+                    </Card>}
+                    {tab === 'all' && !!items.length && <Btn title="Export as CSV" secondary onPress={exportToCSV} />}
+                    <Btn title="Track consumables and vouchers in Expiries" secondary onPress={() => router.push('/(tabs)/expiries')} />
+                </>}
+                {tab === 'calendar' && <>
+                    <Text style={ui.muted}>Renewals in the next 12 months with the cash you will need.</Text>
+                    {!calendar.length && <Empty title="No dated renewals" body="Add expiry dates to see them here month by month." />}
+                    {calendar.map(group => (
+                        <Card key={group.key} title={group.label} subtitle={group.cost ? `Renewal cost ${money.format(group.cost)}` : undefined}>
+                            {group.items.map(item => <ItemRow key={item.id} item={item} today={today} onPress={i => setSheet({ visible: true, item: i })} />)}
+                        </Card>
+                    ))}
+                </>}
+                <ItemSheet visible={sheet.visible} kind="validity" item={sheet.item} onClose={() => setSheet({ visible: false, item: null })} onSaved={onSaved} busy={busy} run={run} error={error} />
+            </Screen>
         </ErrorBoundary>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#000000' },
-    scrollView: { flex: 1 },
-    scrollContent: { paddingBottom: 24 },
-    header: { padding: 24, paddingTop: 60, paddingBottom: 24 },
-    headerLabel: { fontSize: 13, color: '#71717A', marginBottom: 8, fontWeight: '700', letterSpacing: 2, textTransform: 'uppercase' },
-    title: { fontSize: 36, fontWeight: '900', color: '#FFFFFF', letterSpacing: -1 },
-    heroCardWrapper: { marginHorizontal: 24, marginBottom: 40 },
-    heroCard: { position: 'relative', borderRadius: 32, overflow: 'hidden', backgroundColor: '#18181B', borderWidth: 1, borderColor: '#FFFFFF08' },
-    heroGlow: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.6 },
-    heroContent: { padding: 32 },
-    heroLabel: { fontSize: 13, color: '#A1A1AA', marginBottom: 16, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase' },
-    heroAmount: { fontSize: 52, fontWeight: '900', color: '#FFFFFF', marginBottom: 24, letterSpacing: -2 },
-    heroFooter: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    heroIconBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#FFFFFF20' },
-    heroSubtext: { fontSize: 13, color: '#FFFFFF80', fontWeight: '600', letterSpacing: 0.5 },
-    section: { paddingHorizontal: 24, marginBottom: 24 },
-    sectionTitle: { fontSize: 13, fontWeight: '800', color: '#71717A', marginBottom: 20, letterSpacing: 2, textTransform: 'uppercase' },
-    docCard: { position: 'relative', flexDirection: 'row', alignItems: 'center', backgroundColor: '#18181B', borderRadius: 24, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: '#FFFFFF08', overflow: 'hidden' },
-    cardGlow: { position: 'absolute', top: 0, left: 0, bottom: 0, width: 140, opacity: 1 },
-    cardIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: '#06B6D410', justifyContent: 'center', alignItems: 'center', marginRight: 20, borderWidth: 1, borderColor: '#06B6D420' },
-    cardContent: { flex: 1 },
-    docName: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', marginBottom: 6, letterSpacing: -0.3 },
-    docDate: { fontSize: 13, color: '#71717A', fontWeight: '500' },
-    cardRight: { alignItems: 'flex-end' },
-    daysBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
-    daysText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-    emptyCard: { backgroundColor: '#18181B', borderRadius: 24, padding: 48, alignItems: 'center', borderWidth: 1, borderColor: '#FFFFFF08', borderStyle: 'dashed' },
-    emptyIconContainer: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#06B6D408', justifyContent: 'center', alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#06B6D415' },
-    emptyText: { fontSize: 17, color: '#FFFFFF', fontWeight: '700', marginBottom: 8 },
-    emptySubtext: { fontSize: 14, color: '#71717A', textAlign: 'center', fontWeight: '500', lineHeight: 20 },
-    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#18181B', marginHorizontal: 24, marginBottom: 24, padding: 20, borderRadius: 24, gap: 12, borderWidth: 1, borderColor: '#06B6D450' },
-    addButtonText: { fontSize: 16, fontWeight: '700', color: '#06B6D4', letterSpacing: 0.5 },
-    searchInput: { backgroundColor: '#18181B', color: '#FFF', padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#3F3F46', fontSize: 14 },
-    filterPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: '#27272A', borderWidth: 1, borderColor: '#3F3F46', marginRight: 8 },
-    filterPillActive: { backgroundColor: '#06B6D420', borderColor: '#06B6D4' },
-    filterPillText: { fontSize: 12, fontWeight: '700', color: '#71717A' },
-    filterPillTextActive: { color: '#06B6D4' },
-});

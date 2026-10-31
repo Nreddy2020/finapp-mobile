@@ -20,13 +20,15 @@ import { View, ScrollView, RefreshControl } from 'react-native';
 import { buildMoneyFlowViewModel } from './moneyFlowViewModel.js';
 import {
     getPeriodBounds,
-    computeEmergencyRunwayMetrics
+    computeEmergencyRunwayMetrics,
+    STANDARD_CATEGORIES
 } from './moneyFlowPresentationAdapter.js';
 import {
     getStoredTransactions,
     persistTransactions,
     resolveTransaction
 } from '../../services/moneyFlowService.js';
+import { saveData, STORAGE_KEYS } from '../../services/storage.js';
 import { smsIngestionService } from '../../services/sms/smsIngestionService.js';
 import { mfStyles, MF_COLORS } from './moneyFlowStyles.js';
 
@@ -124,6 +126,9 @@ export default function MoneyFlowView({
     const saveTransactions = useCallback(async (newTxList) => {
         setInternalTransactions(newTxList);
         await persistTransactions(newTxList);
+        try {
+            await saveData(STORAGE_KEYS.TRANSACTIONS, newTxList);
+        } catch {}
     }, []);
 
     // 3. Build Synchronized Authoritative ViewModel
@@ -136,6 +141,15 @@ export default function MoneyFlowView({
             isLoading
         });
     }, [activeTransactions, controlledAccounts, accounts, periodType, isLoading]);
+
+    const existingCustomCategories = useMemo(() => {
+        const set = new Set();
+        (activeTransactions || []).forEach(tx => {
+            if (tx.isCustom && tx.category) set.add(tx.category);
+            else if (tx.category && !STANDARD_CATEGORIES.has(tx.category)) set.add(tx.category);
+        });
+        return Array.from(set);
+    }, [activeTransactions]);
 
     // 4. Handlers
     const handleAddTransaction = useCallback((newTx) => {
@@ -156,12 +170,12 @@ export default function MoneyFlowView({
         saveTransactions(updated);
     }, [isControlled, onDeleteTransaction, activeTransactions, saveTransactions]);
 
-    const handleConfirmReview = useCallback((txId, selectedCategory, customType) => {
+    const handleConfirmReview = useCallback((txId, selectedCategory, customType, isCustom) => {
         if (isControlled && onCategorizeTransaction) {
-            onCategorizeTransaction(txId, selectedCategory);
+            onCategorizeTransaction(txId, selectedCategory, customType, isCustom);
             return;
         }
-        const updated = resolveTransaction(activeTransactions, txId, selectedCategory, customType);
+        const updated = resolveTransaction(activeTransactions, txId, selectedCategory, customType, isCustom);
         saveTransactions(updated);
     }, [isControlled, onCategorizeTransaction, activeTransactions, saveTransactions]);
 
@@ -249,6 +263,7 @@ export default function MoneyFlowView({
                 onSave={handleAddTransaction}
                 accounts={accounts}
                 initialType={addModalType}
+                existingCustomCategories={existingCustomCategories}
             />
 
             <TransactionDetailModal
@@ -263,6 +278,7 @@ export default function MoneyFlowView({
                 onClose={() => setReviewingTransaction(null)}
                 transaction={reviewingTransaction}
                 onConfirmReview={handleConfirmReview}
+                onDelete={handleDeleteTransaction}
             />
         </View>
     );

@@ -1,84 +1,44 @@
-import React, { useState } from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
-import { X, Receipt, Users, Plus, Zap } from 'lucide-react-native';
+/**
+ * components/housing/UtilitySplitter.js
+ * Shared bills between flatmates with fair settlement (fewest transfers).
+ */
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text } from 'react-native';
+import { Sheet, Card, Btn, Field, MoneyField, Choice, Chip, Notice, KeyValue, ListItem, useAsyncAction, useMoney, ui, palette, todayLocal } from '../ui/ModuleUI';
+import { ApartmentService, settleShared } from '../../services/apartment';
 
-export default function UtilitySplitter({ visible, onClose }) {
-    const [bills, setBills] = useState([
-        { id: 1, name: 'Electricity', amount: 3500, paidBy: 'You' },
-        { id: 2, name: 'WiFi', amount: 1200, paidBy: 'Rahul' },
-        { id: 3, name: 'Maid', amount: 4000, paidBy: 'Sneha' },
-    ]);
-
-    const total = bills.reduce((sum, b) => sum + b.amount, 0);
-    const perPerson = (total / 3).toFixed(0);
-
+export default function UtilitySplitter({ visible, onClose, home, onSaved }) {
+    const money = useMoney();
+    const { busy, error, run } = useAsyncAction();
+    const [month, setMonth] = useState(todayLocal().slice(0, 7));
+    const [newMate, setNewMate] = useState('');
+    const [bill, setBill] = useState({ name: '', amount: '', paidBy: '', participants: [] });
+    const members = useMemo(() => ['You', ...(home?.flatmates || []).filter(m => m !== 'You')], [home]);
+    useEffect(() => { if (visible) setBill(b => ({ ...b, paidBy: b.paidBy || 'You' })); }, [visible]);
+    const bills = (home?.sharedBills || []).filter(b => b.month === month);
+    const settlement = settleShared(bills, members);
+    const shiftMonth = d => { const [y, m] = month.split('-').map(Number); setMonth(new Date(Date.UTC(y, m - 1 + d, 1)).toISOString().slice(0, 7)); };
     return (
-        <Modal visible={visible} animationType="slide" transparent={true}>
-            <View style={styles.overlay}>
-                <View style={styles.container}>
-                    <View style={styles.header}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                            <Zap size={24} color="#F59E0B" />
-                            <Text style={styles.title}>Utility Splitter</Text>
-                        </View>
-                        <TouchableOpacity onPress={onClose}>
-                            <X size={24} color="#A1A1AA" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.summaryBox}>
-                        <View>
-                            <Text style={styles.summaryLabel}>Total Monthly Bills</Text>
-                            <Text style={styles.summaryValue}>₹{total}</Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={styles.summaryLabel}>Share Per Person</Text>
-                            <Text style={styles.summaryValue}>₹{perPerson}</Text>
-                        </View>
-                    </View>
-
-                    <Text style={styles.sectionTitle}>Active Bills</Text>
-
-                    <ScrollView style={styles.list}>
-                        {bills.map((bill) => (
-                            <View key={bill.id} style={styles.billRow}>
-                                <View style={styles.billIcon}>
-                                    <Receipt size={16} color="#FFF" />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.billName}>{bill.name}</Text>
-                                    <Text style={styles.paidBy}>Paid by {bill.paidBy}</Text>
-                                </View>
-                                <Text style={styles.billAmount}>₹{bill.amount}</Text>
-                            </View>
-                        ))}
-                    </ScrollView>
-
-                    <TouchableOpacity style={styles.addBtn}>
-                        <Plus size={20} color="#000" />
-                        <Text style={styles.addBtnText}>Add Bill</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-        </Modal>
+        <Sheet visible={visible} title="Shared bills" onClose={onClose}>
+            <Notice>{error}</Notice>
+            <Card title="Flatmates">
+                <View style={ui.wrap}>{members.map(m => <Chip key={m} label={m === 'You' ? 'You' : `${m} ✕`} onPress={() => { if (m !== 'You') run(async () => onSaved(await ApartmentService.setFlatmates(members.filter(x => x !== m && x !== 'You')))); }} accessibilityLabel={m === 'You' ? 'You' : `Remove ${m}`} />)}</View>
+                <View style={ui.row}><View style={ui.flex}><Field value={newMate} onChangeText={setNewMate} placeholder="Add flatmate name" /></View><Btn title="Add" secondary disabled={busy || !newMate.trim()} onPress={() => run(async () => { onSaved(await ApartmentService.setFlatmates([...members.filter(x => x !== 'You'), newMate])); setNewMate(''); })} /></View>
+            </Card>
+            <View style={ui.row}><View style={ui.flex}><Btn title="◀" accessibilityLabel="Previous month" secondary onPress={() => shiftMonth(-1)} /></View><View style={[ui.flex, { flex: 2 }]}><Btn title={month} secondary onPress={() => setMonth(todayLocal().slice(0, 7))} /></View><View style={ui.flex}><Btn title="▶" accessibilityLabel="Next month" secondary onPress={() => shiftMonth(1)} /></View></View>
+            <Card title={`Bills · ${month}`} subtitle={`Total ${money.format(settlement.total)} · about ${money.format(settlement.perPerson)} each`}>
+                {!bills.length && <Text style={ui.muted}>No shared bills this month.</Text>}
+                {bills.map(b => <ListItem key={b.id}><KeyValue label={`${b.name} · paid by ${b.paidBy}${b.participants.length ? ` · split ${b.participants.join(', ')}` : ''}`} value={money.format(b.amount)} /><Chip label="Remove" onPress={() => run(async () => onSaved(await ApartmentService.removeSharedBill(b.id)))} /></ListItem>)}
+            </Card>
+            {!!settlement.transfers.length && <Card title="Settle up">{settlement.transfers.map((t, i) => <KeyValue key={i} label={`${t.from} pays ${t.to}`} value={money.format(t.amount)} color={palette.warning} />)}</Card>}
+            <Card title="Add bill">
+                <Field label="Bill" value={bill.name} onChangeText={v => setBill(b => ({ ...b, name: v }))} placeholder="Electricity, WiFi, cook, groceries" />
+                <MoneyField label="Amount" value={bill.amount} onChangeText={v => setBill(b => ({ ...b, amount: v }))} />
+                <Choice label="Paid by" options={members} value={bill.paidBy} onChange={v => setBill(b => ({ ...b, paidBy: v }))} />
+                <Text style={ui.label}>Split between (leave empty for everyone)</Text>
+                <View style={ui.wrap}>{members.map(m => <Chip key={m} label={m} active={bill.participants.includes(m)} onPress={() => setBill(b => ({ ...b, participants: b.participants.includes(m) ? b.participants.filter(x => x !== m) : [...b.participants, m] }))} />)}</View>
+                <Btn title={busy ? 'Saving…' : 'Add bill'} disabled={busy} onPress={() => run(async () => { onSaved(await ApartmentService.addSharedBill({ ...bill, month })); setBill({ name: '', amount: '', paidBy: 'You', participants: [] }); })} />
+            </Card>
+        </Sheet>
     );
 }
-
-const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
-    container: { backgroundColor: '#18181B', height: '60%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
-    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    title: { fontSize: 20, fontWeight: '700', color: '#FFF' },
-    summaryBox: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#27272A', padding: 20, borderRadius: 16, marginBottom: 24 },
-    summaryLabel: { color: '#A1A1AA', fontSize: 12, marginBottom: 4 },
-    summaryValue: { color: '#FFF', fontSize: 24, fontWeight: '700' },
-    sectionTitle: { color: '#71717A', fontSize: 13, marginBottom: 16, textTransform: 'uppercase', letterSpacing: 1 },
-    list: { flex: 1 },
-    billRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#FFFFFF08' },
-    billIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#F59E0B20', alignItems: 'center', justifyContent: 'center' },
-    billName: { color: '#FFF', fontSize: 15, fontWeight: '600' },
-    paidBy: { color: '#71717A', fontSize: 12 },
-    billAmount: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-    addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F59E0B', padding: 16, borderRadius: 12 },
-    addBtnText: { color: '#000', fontWeight: '700' }
-});

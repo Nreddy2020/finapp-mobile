@@ -81,8 +81,8 @@ export default function PrivacyScreen() {
                         <Shield size={32} color="#10B981" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.statusTitle}>Bank-Grade Encryption</Text>
-                        <Text style={styles.statusDesc}>Your data is encrypted with AES-256-GCM. We cannot read your financial details.</Text>
+                        <Text style={styles.statusTitle}>local Encryption</Text>
+                        <Text style={styles.statusDesc}>Your data is encrypted with AES-256-CBC. We cannot read your financial details.</Text>
                     </View>
                 </View>
 

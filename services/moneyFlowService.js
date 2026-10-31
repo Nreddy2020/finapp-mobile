@@ -13,7 +13,7 @@
  * - SMS-07: Safe parsing fault isolation.
  */
 
-import { loadData, saveData } from './storage.js';
+import { loadData, saveData, STORAGE_KEYS } from './storage.js';
 import { parseRawSMS } from './sms/smsParser.js';
 import { normalizeSMSTransaction } from './sms/smsTransactionNormalizer.js';
 import { isDuplicateTransaction } from './sms/smsDuplicateDetector.js';
@@ -230,8 +230,14 @@ let _storageMutationQueue = Promise.resolve();
 export async function getStoredTransactions() {
     try {
         const stored = await loadData(STORAGE_KEY_MONEY_FLOW);
-        if (stored && Array.isArray(stored) && stored.length > 0) {
+        if (stored !== null && stored !== undefined && Array.isArray(stored)) {
             return stored;
+        }
+        if (STORAGE_KEYS && STORAGE_KEYS.TRANSACTIONS) {
+            const legacyStored = await loadData(STORAGE_KEYS.TRANSACTIONS);
+            if (legacyStored !== null && legacyStored !== undefined && Array.isArray(legacyStored)) {
+                return legacyStored;
+            }
         }
     } catch (e) {
         console.warn('[MoneyFlowService] Error loading stored transactions:', e);
@@ -242,6 +248,9 @@ export async function getStoredTransactions() {
 export async function persistTransactions(transactions) {
     try {
         await saveData(STORAGE_KEY_MONEY_FLOW, transactions);
+        if (STORAGE_KEYS && STORAGE_KEYS.TRANSACTIONS) {
+            await saveData(STORAGE_KEYS.TRANSACTIONS, transactions);
+        }
     } catch (e) {
         console.warn('[MoneyFlowService] Error persisting transactions:', e);
     }
@@ -306,10 +315,10 @@ export function ingestSMSMessages(smsMessages = [], existingTransactions = [], l
 /**
  * Resolves a transaction from the NEEDS_REVIEW queue.
  */
-export function resolveTransaction(transactions, txId, newCategory, newType = null) {
+export function resolveTransaction(transactions, txId, newCategory, newType = null, isCustom = false) {
     return transactions.map(tx => {
         if (tx.id === txId) {
-            return confirmReviewTransaction(tx, newCategory, newType);
+            return confirmReviewTransaction(tx, newCategory, newType, isCustom);
         }
         return tx;
     });

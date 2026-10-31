@@ -1,0 +1,159 @@
+{
+  "root": "E:/fintech-mobile",
+  "scopedFiles": [
+    "docs/FAMILY_POLISH_SCOPE_2026_09_10.md",
+    "services/storage.js",
+    "services/family/familyRepository.js",
+    "services/compliance.js",
+    "services/dataExport.js",
+    "app/settings/privacy.js",
+    "services/api.js",
+    "components/family/navigation/FamilyUI.js",
+    "components/family/navigation/FamilySelection.js",
+    "app/family/_layout.js",
+    "components/family/navigation/FamilyHeader.js",
+    "app/family/index.js",
+    "app/family/more.js",
+    "app/family/operations.js",
+    "app/family/people.js",
+    "app/family/protection.js",
+    "app/family/more/actions.js",
+    "app/family/more/budgeting.js",
+    "app/family/more/continuity.js",
+    "app/family/more/financials.js",
+    "app/family/more/forecast.js",
+    "app/family/more/goals.js",
+    "app/family/more/life-events.js",
+    "app/family/more/resources.js",
+    "app/family/more/readiness.js",
+    "services/family/familyForecastService.js",
+    "components/family/forecast/ForecastOverviewCard.js",
+    "tests/family/test_family_phase2_navigation.mjs",
+    "tests/family/test_family_phase8_continuity.mjs",
+    "tests/family/test_family_usability_reliability.mjs",
+    "services/runtimeConfig.js",
+    "components/family/operations/TaskFormModal.js",
+    "components/family/operations/ResponsibilityFormModal.js",
+    "components/family/protection/EmergencyContactModal.js",
+    "components/family/protection/ProtectionItemModal.js",
+    "components/family/protection/ReadinessAuditCard.js",
+    "components/family/navigation/HouseholdContextBanner.js",
+    "services/commitments/commitmentsService.js",
+    "services/family/familyFinancialService.js",
+    "services/family/familyActionService.js",
+    "services/family/familyDeviceAccess.js",
+    "components/family/continuity/CrisisChecklistCard.js",
+    "services/family/familyContinuityService.js",
+    "tests/family/test_family_phase6_financials.mjs",
+    "services/dataExportCollection.js",
+    "tests/mock_rn.mjs",
+    "services/family/familySourceQuality.js",
+    "services/family/familyGoalService.js",
+    "tests/mock_rn_module.mjs",
+    "components/family/operations/TaskItemCard.js",
+    "services/family/familyBudgetPoolService.js",
+    "docs/FAMILY_POLISH_REPORT_2026_09_10.md"
+  ],
+  "dependencyChanges": [
+    "package.json",
+    "package-lock.json"
+  ],
+  "evidence": [
+    {
+      "file": "goal-created.png",
+      "sha256": "7f1e47e8baca6a47671483de312e04cda3eefaabe4dcd87523596caaa378e4dd"
+    },
+    {
+      "file": "goal-progress.png",
+      "sha256": "8a61afa265016246b2e98f436ccf0273d3fe4587db667194ca4697386665e934"
+    },
+    {
+      "file": "forecast-income.png",
+      "sha256": "62d79a3b207adbd7d252618af3da55cb6efd4c7b76cae4a2b620bce3f7451df8"
+    },
+    {
+      "file": "home-final.png",
+      "sha256": "43f6131845788ec9dd9e20d5143b4aff5cb5eba01f65c34b965dddff0bd7affb"
+    },
+    {
+      "file": "more-final.png",
+      "sha256": "5320ee29c801cd2db263a3f4597aa9d0454d001e0aeae032ca5020b8c153500b"
+    },
+    {
+      "file": "operations-completed.png",
+      "sha256": "7ca7271326ecfa7bf69fb5155f438808bab9052578490cf9e51a03955d659a37"
+    },
+    {
+      "file": "people-edited.png",
+      "sha256": "6087738d7d5f841c172d22a7e3a9051788c9e291b94bb914d8aae7c8124ff040"
+    },
+    {
+      "file": "protection-contact.png",
+      "sha256": "aa4bb6a58382a7f25130bb5076a0c9dbe74ce9bf1ad7e34efa58375d0d5dd3ba"
+    },
+    {
+      "file": "task-failed-save.png",
+      "sha256": "5ac24e3075fc2ace1a290388c74b52064df4255b4574dc0f1aac1e377fea6c26"
+    },
+    {
+      "file": "budget-final.png",
+      "sha256": "b73f47dd124fc5fa8c998915e903a4bb583e50f8108cac7d034979036a10731e"
+    },
+    {
+      "file": "budget-edit.png",
+      "sha256": "63ec12687cad40dc805b8a5fa89c3e786de52d4df89e32d41b8f6b74d99c0bb6"
+    },
+    {
+      "file": "continuity-final.png",
+      "sha256": "2d76af414642b120d7cb011786a1c834f5c70cc27b662ee8467c089450c66523"
+    },
+    {
+      "file": "continuity-auth-required.png",
+      "sha256": "e90b413c2756b1efe084cac028abf6e4001fb0b3cc2b2502a3642e1d6e895d4f"
+    },
+    {
+      "file": "household-switch.png",
+      "sha256": "cfb0931c8057cdf8ea110bff6fc950e62c105450648795da06c277e3e4ff2484"
+    },
+    {
+      "file": "life-events-final.png",
+      "sha256": "c55c483a2eb4e8756b0e53306aae99fcfe005bc41329158b3f461baa391ae94c"
+    },
+    {
+      "file": "native-after-restart.json",
+      "sha256": "b210258eac7ca02f6b1eb9db6bd1c0e514050797dd534a8a311219f1bf707325"
+    },
+    {
+      "file": "after-failed-task-save.json",
+      "sha256": "66e5bced6253d9b0557ddec9e42c09e252a8f9c9363d0b7accf8bfd65c558ef3"
+    },
+    {
+      "file": "after-task-retry.json",
+      "sha256": "ac48fb1c19eb463509105e1088fef9599ab542afd5f5b98425a4691a6509d98b"
+    },
+    {
+      "file": "qa-cleanup.json",
+      "sha256": "6d87065b096a2d345871733b3801ab4310229d9de5a2a152fd77c091d76fbe73"
+    },
+    {
+      "file": "native-final.json",
+      "sha256": "44c1b6da0820ec7282773aefe2ee303044507c2728c58b769a155ebec8de87b5"
+    },
+    {
+      "file": "regression.log",
+      "sha256": "1a323fe2af7aeed362914f3491b8dc19fa88f62fdcce92b9f9946c17f8e1448e"
+    },
+    {
+      "file": "life-events.log",
+      "sha256": "bed5df18658f0ce7705928fcbc171a56eab90ba74ff9e61d2460458c18396646"
+    },
+    {
+      "file": "reliability.log",
+      "sha256": "b167be08facb7d956a7acd7dee8a8be471547f5bc8143b8ae6c264212bf9b35e"
+    },
+    {
+      "file": "static-check.json",
+      "sha256": "06a943ff0bf0bbe8df330690ba61c8af401845bf4a976b0acc422e3937b89bd0"
+    }
+  ]
+}

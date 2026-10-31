@@ -18,6 +18,7 @@ import "../global.css";
 import { GlobalFinanceProvider } from "../components/context/GlobalFinanceContext";
 import { TranslationProvider } from "../components/localization/TranslationContext";
 import { AuthProvider } from "../components/context/AuthContext";
+import { ReminderScheduler } from "../services/notificationService";
 
 /**
  * RootLayout — sets up global providers.
@@ -25,6 +26,11 @@ import { AuthProvider } from "../components/context/AuthContext";
  * so useAuth() is never called outside its provider.
  */
 export default function RootLayout() {
+  useEffect(() => {
+    // Re-arm expiry / validity reminders after every launch (idempotent per item).
+    const timer = setTimeout(() => { ReminderScheduler.resyncAll().catch(() => {}); }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
     const timer = setTimeout(() => {

@@ -1,0 +1,116 @@
+{
+  "contacts": [],
+  "goals": [
+    {
+      "id": "goal_1789040414433_uhuup",
+      "milestones": [],
+      "pledges": [],
+      "progress": [
+        {
+          "amount": 500,
+          "currency": "INR",
+          "evidenceDocId": null,
+          "goalId": "goal_1789040414433_uhuup",
+          "id": "acc_1789041045631_ncu3f",
+          "notes": null,
+          "personId": "p_mtvg37e7_qtanyu",
+          "recordedAtUtc": "2026-09-10T11:50:45.628Z",
+          "verifiedAtUtc": null,
+          "verifiedByPersonId": null
+        }
+      ],
+      "target": 12000,
+      "title": "QA School Fund"
+    }
+  ],
+  "householdId": "hh_mtvg37e8_3pyae2",
+  "income": [
+    {
+      "amount": 1000,
+      "id": "inc_1789041539576_b82yu",
+      "name": "QA Monthly Income",
+      "payDay": 1
+    }
+  ],
+  "members": [
+    {
+      "id": "p_mtvg37e7_qtanyu",
+      "name": "QA Taylor",
+      "role": "HEAD"
+    }
+  ],
+  "pools": [],
+  "preservation": [
+    {
+      "changedOrMissing": 0,
+      "collection": "people",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "households",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "memberships",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "relationships",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "trustedCircle",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "documents",
+      "originalCount": 2
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "responsibilities",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "tasks",
+      "originalCount": 3
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "emergencyContacts",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "protectionItems",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "financialLinks",
+      "originalCount": 1
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "budgetPools",
+      "originalCount": 5
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "forecastScenarios",
+      "originalCount": 0
+    },
+    {
+      "changedOrMissing": 0,
+      "collection": "goals",
+      "originalCount": 0
+    }
+  ],
+  "tasks": []
+}

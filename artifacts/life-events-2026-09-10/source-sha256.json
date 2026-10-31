@@ -1,0 +1,8 @@
+{
+  "app/family/more.js": "8752673d1d8ad26292058e62f148c698c4077a344ea8a2ae1a145de1ba068524",
+  "app/family/operations.js": "810c9d8eb4cbfd196b40622d4dabcd95a168ccf02cd27275ae13a3fddad5ff82",
+  "app/family/more/life-events.js": "a9ae8dc298cb2d5a230ff3c809de567433b6a78bb6a85877b393be2a5763e761",
+  "services/family/familyLifeEventStore.js": "79178ead1fd1ece8147a3f66564dabb5a37bf99ddf96d8a3f3be9857a560855c",
+  "services/family/familyLifeEventService.js": "cbb3dc13dbb7f5853db075b7587158cb3030b4ec62b71538bb51cacdba06dfb6",
+  "tests/family/test_family_phase12_life_events.mjs": "8d6ea7d80091def4a50dd2087b45daa0a20a58e307f86fe3d394312b161a07db"
+}

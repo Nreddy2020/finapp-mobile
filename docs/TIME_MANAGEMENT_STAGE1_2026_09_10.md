@@ -1,0 +1,11 @@
+# Time Management stage 1: task data foundation
+
+Acceptance for this bounded prerequisite: reuse user_todos, preserve legacy IDs/fields, serialize mutations, reject corrupt reads and failed saves, prevent duplicate retry, and show native save failures without losing the draft. This is not the complete planner release.
+
+Changes: services/todos.js now uses strict reads, checked atomic saves and a serialized mutation queue. It adapts legacy numeric-id/title/completed/dueDate records without writing on read, retains existing IDs and unknown properties on mutation, generates collision-checked IDs, provides explicit idempotent setStatus and optional creation request IDs. The Tasks screen catches load/save errors, keeps the draft/modal on failure, guards repeated taps, refreshes on focus and avoids stale refresh results overwriting a mutation. The existing route and storage key remain.
+
+Evidence: tests/test_todo_durability.mjs passed all 10 fixture cases against installed code: legacy adaptation, field preservation, concurrent writes, failure/retry, duplicate request and conflicting reuse, idempotent completion, strict read failures, corrupt/duplicate stored rows, input validation, returned-object isolation. Tasks UI JSX parsed successfully.
+
+Native Android check: confirmed newly loaded TodoService.setStatus after reloading an older running bundle. Opened the form, entered a temporary draft, temporarily intercepted ONLY task saves in memory, tapped Save once and inspected error text plus preserved draft and enabled Save. Restored the original save function immediately; probe reported interceptedAttempts=1, originalDataUnchanged=true, saveRestored=true. Closed form and reloaded to discard the unsaved draft. No successful real task creation/update/deletion occurred. Screenshot: ../artifacts/time-management-2026-09-10/tasks-save-failure.png (Android input-method toolbar is visible). Baseline real task count was zero.
+
+Limits: fixture durability and an injected native error path do not certify actual disk-full handling or native successful creation/restart. Full keyboard/320px/large-font/iOS accessibility matrix remains pending. Native planner is not implemented yet. The foundation data gate and observed error-interface gate pass; remaining initial-release stages are explicit in TIME_MANAGEMENT_IMPLEMENTATION_PLAN.md.

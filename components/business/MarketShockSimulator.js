@@ -4,15 +4,13 @@ import { TrendingDown, TrendingUp, Cpu } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import LuxuryCard from '../ui/LuxuryCard';
 import { IntelligenceService } from '../../services/intelligence';
+import { useGlobalFinance } from '../context/GlobalFinanceContext';
 
 export default function MarketShockSimulator() {
     const [scenario, setScenario] = useState(null); // null = normal, 'RECESSION', 'BOOM'
-    const [data, setData] = useState({
-        profit: '₹8,45,000', // Default
-        revenue: '₹12.5L',   // Default
-        trend: '0.0%',
-        stress: 'NORMAL'
-    });
+    const finance = useGlobalFinance();
+    const fmt = v => (v === null || v === undefined || v === '' ? '—' : typeof v === 'number' ? (finance?.formatAmount ? finance.formatAmount(v, 0) : String(v)) : String(v));
+    const [data, setData] = useState({ profit: null, revenue: null, trend: '0.0%', stress: 'NO DATA', activeCount: 0, hasData: false });
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -38,7 +36,9 @@ export default function MarketShockSimulator() {
                 profit: result.profit,
                 revenue: result.revenue,
                 trend: result.trend,
-                stress: result.stress
+                stress: result.stress,
+                activeCount: result.activeCount ?? (result.profit !== undefined ? 1 : 0),
+                hasData: result.hasData ?? result.profit !== undefined
             });
         }
         setLoading(false);
@@ -103,12 +103,13 @@ export default function MarketShockSimulator() {
                             </View>
                         </View>
                         <Text style={styles.summaryAmount}>
-                            {data.profit}
+                            {fmt(data.profit)}
                         </Text>
+                        {!data.hasData && <Text style={{ color: '#A1A1AA', fontSize: 12, marginBottom: 12 }}>Record revenue and expenses in any business module and this simulator uses your real numbers.</Text>}
                         <View style={styles.summaryRow}>
                             <View>
                                 <Text style={styles.summaryLabel}>Revenue</Text>
-                                <Text style={styles.summaryValue}>{data.revenue}</Text>
+                                <Text style={styles.summaryValue}>{fmt(data.revenue)}</Text>
                             </View>
                             <View style={styles.divider} />
                             <View>
@@ -122,7 +123,7 @@ export default function MarketShockSimulator() {
                             <View style={styles.divider} />
                             <View>
                                 <Text style={styles.summaryLabel}>Active</Text>
-                                <Text style={styles.summaryValue}>4 Biz</Text>
+                                <Text style={styles.summaryValue}>{data.activeCount} Biz</Text>
                             </View>
                         </View>
                     </>

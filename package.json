@@ -1,6 +1,6 @@
 {
   "name": "fintech-mobile",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -31,6 +31,7 @@
     "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",
+    "expo-local-authentication": "~17.0.8",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.17",
     "expo-random": "^14.0.1",

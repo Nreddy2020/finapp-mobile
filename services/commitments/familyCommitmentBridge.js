@@ -21,7 +21,12 @@ import {
     formatMoneyPaise
 } from './commitmentContracts.js';
 import { normalizeToMonthlyPaise } from './commitmentCalculator.js';
-import { FamilyStatus } from '../family/familyContracts.js';
+
+export const FamilyStatus = Object.freeze({
+    ACTIVE: 'ACTIVE',
+    ARCHIVED: 'ARCHIVED',
+    INACTIVE: 'INACTIVE'
+});
 
 /**
  * Validates familyContext contract against the Family Hub state.

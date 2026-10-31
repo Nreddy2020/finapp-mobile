@@ -46,6 +46,18 @@ import {
 
 import { loadData, saveData, STORAGE_KEYS } from '../../services/storage';
 
+// Goals & Life Planning, Business Hub and Decision Intelligence modules (pure logic; fixture inputs)
+import { groupTasks, taskStats, nextOccurrence } from '../../services/life/taskViews';
+import { goalProgress, goalPlan } from '../../services/life/lifeGoalsService';
+import { elapsedMinutes, reviewSummary } from '../../services/time/focusService';
+import { streak, isDue } from '../../services/time/habitsService';
+import { normalizeItem, statusOf, summary as validitySummary } from '../../services/validity/validityService';
+import { learningRoi, negotiationPlan, incomeGrowth } from '../../services/career/careerOsService';
+import { emptySociety, generateInvoices, collectionReport, invoiceBalance } from '../../services/business/apartmentSocietyService';
+import { computeRegime, compareRegimes, advanceTaxSchedule } from '../../services/tax/taxEngine';
+import { affordability, debtPayoff, subscriptionAudit, loadDecisionContext, actionPlan } from '../../services/intelligence/decisionEngine';
+import { sipFutureValue, leverageLoss, concentration } from '../../services/intelligence/marketsService';
+
 const { width } = Dimensions.get('window');
 
 const TEST_DEFINITIONS = [
@@ -216,6 +228,133 @@ const TEST_DEFINITIONS = [
                 return `Simulation verified: ID ${simResult.simulationId.substring(0, 8)}..., Health delta: +${simResult.impactDeltas.healthScoreDelta || 0} pts`;
             }
             return 'Simulation check: Ready (No active critical vulnerabilities requiring rebalancing)';
+        }
+    },
+
+    // Category 5: Goals & Life Planning
+    {
+        id: 'life_1',
+        category: 'Goals & Life Planning',
+        name: 'Tasks: Today grouping, stats and recurrence',
+        desc: 'Overdue / today / upcoming / someday grouping from fixture tasks, and next occurrence dates.',
+        run: async () => {
+            const tasks = [{ id: 1, task: 'a', status: 'pending', dueDate: '2026-09-01' }, { id: 2, task: 'b', status: 'pending', dueDate: '2026-09-11' }, { id: 3, task: 'c', status: 'pending', dueDate: '2026-09-15' }, { id: 4, task: 'd', status: 'pending' }, { id: 5, task: 'e', status: 'completed', completedAt: '2026-09-10T00:00:00Z' }];
+            const g = groupTasks(tasks, '2026-09-11'); const s = taskStats(tasks, '2026-09-11');
+            if (g.overdue.length !== 1 || g.today.length !== 1 || g.upcoming.length !== 1 || g.someday.length !== 1 || s.completed !== 1) throw new Error('Grouping mismatch');
+            if (nextOccurrence('2026-01-31', 'monthly') !== '2026-02-28') throw new Error('Month-end recurrence wrong');
+            return 'Grouping verified: 1 overdue, 1 today, 1 upcoming, 1 someday, 1 done; monthly recurrence clamps to month end';
+        }
+    },
+    {
+        id: 'life_2',
+        category: 'Goals & Life Planning',
+        name: 'Life goals: progress and monthly pace',
+        desc: 'Money + milestone progress and required monthly saving from a fixture goal.',
+        run: async () => {
+            const goal = { id: 'g', title: 'Fund', status: 'active', targetAmount: 120000, targetDate: '2027-09-11', milestones: [{ id: 'm', done: true }, { id: 'n', done: false }], contributions: [{ amount: 30000 }] };
+            const p = goalProgress(goal, []); const plan = goalPlan(goal, '2026-09-11');
+            if (p !== 38 || plan.remainingAmount !== 90000 || plan.daysLeft !== 365) throw new Error(`Goal maths mismatch: ${p} / ${plan.remainingAmount} / ${plan.daysLeft}`);
+            return `Goal at ${p}% with ${plan.remainingAmount} remaining, about ${plan.monthlyNeeded} per month needed`;
+        }
+    },
+    {
+        id: 'life_3',
+        category: 'Goals & Life Planning',
+        name: 'Time: focus minutes exclude pauses; habits streak only due days',
+        desc: 'Elapsed time derives from segments; a weekday habit streak skips weekends.',
+        run: async () => {
+            const session = { state: 'completed', segments: [{ startUtc: '2026-09-10T04:00:00.000Z', endUtc: '2026-09-10T04:10:00.000Z' }, { startUtc: '2026-09-10T04:30:00.000Z', endUtc: '2026-09-10T04:45:00.000Z' }], taskRef: { domain: 'todo', id: 1 } };
+            if (elapsedMinutes(session) !== 25) throw new Error('Elapsed mismatch');
+            const r = reviewSummary([session], 'Asia/Kolkata', ['2026-09-10']);
+            if (r.byDate['2026-09-10'] !== 25) throw new Error('Review mismatch');
+            const habit = { schedule: { type: 'weekdays', days: [] }, startDate: '2026-08-31', targetPerDay: 1, checkins: { '2026-09-07': 1, '2026-09-08': 1, '2026-09-09': 1, '2026-09-10': 1, '2026-09-11': 1 } };
+            if (!isDue(habit, '2026-09-11') || isDue(habit, '2026-09-12') || streak(habit, '2026-09-14') !== 5) throw new Error('Habit streak mismatch');
+            return 'Focus: 25 min from two segments; habit streak 5 across a weekend';
+        }
+    },
+    {
+        id: 'life_4',
+        category: 'Goals & Life Planning',
+        name: 'Validities: legacy adaptation and derived status',
+        desc: 'A legacy item/expiry_date record adapts and its status is derived from the date.',
+        run: async () => {
+            const item = normalizeItem({ id: 1, item: 'Passport', expiry_date: '2026-09-20', days_left: 3, category: 'Passport' });
+            const status = statusOf(item, '2026-09-11');
+            const s = validitySummary([item, normalizeItem({ id: 2, title: 'Old', expiryDate: '2026-01-01', kind: 'expiry' })], '2026-09-11');
+            if (item.title !== 'Passport' || status !== 'expiring' || s.expired !== 1 || s.needsAction !== 2) throw new Error('Validity mismatch');
+            return `Legacy record adapted: ${item.title}, status ${status}; summary needsAction ${s.needsAction}`;
+        }
+    },
+    {
+        id: 'life_5',
+        category: 'Goals & Life Planning',
+        name: 'Career: learning ROI, negotiation anchors, income growth',
+        desc: 'Payback months, anchor/target/walk-away and CAGR from fixtures.',
+        run: async () => {
+            const roi = learningRoi({ cost: 12000, monthlyIncrease: 2000 }); const plan = negotiationPlan({ currentMonthly: 45000, marketLow: 50000, marketHigh: 70000 });
+            const growth = incomeGrowth([{ date: '2024-06-01', monthlyAmount: 40000 }, { date: '2026-06-01', monthlyAmount: 48400 }]);
+            if (roi.paybackMonths !== 6 || plan.target !== 60000 || plan.walkAway !== 50000 || growth.cagrPercent !== 10) throw new Error('Career maths mismatch');
+            return `ROI payback 6 months; negotiation target 60,000 / walk-away 50,000; income CAGR 10%`;
+        }
+    },
+
+    // Category 6: Business Hub
+    {
+        id: 'biz_1',
+        category: 'Business Hub',
+        name: 'Apartment society: idempotent billing and collection report',
+        desc: 'Invoices generate once per unit per month; collection efficiency and defaulters derive from payments.',
+        run: async () => {
+            let doc = emptySociety(); doc.society = { ...doc.society, flatAmount: 2500, dueDay: 10 };
+            doc.units = [{ id: 'u1', number: '101', block: 'A', active: true }, { id: 'u2', number: '102', block: 'A', active: true }];
+            doc = generateInvoices(doc, '2026-09', '2026-09-20'); doc = generateInvoices(doc, '2026-09', '2026-09-20');
+            if (doc.invoices.length !== 2) throw new Error('Duplicate invoices generated');
+            doc.invoices[0].payments.push({ amount: 2500, date: '2026-09-05' });
+            const r = collectionReport(doc, '2026-09', '2026-09-20');
+            if (r.billed !== 5000 || r.collected !== 2500 || r.efficiency !== 50 || r.defaulters.length !== 1 || invoiceBalance(doc.invoices[1]) !== 2500) throw new Error('Collection report mismatch');
+            return 'Billing idempotent (2 invoices after replay); collection 50%, 1 defaulter';
+        }
+    },
+
+    // Category 7: Decision Intelligence modules
+    {
+        id: 'dim_1',
+        category: 'Decision Intelligence',
+        name: 'Tax engine: FY 2025-26 both regimes',
+        desc: '15L salaried: New regime 97,500; comparison picks the cheaper regime; advance-tax calendar.',
+        run: async () => {
+            const r = computeRegime({ fy: '2025-26', income: 1500000, salaried: true }, 'New');
+            const c = compareRegimes({ fy: '2025-26', income: 1500000, salaried: true, deductions: { '80C': 150000, '24B': 200000, HRA: 200000 } });
+            const a = advanceTaxSchedule({ fy: '2025-26', income: 1500000, salaried: true }, 'New', '2026-01-01');
+            if (r.totalTax !== 97500 || c.recommended !== 'Old' || !a.required || a.instalments.length !== 4) throw new Error(`Tax mismatch: ${r.totalTax} / ${c.recommended}`);
+            return `New regime tax 97,500 on 15L; with deductions Old is cheaper by ${c.saving}; 4 advance-tax instalments`;
+        }
+    },
+    {
+        id: 'dim_2',
+        category: 'Decision Intelligence',
+        name: 'Decision engine: affordability, debt payoff, subscriptions, live snapshot',
+        desc: 'Verdicts and plans from fixtures, then the on-device snapshot loads from canonical stores.',
+        run: async () => {
+            const a = affordability({ price: 20000, monthlyIncome: 80000, monthlyExpenses: 40000, liquidCash: 400000 });
+            const d = debtPayoff([{ name: 'Card', balance: 50000, ratePct: 36, minPayment: 2500 }, { name: 'Bike', balance: 30000, ratePct: 12, minPayment: 3000 }], 5000, 'avalanche');
+            const s = subscriptionAudit([{ name: 'Video', amount: 499, frequency: 'monthly', usage: 'never' }]);
+            if (a.verdict !== 'comfortable' || d.order[0] !== 'Card' || s.wastePerYear !== 5988) throw new Error('Decision engine mismatch');
+            const ctx = await loadDecisionContext(); const plan = actionPlan(ctx.snapshot, {});
+            return `Affordable verdict OK; avalanche pays Card first; waste 5,988/yr; live snapshot income ${ctx.monthlyIncome}, ${plan.length} plan items`;
+        }
+    },
+    {
+        id: 'dim_3',
+        category: 'Decision Intelligence',
+        name: 'Markets: SIP maths, leverage guard, concentration',
+        desc: 'SIP future value, liquidation threshold and concentration warning from fixtures.',
+        run: async () => {
+            const sip = sipFutureValue({ monthly: 5000, annualRatePct: 12, years: 10 });
+            const lev = leverageLoss({ collateral: 10000, leverage: 10, movePct: -5 });
+            const conc = concentration([{ id: 'a', symbol: 'A', type: 'stock', quantity: 10, buyPrice: 100, price: 900 }, { id: 'b', symbol: 'B', type: 'gold', quantity: 1, buyPrice: 100, price: 100 }]);
+            if (Math.abs(sip.value - 1161695) > 2000 || lev.loss !== 5000 || lev.liquidationMovePct !== 10 || !conc.warning) throw new Error('Markets maths mismatch');
+            return `SIP 5,000 x 10y at 12% grows to about ${Math.round(sip.value)}; 10x leverage liquidates at a 10% move; concentration warning raised`;
         }
     }
 ];

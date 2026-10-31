@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 // Use legacy import to avoid SDK 54 deprecation errors
 import * as FileSystem from 'expo-file-system/legacy';
@@ -82,16 +83,34 @@ export const STORAGE_KEYS = {
     BANKING_SCHEDULES: 'finlife_banking_schedules_v1',
     BANKING_DOCUMENTS: 'finlife_banking_documents_v1',
     BANKING_OPERATIONS: 'finlife_banking_operations_v1',
-    BANKING_SETTINGS: 'finlife_banking_settings_v1'
+    BANKING_SETTINGS: 'finlife_banking_settings_v1',
+    FAMILY_HOUSEHOLDS: 'finlife_family_households_v1',
+    FAMILY_PEOPLE: 'finlife_family_people_v1',
+    FAMILY_MEMBERSHIPS: 'finlife_family_memberships_v1',
+    FAMILY_RELATIONSHIPS: 'finlife_family_relationships_v1',
+    FAMILY_TRUSTED_CIRCLE: 'finlife_family_trusted_circle_v1',
+    FAMILY_DOCUMENTS: 'finlife_family_documents_v1',
+    FAMILY_RESPONSIBILITIES: 'finlife_family_responsibilities_v1',
+    FAMILY_TASKS: 'finlife_family_tasks_v1',
+    FAMILY_EMERGENCY_CONTACTS: 'finlife_family_emergency_contacts_v1',
+    FAMILY_PROTECTION_ITEMS: 'finlife_family_protection_items_v1',
+    FAMILY_FINANCIAL_LINKS: 'finlife_family_financial_links_v1',
+    FAMILY_BUDGET_POOLS: 'finlife_family_budget_pools_v1',
+    FAMILY_FORECAST_SCENARIOS: 'finlife_family_forecast_scenarios_v1',
+    FAMILY_GOALS: 'finlife_family_goals_v1',
+    FAMILY_LIFE_EVENTS: 'finlife_family_life_events_v1',
+    FAMILY_SNAPSHOT: 'finlife_family_snapshot_v2',
+    FAMILY_SELECTION: 'finlife_family_selection_v1',
+    FAMILY_SCHEMA: 'finlife_family_schema_version'
 };
 
 /**
  * Save data to storage (FileSystem or localStorage)
- * ENFORCES AES-256-GCM ENCRYPTION FOR ALL DATA
+ * ENFORCES AES-256-CBC ENCRYPTION FOR ALL DATA
  * @param {string} key - Storage key
  * @param {any} value - Data to save
  */
-export const saveData = async (key, value) => {
+export const saveData = async (key, value, options = {}) => {
     try {
         const jsonString = JSON.stringify(value);
 
@@ -107,7 +126,13 @@ export const saveData = async (key, value) => {
             return { success: true };
         } else {
             const SPECIFIC_FILE = getStorageFile(key + '.json');
-            await FileSystem.writeAsStringAsync(SPECIFIC_FILE, encryptedData);
+            if (options.atomic) {
+                const temporary = SPECIFIC_FILE + '.pending';
+                await FileSystem.writeAsStringAsync(temporary, encryptedData);
+                await FileSystem.moveAsync({ from: temporary, to: SPECIFIC_FILE });
+            } else {
+                await FileSystem.writeAsStringAsync(SPECIFIC_FILE, encryptedData);
+            }
             return { success: true };
         }
     } catch (error) {
@@ -118,11 +143,11 @@ export const saveData = async (key, value) => {
 
 /**
  * Load data from storage
- * DECRYPTS AES-256-GCM DATA
+ * DECRYPTS AES-256-CBC DATA
  * @param {string} key - Storage key
  * @param {any} defaultValue - Default value if not found
  */
-export const loadData = async (key, defaultValue = null) => {
+export const loadData = async (key, defaultValue = null, options = {}) => {
     try {
         let content;
         if (isWeb) {
@@ -134,7 +159,11 @@ export const loadData = async (key, defaultValue = null) => {
             content = await FileSystem.readAsStringAsync(SPECIFIC_FILE);
         }
 
-        if (!content) return defaultValue;
+        if (content === null || content === undefined) return defaultValue;
+        if (content === '') {
+            if (options.strict) throw new Error('Saved storage is empty or incomplete: ' + key);
+            return defaultValue;
+        }
 
         // 🔓 ATTEMPT DECRYPTION
         let decrypted = await decrypt(content);
@@ -148,7 +177,7 @@ export const loadData = async (key, defaultValue = null) => {
                 // Try parsing content directly (legacy plaintext)
                 return JSON.parse(content);
             } catch (e) {
-                // If it's not JSON, return default
+                if (options.strict) throw new Error('Saved data could not be decrypted: ' + key);
                 return defaultValue;
             }
         }
@@ -156,10 +185,12 @@ export const loadData = async (key, defaultValue = null) => {
         try {
             return JSON.parse(decrypted);
         } catch (parseError) {
+            if (options.strict) throw parseError;
             console.warn(`[Storage] Warning: invalid JSON for ${key}, returning defaultValue`, parseError);
             return defaultValue;
         }
     } catch (error) {
+        if (options.strict) throw error;
         console.error(`Error loading ${key}:`, error);
         return defaultValue;
     }
@@ -191,13 +222,14 @@ export const deleteData = async (key) => {
  */
 export const clearAllData = async () => {
     try {
+        await AsyncStorage.removeItem('finlife_family_life_events_v1');
         if (isWeb) {
             localStorage.clear();
             return { success: true };
         } else {
             // Read directory
             const files = await FileSystem.readDirectoryAsync(FileSystem.documentDirectory);
-            const jsonFiles = files.filter(f => f.endsWith('.json'));
+            const jsonFiles = files.filter(f => f.endsWith('.json') || f.endsWith('.json.pending'));
 
             await Promise.all(jsonFiles.map(async file => {
                 await FileSystem.deleteAsync(getStorageFile(file), { idempotent: true });

@@ -16,7 +16,8 @@
 import {
     getPeriodBounds,
     computePeriodCashFlowTruth,
-    formatCurrencyINR
+    formatCurrencyINR,
+    STANDARD_CATEGORIES
 } from './moneyFlowPresentationAdapter.js';
 
 export function buildMoneyFlowViewModel({
@@ -51,6 +52,19 @@ export function buildMoneyFlowViewModel({
     const cashTruth = computePeriodCashFlowTruth(transactions, bounds);
 
     // 4. Structure Where Did My Cash Go? Multi-dimension breakdowns
+    const mapTxItem = (tx) => ({
+        id: tx.id,
+        merchant: tx.merchant || tx.description || tx.desc || 'Expense',
+        category: tx.category,
+        amount: tx.amount,
+        amountFormatted: formatCurrencyINR(tx.amount, false),
+        date: tx.date,
+        dateFormatted: formatDateString(tx.date),
+        accountName: tx.account || tx.accountName || 'Primary Account',
+        source: tx.source || (tx.rawSource || tx.smsBody ? 'SMS' : 'MANUAL'),
+        description: tx.rawDescription || tx.description || tx.desc || ''
+    });
+
     const byCategory = (cashTruth.categoryBreakdown || []).map((cat, idx) => ({
         id: `cat_${idx}_${cat.category}`,
         name: cat.category,
@@ -58,7 +72,9 @@ export function buildMoneyFlowViewModel({
         amount: cat.amount,
         amountFormatted: cat.amountFormatted,
         percentage: cat.percentage,
-        color: getCategoryColor(cat.category)
+        color: getCategoryColor(cat.category),
+        transactionCount: cat.transactionCount || (cat.transactions ? cat.transactions.length : 0),
+        transactions: (cat.transactions || []).map(mapTxItem)
     }));
 
     const byMerchant = (cashTruth.merchantBreakdown || []).slice(0, 8).map((m, idx) => ({
@@ -69,7 +85,8 @@ export function buildMoneyFlowViewModel({
         amountFormatted: m.amountFormatted,
         percentage: m.percentage,
         count: m.transactionCount,
-        color: getCategoryColor(m.merchant)
+        color: getCategoryColor(m.merchant),
+        transactions: (m.transactions || []).map(mapTxItem)
     }));
 
     const byAccount = (cashTruth.accountBreakdown || []).map((acc, idx) => ({
@@ -79,7 +96,9 @@ export function buildMoneyFlowViewModel({
         amount: acc.amount,
         amountFormatted: acc.amountFormatted,
         percentage: acc.percentage,
-        color: '#3B82F6'
+        color: '#3B82F6',
+        transactionCount: acc.transactionCount || (acc.transactions ? acc.transactions.length : 0),
+        transactions: (acc.transactions || []).map(mapTxItem)
     }));
 
     // Derive accounts involved in spending
@@ -116,6 +135,7 @@ export function buildMoneyFlowViewModel({
             accountName: tx.accountName || tx.account || 'Primary Account',
             statusTag,
             isReviewNeeded: isNeedsReview,
+            isCustom: Boolean(tx.isCustom || (tx.category && !STANDARD_CATEGORIES.has(tx.category))),
             source: tx.source || (tx.rawSource ? 'SMS' : 'MANUAL'),
             sourceLabel,
             rawTransaction: tx
@@ -125,6 +145,7 @@ export function buildMoneyFlowViewModel({
     const needsReviewCount = allNormalizedTransactions.filter(t => t.isReviewNeeded).length;
     const expenseCount = allNormalizedTransactions.filter(t => t.type === 'EXPENSE').length;
     const incomeCount = allNormalizedTransactions.filter(t => t.type === 'INCOME').length;
+    const customCount = allNormalizedTransactions.filter(t => t.isCustom).length;
 
     // Period summary string formatting (e.g. "Total spending in September 2026")
     const periodSummaryText = formatPeriodSummaryTitle(bounds.label);
@@ -173,7 +194,8 @@ export function buildMoneyFlowViewModel({
                 all: allNormalizedTransactions.length,
                 needsReview: needsReviewCount,
                 expense: expenseCount,
-                income: incomeCount
+                income: incomeCount,
+                custom: customCount
             }
         }
     };

@@ -39,7 +39,6 @@ import { createAuditEvent, AuditEventType, AuditSource } from './commitmentAudit
 import { CashbookRepository } from '../cashbook/cashbookRepository.js';
 import { TransactionType } from '../cashbook/cashbookContracts.js';
 import { generateRecurringPaymentIdempotencyKey } from '../cashbook/cashbookIdempotency.js';
-import { FamilyRepository } from '../family/familyRepository.js';
 import { validateFamilyContext } from './familyCommitmentBridge.js';
 
 const STORAGE_KEY_COMMITMENTS = 'FINLIFE_COMMITMENTS_V2';
@@ -409,16 +408,16 @@ export const CommitmentsService = {
         }
 
         // Production Mode: Load real user commitments from storage
-        let commitments = await StorageService.load(STORAGE_KEY_COMMITMENTS) || [];
-        let occurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES) || [];
+        let commitments = await StorageService.load(STORAGE_KEY_COMMITMENTS, [], {strict:!!options.readOnly}) || [];
+        let occurrences = await StorageService.load(STORAGE_KEY_OCCURRENCES, [], {strict:!!options.readOnly}) || [];
 
         // Check if legacy migration is needed
         if (commitments.length === 0) {
-            const legacy = await StorageService.load(STORAGE_KEYS.RECURRING_PAYMENTS);
+            const legacy = await StorageService.load(STORAGE_KEYS.RECURRING_PAYMENTS, null, {strict:!!options.readOnly});
             if (legacy && Array.isArray(legacy) && legacy.length > 0) {
                 const migrated = CommitmentsService.migrateLegacySubscriptions(legacy);
                 commitments = migrated;
-                await StorageService.save(STORAGE_KEY_COMMITMENTS, commitments);
+                if (!options.readOnly) await StorageService.save(STORAGE_KEY_COMMITMENTS, commitments);
             }
         }
 
@@ -471,10 +470,9 @@ export const CommitmentsService = {
         validateCommitment(normalizedCommitment);
         const activeMode = options.mode || await CommitmentsService.getMode();
 
-        // Validate familyContext against Family Hub if present
+        // Validate familyContext if present
         if (normalizedCommitment.familyContext) {
-            const familyEnvelope = await FamilyRepository.loadFamilyEnvelope();
-            validateFamilyContext(normalizedCommitment.familyContext, familyEnvelope?.data || {}, {
+            validateFamilyContext(normalizedCommitment.familyContext, {}, {
                 allowArchivedHistorical: false
             });
         }

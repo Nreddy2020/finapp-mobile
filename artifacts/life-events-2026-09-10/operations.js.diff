@@ -1,0 +1,116 @@
+diff --git "a/C:\\Users\\nirwa\\.codex\\worktrees\\0685\\fintech-mobile\\.life-events-work\\originals\\operations.js" "b/E:\\fintech-mobile\\app\\family\\operations.js"
+index bf31ac1..95cce89 100644
+--- "a/C:\\Users\\nirwa\\.codex\\worktrees\\0685\\fintech-mobile\\.life-events-work\\originals\\operations.js"
++++ "b/E:\\fintech-mobile\\app\\family\\operations.js"
+@@ -1,4 +1,5 @@
+-import React, { useState, useEffect, useCallback } from 'react';
++import React, { useState, useRef, useCallback } from 'react';
++import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+ import { 
+     View, 
+     Text, 
+@@ -39,6 +40,10 @@ import {
+  * Coordinates household domains, actionable chores, due dates, and recurrence lifecycles.
+  */
+ export default function FamilyOperationsScreen() {
++    const { householdId: routeHouseholdId, fromLifeEvent } = useLocalSearchParams();
++    const [selectedHouseholdId, setSelectedHouseholdId] = useState(null);
++    const [households, setHouseholds] = useState([]);
++    const requestedHouseholdId = selectedHouseholdId || (typeof routeHouseholdId === 'string' ? routeHouseholdId : null);
+     const [household, setHousehold] = useState(null);
+     const [loading, setLoading] = useState(true);
+     const [refreshing, setRefreshing] = useState(false);
+@@ -69,11 +74,18 @@ export default function FamilyOperationsScreen() {
+ 
+     const [respModalVisible, setRespModalVisible] = useState(false);
+     const [editingResp, setEditingResp] = useState(null);
++    const loadGeneration = useRef(0);
++    const [loadError, setLoadError] = useState('');
+ 
+     const loadData = useCallback(async () => {
++        const version = ++loadGeneration.current;
++        setLoading(true);
++        setLoadError('');
+         try {
+             const hhList = await FamilyHouseholdService.listHouseholds();
+-            const activeHh = hhList && hhList.length > 0 ? hhList[0] : null;
++            if (version !== loadGeneration.current) return;
++            setHouseholds(hhList.filter(h => h.status === 'ACTIVE'));
++            const activeHh = hhList.find(h => h.id === requestedHouseholdId && h.status === 'ACTIVE') || null;
+             setHousehold(activeHh);
+ 
+             if (activeHh) {
+@@ -81,9 +93,10 @@ export default function FamilyOperationsScreen() {
+                     FamilyOperationsService.listTasks({ householdId: activeHh.id, includeArchived: false }),
+                     FamilyOperationsService.listResponsibilities({ householdId: activeHh.id, includeArchived: false }),
+                     FamilyOperationsService.getOperationalSummary(activeHh.id),
+-                    FamilyRepository.listPeople({ includeArchived: false })
++                    FamilyRepository.getMembers(activeHh.id)
+                 ]);
+ 
++                if (version !== loadGeneration.current) return;
+                 setTasks(taskList);
+                 setResponsibilities(respList);
+                 setSummary(opsSummary);
+@@ -94,16 +107,22 @@ export default function FamilyOperationsScreen() {
+                 setMembers([]);
+             }
+         } catch (err) {
++            if (version !== loadGeneration.current) return;
++            setTasks([]);
++            setResponsibilities([]);
++            setMembers([]);
++            setHousehold(null);
++            setLoadError('Could not load Operations. Pull down to retry.');
+             console.error('Error loading operations data:', err);
+         } finally {
+-            setLoading(false);
+-            setRefreshing(false);
++            if (version === loadGeneration.current) {
++                setLoading(false);
++                setRefreshing(false);
++            }
+         }
+-    }, []);
++    }, [requestedHouseholdId]);
+ 
+-    useEffect(() => {
+-        loadData();
+-    }, [loadData]);
++    useFocusEffect(useCallback(() => { loadData(); return () => { loadGeneration.current++; }; }, [loadData]));
+ 
+     const onRefresh = () => {
+         setRefreshing(true);
+@@ -115,7 +134,7 @@ export default function FamilyOperationsScreen() {
+         if (!task) return;
+         try {
+             const newStatus = task.status === TaskStatus.COMPLETED ? TaskStatus.TODO : TaskStatus.COMPLETED;
+-            const primaryMember = members[0] ? members[0].id : null;
++            const primaryMember = null; // Device-local action; do not invent a completing person.
+             await FamilyOperationsService.transitionTaskStatus(task.id, newStatus, primaryMember);
+             await loadData();
+         } catch (err) {
+@@ -195,7 +214,7 @@ export default function FamilyOperationsScreen() {
+                 title="Operations" 
+                 subtitle="Tasks & Responsibilities"
+                 household={household}
+-                showBack={false}
++                showBack={fromLifeEvent === '1'}
+                 showContextBanner={true}
+                 showTopTabs={true}
+             />
+@@ -208,8 +227,12 @@ export default function FamilyOperationsScreen() {
+                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#A1A1AA" />
+                 }
+             >
+-                {!loading && !household ? (
+-                    <FamilyEmptyState />
++                <View style={{ gap: 8, marginBottom: 12 }}>
++                    <Text style={{ color: '#A1A1AA' }}>Choose household</Text>
++                    {households.map(h => <TouchableOpacity key={h.id} accessibilityRole="button" accessibilityLabel={`Operations household: ${h.name}`} onPress={() => { setHousehold(null); setTasks([]); setResponsibilities([]); setSelectedHouseholdId(h.id); }} style={{ padding: 12, borderRadius: 8, backgroundColor: h.id === requestedHouseholdId ? '#831843' : '#27272A' }}><Text style={{ color: '#FFFFFF' }}>{h.name}</Text></TouchableOpacity>)}
++                </View>
++                {loading ? <Text style={{ color: '#A1A1AA' }}>Loading Operations...</Text> : loadError ? <Text accessibilityRole="alert" style={{ color: '#FCA5A5' }}>{loadError}</Text> : !household ? (
++                    households.length ? <Text style={{ color: '#A1A1AA' }}>Select a household to view its Operations tasks.</Text> : <FamilyEmptyState />
+                 ) : (
+                     <>
+                         {/* Metrics Bar */}

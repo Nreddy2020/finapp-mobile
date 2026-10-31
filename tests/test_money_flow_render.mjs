@@ -28,9 +28,20 @@ const selfPath = path.resolve(process.cwd(), 'app/(tabs)/self.js');
 const selfContent = fs.readFileSync(selfPath, 'utf8');
 
 assert.ok(selfContent.includes("activeTab === 'flow'"), "self.js must handle activeTab === 'flow'");
-assert.ok(selfContent.includes("PERSONAL CFO INTELLIGENCE"), "self.js must render Personal CFO Intelligence banner");
-assert.ok(selfContent.includes("Personal Spending Table"), "self.js must render Personal Spending Table");
-assert.ok(selfContent.includes("router.push('/investments')"), "Banner must link to Decision Command Center");
+assert.ok(selfContent.includes("<MoneyFlowView"), "self.js must mount MoneyFlowView when activeTab === 'flow'");
 
-console.log('✅ Self screen check: Money Flow view and CFO banner are valid and properly structured');
+// 4. Check MoneyFlowHeader component title rebranding
+const headerPath = path.resolve(process.cwd(), 'components/moneyflow/presentation/MoneyFlowHeader.js');
+const headerContent = fs.readFileSync(headerPath, 'utf8');
+assert.ok(headerContent.includes("<Text style={mfStyles.headerTitle}>Money Flow</Text>"), "MoneyFlowHeader must render 'Money Flow' (not 'Personal Money Flow')");
+assert.ok(!headerContent.includes("Personal Money Flow"), "MoneyFlowHeader must not contain 'Personal Money Flow'");
+
+// 5. Check WhereDidMyCashGoSection inline breakdown and arrow
+const wherePath = path.resolve(process.cwd(), 'components/moneyflow/presentation/WhereDidMyCashGoSection.js');
+const whereContent = fs.readFileSync(wherePath, 'utf8');
+assert.ok(whereContent.includes("expandedItemId"), "WhereDidMyCashGoSection must support expandable inline breakdown");
+assert.ok(whereContent.includes("chevron-forward") || whereContent.includes("chevron-up"), "WhereDidMyCashGoSection must render arrow / chevron on category item");
+assert.ok(!whereContent.includes("View full breakdown"), "WhereDidMyCashGoSection must have 'View full breakdown' removed");
+
+console.log('✅ Self screen & Money Flow checks: Header rebranded to Money Flow, category breakdown expandable inline, View full breakdown removed');
 console.log('\n🌟 ALL CHECKS PASSED: Money Flow is correctly wired and active!');

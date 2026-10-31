@@ -1,7 +1,7 @@
 import React, { useState, createContext, useContext } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Tabs, useRouter, usePathname, useNavigation } from 'expo-router';
-import { LayoutDashboard, User, Users, Building2, TrendingUp, X, ChevronDown, ChevronUp, Wallet, Landmark, CalendarDays as Calendar, MessageSquare, ShieldCheck, Heart, CreditCard, Activity, GraduationCap, Wrench, PieChart, CheckSquare } from 'lucide-react-native';
+import { LayoutDashboard, User, Users, Building2, TrendingUp, X, ChevronDown, ChevronUp, Wallet, Landmark, CalendarDays as Calendar, MessageSquare, ShieldCheck, Heart, CreditCard, Activity, GraduationCap, Wrench, PieChart, CheckSquare, Shield, FileText, GitBranch, UserCheck, Target, HeartHandshake, AlertTriangle } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const DrawerContext = createContext();
@@ -18,6 +18,7 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     const [isBusinessExpanded, setIsBusinessExpanded] = useState(false);
     const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(false);
     const [isSecurityExpanded, setIsSecurityExpanded] = useState(false);
+    const [isFamilyExpanded, setIsFamilyExpanded] = useState(false);
 
     const activeRouteIndex = state?.index ?? 0;
     const activeRouteName = state?.routes[activeRouteIndex]?.name ?? 'index';
@@ -35,7 +36,7 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     // Core financial pillars: Personal CFO (Home), Money Flow & Cash, Wealth & Portfolio, Goals & Life Planning
     const moneySections = [
         {
-            title: 'DAILY MONEY',
+            title: 'CASH FLOW & BUDGETS',
             items: [
                 { id: 'flow', name: 'Money Flow', icon: Wallet, route: '/(tabs)/self?tab=flow' },
                 { id: 'cashbooks', name: 'Cashbooks', icon: Wallet, route: '/(tabs)/cashbooks' },
@@ -70,13 +71,22 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
     // Authoritative 11-module flat array for backward compatibility & index lookup
     const moneySubTabs = moneySections.flatMap(section => section.items);
 
-    const lifeSubTabs = [
-        { id: 'family', name: 'Family', icon: Users, route: '/(tabs)/family' },
-        { id: 'time-management', name: 'Time Mgmt', icon: CheckSquare, route: '/(tabs)/time-management' },
-        { id: 'todos', name: 'Tasks / Goals', icon: CheckSquare, route: '/(tabs)/todos' },
-        { id: 'career', name: 'Career', icon: Wrench, route: '/(tabs)/career' },
-        { id: 'travel', name: 'Travel', icon: Heart, route: '/(tabs)/travel' }
+    const personalSections = [
+        {
+            title: 'PERSONAL LIFE & CAREER',
+            items: [
+                { id: 'time-management', name: 'Time Management', icon: CheckSquare, route: '/(tabs)/time-management' },
+                { id: 'todos', name: 'Tasks / Goals', icon: Target, route: '/(tabs)/todos' },
+                { id: 'expiries', name: 'Expiries', icon: AlertTriangle, route: '/(tabs)/expiries' },
+                { id: 'validities', name: 'Validities', icon: ShieldCheck, route: '/(tabs)/validity' },
+                { id: 'family', name: 'Family', icon: Users, route: '/family' },
+                { id: 'career', name: 'Career', icon: Wrench, route: '/(tabs)/career' },
+                { id: 'travel', name: 'Travel', icon: Heart, route: '/(tabs)/travel' }
+            ]
+        }
     ];
+
+    const lifeSubTabs = [...personalSections.flatMap(section => section.items)];
     
     const intelligenceSubTabs = [
         { id: 'insights', name: 'Insights', icon: TrendingUp, route: '/(tabs)/insights' },
@@ -97,7 +107,8 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
         { name: 'index', label: 'Personal CFO (Home)', icon: LayoutDashboard },
         { 
             name: 'money', 
-            label: 'Financial Command Center', 
+            label: 'Money & Wealth',
+            commandCenterLabel: 'Financial Command Center', 
             legacyLabel: 'Money Flow & Cash', // Backward compatibility for legacy tests
             icon: Wallet, 
             state: isMoneyExpanded, 
@@ -105,7 +116,15 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
             subTabs: moneySubTabs,
             subSections: moneySections
         },
-        { name: 'life', label: 'Goals & Life Planning', icon: Heart, state: isLifeExpanded, setState: setIsLifeExpanded, subTabs: lifeSubTabs },
+        { 
+            name: 'life', 
+            label: 'Goals & Life Planning', 
+            icon: Heart, 
+            state: isLifeExpanded, 
+            setState: setIsLifeExpanded, 
+            subTabs: lifeSubTabs,
+            subSections: personalSections
+        },
         { name: 'business', label: 'Business Hub', icon: Building2 },
         { name: 'intelligence', label: 'Decision Intelligence', icon: Activity, state: isIntelligenceExpanded, setState: setIsIntelligenceExpanded, subTabs: intelligenceSubTabs, isGroup: true },
         { name: 'security', label: 'Privacy & Security', icon: ShieldCheck, state: isSecurityExpanded, setState: setIsSecurityExpanded, subTabs: securitySubTabs, isGroup: true }
@@ -157,7 +176,37 @@ function CustomDrawerOverlay({ onClose, state, navigation }) {
 
                                         {route.state && (
                                             <View style={styles.subItemsContainer}>
-                                                {route.subSections ? (
+                                                {route.name === 'life' ? (
+                                                    <>
+                                                        {/* Personal Life & Career Section */}
+                                                        {personalSections.map((sec) => (
+                                                            <View key={sec.title} style={styles.subSectionGroup}>
+                                                                <View style={styles.subSectionHeader}>
+                                                                    <Text style={styles.subSectionHeaderText}>{sec.title}</Text>
+                                                                </View>
+                                                                {sec.items.map(sub => {
+                                                                    const SubIcon = sub.icon;
+                                                                    const onSubPress = () => {
+                                                                        router.push(sub.route);
+                                                                        onClose();
+                                                                    };
+                                                                    return (
+                                                                        <TouchableOpacity
+                                                                            key={sub.id}
+                                                                            onPress={onSubPress}
+                                                                            style={styles.subMenuItem}
+                                                                        >
+                                                                            <SubIcon size={16} color="#71717A" />
+                                                                            <Text style={styles.subMenuLabel}>
+                                                                                {sub.name}
+                                                                            </Text>
+                                                                        </TouchableOpacity>
+                                                                    );
+                                                                })}
+                                                            </View>
+                                                        ))}
+                                                    </>
+                                                ) : route.subSections ? (
                                                     route.subSections.map((sec) => (
                                                         <View key={sec.title} style={styles.subSectionGroup}>
                                                             <View style={styles.subSectionHeader}>
@@ -295,6 +344,7 @@ export default function TabLayout() {
                     <Tabs.Screen name="apartment" options={{ href: null }} />
                     <Tabs.Screen name="hostel" options={{ href: null }} />
                     <Tabs.Screen name="validity" options={{ href: null }} />
+                    <Tabs.Screen name="expiries" options={{ href: null }} />
                     <Tabs.Screen name="tax" options={{ href: null }} />
                     <Tabs.Screen name="todos" options={{ href: null }} />
                     <Tabs.Screen name="career" options={{ href: null }} />
@@ -302,6 +352,7 @@ export default function TabLayout() {
                     <Tabs.Screen name="affirmations" options={{ href: null }} />
                     <Tabs.Screen name="testing" options={{ href: null }} />
                     <Tabs.Screen name="p2p" options={{ href: null }} />
+                    <Tabs.Screen name="family" options={{ href: null }} />
                 </Tabs>
             </View>
         </DrawerContext.Provider>
@@ -341,12 +392,12 @@ const styles = StyleSheet.create({
         bottom: 0
     },
     drawerContainer: {
-        width: 280,
+        width: 290,
         height: '100%',
         backgroundColor: '#09090B',
         borderRightWidth: 1,
         borderRightColor: '#27272A',
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         zIndex: 10001
     },
     drawerHeader: {
@@ -396,15 +447,15 @@ const styles = StyleSheet.create({
         color: '#FFF'
     },
     subItemsContainer: {
-        paddingLeft: 36,
+        paddingLeft: 22,
         marginTop: 4,
         marginBottom: 8,
-        gap: 8
+        gap: 6
     },
     subMenuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
+        paddingVertical: 9,
         gap: 10
     },
     subMenuLabel: {

@@ -18,6 +18,9 @@
  */
 
 import crypto from 'node:crypto';
+import {collectTimePlanningBackup, validateTimePlanningBackup, writeTimePlanningBackup, hasTimePlanningData} from './timePlanningBackupDomain.js';
+import {collectFamilyBackup, validateFamilyBackup, writeFamilyBackup, captureLifeEventsRaw, restoreLifeEventsRaw, hasFamilyBackupData} from './familyBackupDomain.js';
+import {collectLifeModulesBackup, validateLifeModulesBackup, writeLifeModulesBackup, hasLifeModulesData, countLifeModulesEntities} from './lifeModulesBackupDomain.js';
 import { StorageService, STORAGE_KEYS } from '../storage.js';
 import { INVESTMENT_SCHEMA_VERSION } from '../investmentService.js';
 import { DOMAIN_SCHEMA_VERSIONS as R3_DOMAIN_SCHEMA_VERSIONS, FinlifeV4MigrationEngine, assertSafeObject } from '../migration/finlifeV4MigrationEngine.js';
@@ -31,6 +34,9 @@ export const BACKUP_FORMAT_IDENTIFIER_UNIFIED_ENCRYPTED_V1 = 'FINLIFE_UNIFIED_EN
 export const CANONICALIZATION_VERSION = 1;
 
 export const DOMAIN_SCHEMA_VERSIONS = Object.freeze({
+  TIME_PLANNING: 1,
+  LIFE_MODULES: 1,
+  FAMILY: 1,
   GLOBAL: 1,
   INVESTMENTS: 4,
   CASHBOOK: 2,
@@ -172,7 +178,7 @@ export function computeSha256(contentString) {
  */
 export function computeCanonicalChecksums(payload) {
   const perDomainSha256 = {};
-  for (const domain of ['investments', 'cashbook', 'properties', 'assets', 'loans', 'p2p', 'global']) {
+  for (const domain of ['investments', 'cashbook', 'properties', 'assets', 'loans', 'p2p', 'global', ...(payload.family ? ['family'] : []), ...(payload.timePlanning ? ['timePlanning'] : []), ...(payload.lifeModules ? ['lifeModules'] : [])]) {
     const domainData = payload[domain] || {};
     perDomainSha256[domain] = computeSha256(canonicalSerialize(domainData));
   }
@@ -371,6 +377,9 @@ export class FinlifeV4BackupRestoreEngine {
         repayments: p2pRepayments,
         settings: p2pSettings
       },
+      timePlanning: await collectTimePlanningBackup(),
+      lifeModules: await collectLifeModulesBackup(),
+      family: await collectFamilyBackup(),
       global: {
         schemaVersion: DOMAIN_SCHEMA_VERSIONS.GLOBAL,
         appSchemaVersion: schemaVersion,
@@ -406,6 +415,9 @@ export class FinlifeV4BackupRestoreEngine {
       assets: payload.assets.items?.length || 0,
       loans: (payload.loans.loans?.length || 0) + (payload.loans.bankingLoans?.length || 0),
       p2p: (payload.p2p.loans?.length || 0) + (payload.p2p.persons?.length || 0),
+      timePlanning: payload.timePlanning.tasks.length + (payload.timePlanning.planner?.blocks.length || 0),
+      lifeModules: countLifeModulesEntities(payload.lifeModules),
+      family: Object.values(payload.family.snapshot.collections).reduce((sum, records) => sum + records.length, 0) + payload.family.lifeEvents.length,
       global: payload.global.quarantineRegistry?.length || 0
     };
 
@@ -570,6 +582,13 @@ export class FinlifeV4BackupRestoreEngine {
     // ─────────────────────────────────────────────────────────────────────────
     // 4. Idempotency Check (f(f(x)) === f(x))
     // ─────────────────────────────────────────────────────────────────────────
+    if (payload.family !== undefined || envelope.manifest?.domainSchemaVersions?.FAMILY !== undefined) {
+      validateFamilyBackup(payload.family);
+    }
+
+    if (payload.timePlanning !== undefined || envelope.manifest?.domainSchemaVersions?.TIME_PLANNING !== undefined) validateTimePlanningBackup(payload.timePlanning);
+    if (payload.lifeModules !== undefined || envelope.manifest?.domainSchemaVersions?.LIFE_MODULES !== undefined) validateLifeModulesBackup(payload.lifeModules);
+
     const restoreIdentityKey = computeSha256(`${envelope.manifest.backupId}:${canonicalPayloadSha256}:${envelope.manifest.canonicalizationVersion}`);
     const idempotencyRegistry = (await StorageService.load(STORAGE_KEYS_IDEMPOTENCY_REGISTRY, {})) || {};
 
@@ -604,11 +623,12 @@ export class FinlifeV4BackupRestoreEngine {
     // 6. Complete 10-Component Pre-Restore Snapshot
     // ─────────────────────────────────────────────────────────────────────────
     const preRestoreSnapshot = await this._createFullStorageSnapshot();
+    const preRestoreLifeEvents = await captureLifeEventsRaw();
 
     // ─────────────────────────────────────────────────────────────────────────
     // 7. Acquire Restore Lock
     // ─────────────────────────────────────────────────────────────────────────
-    await StorageService.save(STORAGE_KEYS_BACKUP_LOCK, {
+    await checkedSave(STORAGE_KEYS_BACKUP_LOCK, {
       lockedAt: new Date().toISOString(),
       backupId: envelope.manifest.backupId
     });
@@ -621,27 +641,27 @@ export class FinlifeV4BackupRestoreEngine {
 
       // Write Investments
       if (payload.investments) {
-        await StorageService.save(STORAGE_KEYS.INVESTMENT_PORTFOLIOS, payload.investments.portfolios || []);
-        await StorageService.save(STORAGE_KEYS.INVESTMENT_HOLDINGS, payload.investments.holdings || []);
-        await StorageService.save(STORAGE_KEYS.INVESTMENT_EVENTS, payload.investments.events || []);
-        await StorageService.save(STORAGE_KEYS.SIP_SCHEDULES, payload.investments.sips || []);
-        await StorageService.save(STORAGE_KEYS.INVESTMENT_MARKET_QUOTES, payload.investments.quotes || []);
+        await checkedSave(STORAGE_KEYS.INVESTMENT_PORTFOLIOS, payload.investments.portfolios || []);
+        await checkedSave(STORAGE_KEYS.INVESTMENT_HOLDINGS, payload.investments.holdings || []);
+        await checkedSave(STORAGE_KEYS.INVESTMENT_EVENTS, payload.investments.events || []);
+        await checkedSave(STORAGE_KEYS.SIP_SCHEDULES, payload.investments.sips || []);
+        await checkedSave(STORAGE_KEYS.INVESTMENT_MARKET_QUOTES, payload.investments.quotes || []);
       }
 
       if (simulateFailurePoint === 2) throw new Error('SIMULATED_INTERCEPTION_STAGE_2');
 
       // Write Cashbook
       if (payload.cashbook) {
-        await StorageService.save('finlife_cashbook_books_v2', payload.cashbook.books || []);
-        await StorageService.save('finlife_cashbook_accounts_v2', payload.cashbook.accounts || []);
-        await StorageService.save('finlife_cashbook_transactions_v2', payload.cashbook.transactions || []);
-        await StorageService.save('finlife_cashbook_daily_closings_v2', payload.cashbook.dailyClosings || []);
-        await StorageService.save('finlife_cashbook_audit_log_v2', payload.cashbook.auditLog || []);
+        await checkedSave('finlife_cashbook_books_v2', payload.cashbook.books || []);
+        await checkedSave('finlife_cashbook_accounts_v2', payload.cashbook.accounts || []);
+        await checkedSave('finlife_cashbook_transactions_v2', payload.cashbook.transactions || []);
+        await checkedSave('finlife_cashbook_daily_closings_v2', payload.cashbook.dailyClosings || []);
+        await checkedSave('finlife_cashbook_audit_log_v2', payload.cashbook.auditLog || []);
         if (payload.cashbook.manifest) {
-          await StorageService.save('finlife_cashbook_manifest_v2', payload.cashbook.manifest);
+          await checkedSave('finlife_cashbook_manifest_v2', payload.cashbook.manifest);
         }
         if (payload.cashbook.legacyCashbooks) {
-          await StorageService.save(STORAGE_KEYS.CASHBOOKS, payload.cashbook.legacyCashbooks);
+          await checkedSave(STORAGE_KEYS.CASHBOOKS, payload.cashbook.legacyCashbooks);
         }
       }
 
@@ -649,26 +669,26 @@ export class FinlifeV4BackupRestoreEngine {
 
       // Write Properties & Assets
       if (payload.properties) {
-        await StorageService.save(STORAGE_KEYS.PROPERTIES, payload.properties.items || []);
+        await checkedSave(STORAGE_KEYS.PROPERTIES, payload.properties.items || []);
       }
       if (payload.assets) {
-        await StorageService.save(STORAGE_KEYS.ASSETS, payload.assets.items || []);
+        await checkedSave(STORAGE_KEYS.ASSETS, payload.assets.items || []);
       }
 
       if (simulateFailurePoint === 4) throw new Error('SIMULATED_INTERCEPTION_STAGE_4');
 
       // Write Loans & P2P
       if (payload.loans) {
-        await StorageService.save(STORAGE_KEYS.LOANS, payload.loans.loans || []);
-        await StorageService.save(STORAGE_KEYS.EMIS, payload.loans.emis || []);
-        await StorageService.save(STORAGE_KEYS.BANKING_LOANS, payload.loans.bankingLoans || []);
+        await checkedSave(STORAGE_KEYS.LOANS, payload.loans.loans || []);
+        await checkedSave(STORAGE_KEYS.EMIS, payload.loans.emis || []);
+        await checkedSave(STORAGE_KEYS.BANKING_LOANS, payload.loans.bankingLoans || []);
       }
       if (payload.p2p) {
-        await StorageService.save(STORAGE_KEYS.P2P_LOANS, payload.p2p.loans || []);
-        await StorageService.save(STORAGE_KEYS.P2P_PERSONS, payload.p2p.persons || []);
-        await StorageService.save(STORAGE_KEYS.P2P_JOURNAL, payload.p2p.journal || []);
-        await StorageService.save(STORAGE_KEYS.P2P_REPAYMENTS, payload.p2p.repayments || []);
-        await StorageService.save(STORAGE_KEYS.P2P_SETTINGS, payload.p2p.settings || {});
+        await checkedSave(STORAGE_KEYS.P2P_LOANS, payload.p2p.loans || []);
+        await checkedSave(STORAGE_KEYS.P2P_PERSONS, payload.p2p.persons || []);
+        await checkedSave(STORAGE_KEYS.P2P_JOURNAL, payload.p2p.journal || []);
+        await checkedSave(STORAGE_KEYS.P2P_REPAYMENTS, payload.p2p.repayments || []);
+        await checkedSave(STORAGE_KEYS.P2P_SETTINGS, payload.p2p.settings || {});
       }
 
       if (simulateFailurePoint === 5) throw new Error('SIMULATED_INTERCEPTION_STAGE_5');
@@ -682,14 +702,19 @@ export class FinlifeV4BackupRestoreEngine {
           await StorageService.setStorageSchemaVersion(payload.global.appSchemaVersion);
         }
         if (payload.global.settings) {
-          await StorageService.save(STORAGE_KEYS.SETTINGS, payload.global.settings);
+          await checkedSave(STORAGE_KEYS.SETTINGS, payload.global.settings);
         }
         if (payload.global.quarantineRegistry) {
-          await StorageService.save(STORAGE_KEYS_QUARANTINE_REGISTRY, payload.global.quarantineRegistry);
+          await checkedSave(STORAGE_KEYS_QUARANTINE_REGISTRY, payload.global.quarantineRegistry);
         }
       }
 
       if (simulateFailurePoint === 6) throw new Error('SIMULATED_INTERCEPTION_STAGE_6');
+
+      // Older backups omit Family; preserve the target Family domain in that case.
+      if (payload.family) await writeFamilyBackup(payload.family);
+      if (payload.timePlanning) await writeTimePlanningBackup(payload.timePlanning);
+      if (payload.lifeModules) await writeLifeModulesBackup(payload.lifeModules);
 
       // Stamp Idempotency Registry & Audit History
       idempotencyRegistry[restoreIdentityKey] = {
@@ -697,10 +722,10 @@ export class FinlifeV4BackupRestoreEngine {
         backupId: envelope.manifest.backupId,
         canonicalPayloadSha256
       };
-      await StorageService.save(STORAGE_KEYS_IDEMPOTENCY_REGISTRY, idempotencyRegistry);
+      await checkedSave(STORAGE_KEYS_IDEMPOTENCY_REGISTRY, idempotencyRegistry);
 
       // Release Lock
-      await StorageService.delete(STORAGE_KEYS_BACKUP_LOCK);
+      await checkedDelete(STORAGE_KEYS_BACKUP_LOCK);
 
       return {
         status: RESTORE_OUTCOME.SUCCESS,
@@ -714,7 +739,8 @@ export class FinlifeV4BackupRestoreEngine {
       // 9. Multi-Point Atomic Rollback (All 10 Components Restored)
       // ───────────────────────────────────────────────────────────────────────
       await this._restoreFullStorageSnapshot(preRestoreSnapshot);
-      await StorageService.delete(STORAGE_KEYS_BACKUP_LOCK);
+      await restoreLifeEventsRaw(preRestoreLifeEvents);
+      await checkedDelete(STORAGE_KEYS_BACKUP_LOCK);
 
       return {
         status: RESTORE_OUTCOME.FAILED_ROLLED_BACK,
@@ -735,7 +761,10 @@ export class FinlifeV4BackupRestoreEngine {
     const loans = (await StorageService.load(STORAGE_KEYS.LOANS, [])) || [];
     const p2pLoans = (await StorageService.load(STORAGE_KEYS.P2P_LOANS, [])) || [];
 
-    return holdings.length > 0 || accounts.length > 0 || properties.length > 0 || loans.length > 0 || p2pLoans.length > 0;
+    const family = await collectFamilyBackup();
+    const timePlanning = await collectTimePlanningBackup();
+    const lifeModules = await collectLifeModulesBackup();
+    return hasTimePlanningData(timePlanning) || hasLifeModulesData(lifeModules) || hasFamilyBackupData(family) || holdings.length > 0 || accounts.length > 0 || properties.length > 0 || loans.length > 0 || p2pLoans.length > 0;
   }
 
   /**
@@ -745,7 +774,7 @@ export class FinlifeV4BackupRestoreEngine {
     const allKeys = await StorageService.getAllKeys();
     const snapshot = {};
     for (const key of allKeys) {
-      snapshot[key] = await StorageService.load(key, null);
+      snapshot[key] = await StorageService.load(key, null, {strict:true});
     }
     return snapshot;
   }
@@ -757,14 +786,14 @@ export class FinlifeV4BackupRestoreEngine {
     const currentKeys = await StorageService.getAllKeys();
     for (const key of currentKeys) {
       if (!(key in snapshot)) {
-        await StorageService.delete(key);
+        await checkedDelete(key);
       }
     }
     for (const [key, val] of Object.entries(snapshot)) {
       if (val !== null && val !== undefined) {
-        await StorageService.save(key, val);
+        await checkedSave(key, val);
       } else {
-        await StorageService.delete(key);
+        await checkedDelete(key);
       }
     }
   }
@@ -781,7 +810,7 @@ export class FinlifeV4BackupRestoreEngine {
       'financial_health_summary'
     ];
     for (const key of cacheKeys) {
-      await StorageService.delete(key);
+      await checkedDelete(key);
     }
   }
 
@@ -793,7 +822,7 @@ export class FinlifeV4BackupRestoreEngine {
     
     // If it's a legacy cashbook backup
     if (legacyEnvelope.type === 'cashbooks' && Array.isArray(legacyEnvelope.data)) {
-      await StorageService.save(STORAGE_KEYS.CASHBOOKS, legacyEnvelope.data);
+      await checkedSave(STORAGE_KEYS.CASHBOOKS, legacyEnvelope.data);
       return {
         status: RESTORE_OUTCOME.SUCCESS,
         outcome: 'SUCCESS_MIGRATED_LEGACY',
@@ -805,3 +834,7 @@ export class FinlifeV4BackupRestoreEngine {
     throw new Error('UNSUPPORTED_LEGACY_BACKUP: Unrecognized legacy backup format');
   }
 }
+
+// Storage reports failures as results; never stamp a failed restore as successful.
+async function checkedSave(...args) { const result=await StorageService.save(...args); if(!result?.success) throw new Error('BACKUP_STORAGE_WRITE_FAILED: '+args[0]); return result; }
+async function checkedDelete(...args) { const result=await StorageService.delete(...args); if(!result?.success) throw new Error('BACKUP_STORAGE_DELETE_FAILED: '+args[0]); return result; }

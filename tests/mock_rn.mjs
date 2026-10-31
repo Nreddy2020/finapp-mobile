@@ -12,8 +12,11 @@ export async function resolve(specifier, context, nextResolve) {
         specifier === '@react-native-async-storage/async-storage' ||
         specifier === 'expo-file-system/legacy' ||
         specifier === 'expo-crypto' ||
+        specifier === 'expo-local-authentication' ||
         specifier === 'expo-modules-core' ||
-        specifier === 'expo-secure-store'
+        specifier === 'expo-secure-store' ||
+        specifier === 'expo-router' ||
+        specifier === 'lucide-react-native'
     ) {
         return { shortCircuit: true, url: '${mockRnUrl}' };
     }

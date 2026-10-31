@@ -27,17 +27,13 @@ export function MoneyFlowHeader({ periodLabel, onOpenPeriodModal, onOpenMenu }) 
                             <Ionicons name="menu-outline" size={24} color={MF_COLORS.textPrimary} />
                         </TouchableOpacity>
                     )}
-                    <Text style={mfStyles.headerTitle}>Personal Money Flow</Text>
+                    <Text style={mfStyles.headerTitle}>Money Flow</Text>
                 </View>
             </View>
             
             <Text style={mfStyles.headerSubtitle}>Your cash, simply understood</Text>
 
             <View style={mfStyles.headerMetaRow}>
-                <View style={mfStyles.cashBadge}>
-                    <Text style={mfStyles.cashBadgeText}>Cash movement only</Text>
-                </View>
-
                 <TouchableOpacity
                     style={mfStyles.periodPill}
                     onPress={onOpenPeriodModal}

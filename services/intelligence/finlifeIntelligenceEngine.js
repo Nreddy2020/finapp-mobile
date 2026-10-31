@@ -56,23 +56,32 @@ export class FinlifeIntelligenceEngine {
      * Loads and normalizes all canonical financial records.
      */
     static async loadFinancialSnapshot() {
+        // Canonical stores first (STORAGE_KEYS), legacy keys kept as additive fallbacks.
+        const safe = async (key, fallback) => { try { const v = await StorageService.load(key, fallback); return v ?? fallback; } catch { return fallback; } };
+        const merge = (...lists) => lists.flatMap(l => (Array.isArray(l) ? l : []));
         const [
-            cashbookAccounts,
-            transactions,
-            investments,
-            assets,
+            legacyCashAccounts, bankAccounts, cashbooks,
+            canonicalTransactions, legacyTransactions,
+            canonicalInvestments, legacyInvestments,
+            canonicalAssets, legacyAssets,
             p2pRecords,
-            loans,
-            recurring
+            canonicalLoans, legacyLoans, emis,
+            recurringPayments, incomeSources
         ] = await Promise.all([
-            StorageService.load('finlife_cashbook_accounts_v2', []),
-            StorageService.load('transactions', []),
-            StorageService.load('investments', []),
-            StorageService.load('assets', []),
-            StorageService.load('p2p_records', []),
-            StorageService.load('loans', []),
-            StorageService.load('recurring_commitments', [])
+            safe('finlife_cashbook_accounts_v2', []), safe(STORAGE_KEYS.ACCOUNTS, []), safe(STORAGE_KEYS.CASHBOOKS, []),
+            safe(STORAGE_KEYS.TRANSACTIONS, []), safe('transactions', []),
+            safe(STORAGE_KEYS.INVESTMENTS, []), safe('investments', []),
+            safe(STORAGE_KEYS.ASSETS, []), safe('assets', []),
+            safe('p2p_records', []),
+            safe(STORAGE_KEYS.LOANS, []), safe('loans', []), safe(STORAGE_KEYS.EMIS, []),
+            safe(STORAGE_KEYS.RECURRING_PAYMENTS, []), safe(STORAGE_KEYS.INCOME_SOURCES, [])
         ]);
+        const cashbookAccounts = merge(legacyCashAccounts, bankAccounts, cashbooks);
+        const transactions = merge(canonicalTransactions, legacyTransactions);
+        const investments = merge(canonicalInvestments, legacyInvestments);
+        const assets = merge(canonicalAssets, legacyAssets);
+        const loans = merge(canonicalLoans, legacyLoans, (Array.isArray(emis) ? emis : []).map(e => ({ remainingAmount: e.outstanding ?? e.outstanding_amount ?? 0 })));
+        const recurring = recurringPayments;
 
         // 1. Calculate liquid cash in accounts
         let liquidCashPaise = 0;
@@ -140,11 +149,11 @@ export class FinlifeIntelligenceEngine {
             for (const tx of transactions) {
                 const txDate = new Date(tx.date || tx.createdAt || now);
                 const isRecent = txDate >= thirtyDaysAgo;
-                const amtPaise = Math.round(Number(tx.amountPaise || (tx.amount * 100) || 0));
+                const amtPaise = Math.abs(Math.round(Number(tx.amountPaise || (tx.amount * 100) || 0)));
 
-                if (tx.type === 'INCOME') {
+                if (String(tx.type || '').toUpperCase() === 'INCOME') {
                     if (isRecent) monthlyIncomePaise += amtPaise;
-                } else if (tx.type === 'EXPENSE') {
+                } else if (String(tx.type || 'EXPENSE').toUpperCase() === 'EXPENSE') {
                     if (isRecent) monthlyExpensePaise += amtPaise;
                     const cat = (tx.category || 'Other').trim();
                     categoryMapPaise[cat] = (categoryMapPaise[cat] || 0) + amtPaise;
@@ -152,9 +161,15 @@ export class FinlifeIntelligenceEngine {
             }
         }
 
-        // Fallback default monthly income estimate if transactions are empty
-        if (monthlyIncomePaise === 0) {
-            monthlyIncomePaise = monthlyExpensePaise > 0 ? Math.round(monthlyExpensePaise * 1.3) : 6000000; // ₹60,000 fallback
+        // Declared income sources are the honest fallback when no income transactions exist.
+        let hasIncomeData = monthlyIncomePaise > 0;
+        if (monthlyIncomePaise === 0 && Array.isArray(incomeSources) && incomeSources.length) {
+            const perMonth = { daily: 30, weekly: 4.33, monthly: 1, quarterly: 1 / 3, yearly: 1 / 12, annual: 1 / 12 };
+            for (const src of incomeSources) {
+                const factor = perMonth[String(src.frequency || 'monthly').toLowerCase()] ?? 1;
+                monthlyIncomePaise += Math.round(Number(src.amount || 0) * factor * 100);
+            }
+            hasIncomeData = monthlyIncomePaise > 0;
         }
 
         return {
@@ -169,6 +184,7 @@ export class FinlifeIntelligenceEngine {
             monthlyIncomePaise,
             monthlyExpensePaise,
             categoryMapPaise,
+            hasIncomeData,
             transactionsCount: Array.isArray(transactions) ? transactions.length : 0,
             recurringCommitmentsCount: Array.isArray(recurring) ? recurring.length : 0
         };
