@@ -30,7 +30,8 @@ const SUITES = [
     'test_cashbook_gate6_migration.mjs',
     'test_cashbook_gate7_backup_restore.mjs',
     'test_cashbook_gate9_logging_bridge.mjs',
-    'test_cashbook_gate11_security_privacy.mjs'
+    'test_cashbook_gate11_security_privacy.mjs',
+    'test_cashbook_phase1_accounting_boundaries.mjs'
 ];
 
 console.log('================================================================');

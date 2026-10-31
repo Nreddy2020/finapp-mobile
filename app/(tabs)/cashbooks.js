@@ -143,10 +143,10 @@ export default function CashbooksScreen() {
         }
     }, [experienceProfile]);
 
-    // Filter transactions by active book
+    // Filter transactions strictly by active book (Strict Book Isolation)
     const activeBookTransactions = useMemo(() => {
-        if (!activeBook) return envelope.transactions;
-        return (envelope.transactions || []).filter(t => !t.bookId || t.bookId === activeBook.id);
+        if (!activeBook) return [];
+        return (envelope.transactions || []).filter(t => t.bookId === activeBook.id);
     }, [envelope.transactions, activeBook]);
 
     // Running balance ledger computation for active book

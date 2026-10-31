@@ -28,7 +28,8 @@ import {
     DailyClosingStatus,
     createMoneyPaise,
     moneyToBigInt,
-    formatMoneyPaise
+    formatMoneyPaise,
+    validateJournalLines
 } from './cashbookContracts.js';
 import { validateTransferPairContinuity, validateLoanRepaymentSplit } from './cashbookValidator.js';
 
@@ -67,6 +68,27 @@ export function computeAccountBalances(accounts, transactions) {
     for (const txn of sortedTxns) {
         // Voided or pending transactions do not affect posted balance
         if (txn.status === TransactionStatus.VOIDED || txn.status === TransactionStatus.PENDING) {
+            continue;
+        }
+
+        // Boundary 1: Authoritative Journal Lines posting
+        // Invariant: If txn.lines !== undefined, lines must be strictly validated.
+        // If invalid, REJECT immediately with error (atomicity guarantee). Never fall back!
+        if (txn.lines !== undefined) {
+            validateJournalLines(txn.lines);
+
+            for (const line of txn.lines) {
+                const target = balanceMap[line.accountId];
+                if (target) {
+                    const deb = BigInt(line.debitPaise || '0');
+                    const cred = BigInt(line.creditPaise || '0');
+                    if (target.nature === AccountNature.ASSET) {
+                        target.bigIntPaise += (deb - cred);
+                    } else if (target.nature === AccountNature.LIABILITY) {
+                        target.bigIntPaise += (cred - deb);
+                    }
+                }
+            }
             continue;
         }
 
@@ -249,9 +271,22 @@ export function recomputeFromGenesis(accounts, transactions) {
                 message: 'Opening balance record does not have immutable === true'
             });
         }
+
+        // 4. Journal line integrity check if present
+        if (txn.lines !== undefined) {
+            try {
+                validateJournalLines(txn.lines);
+            } catch (err) {
+                anomalies.push({
+                    code: 'MALFORMED_JOURNAL_ENTRY',
+                    transactionId: txn.id,
+                    message: err.message
+                });
+            }
+        }
     }
 
-    // 4. Transfer pairing & orphan leg continuity check
+    // 5. Transfer pairing & orphan leg continuity check
     try {
         validateTransferPairContinuity(transactions);
     } catch (err) {
@@ -261,7 +296,15 @@ export function recomputeFromGenesis(accounts, transactions) {
         });
     }
 
-    const balances = computeAccountBalances(accounts, transactions);
+    let balances = {};
+    try {
+        balances = computeAccountBalances(accounts, transactions);
+    } catch (err) {
+        anomalies.push({
+            code: 'BALANCE_COMPUTATION_ERROR',
+            message: err.message
+        });
+    }
 
     return {
         isValid: anomalies.length === 0,
@@ -279,11 +322,13 @@ export function recomputeFromGenesis(accounts, transactions) {
  */
 export function computePeriodSummary(transactions, startDate = null, endDate = null) {
     let incomePaise = 0n;
-    let expensePaise = 0n;
-    let refundPaise = 0n;
+    let grossExpensePaise = 0n;
+    let expenseRefundsPaise = 0n;
     let transferVolumePaise = 0n;
     let transferCount = 0;
     let adjustmentPaise = 0n;
+    let cashInflowPaise = 0n;
+    let cashOutflowPaise = 0n;
 
     for (const txn of transactions) {
         if (txn.status === TransactionStatus.VOIDED || txn.status === TransactionStatus.PENDING) {
@@ -296,45 +341,91 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
 
         const amt = moneyToBigInt(txn.amount);
 
-        switch (txn.transactionType) {
-            case TransactionType.INCOME:
-                incomePaise += amt;
-                break;
+        // Case A: Compound transaction with authoritative journal lines
+        if (txn.lines !== undefined && Array.isArray(txn.lines) && txn.lines.length >= 2) {
+            validateJournalLines(txn.lines);
 
-            case TransactionType.EXPENSE:
-                expensePaise += amt;
-                break;
+            for (const line of txn.lines) {
+                const deb = BigInt(line.debitPaise || '0');
+                const cred = BigInt(line.creditPaise || '0');
 
-            case TransactionType.REFUND:
-                refundPaise += amt;
-                if (txn.refundTargetType === RefundTargetType.INCOME) {
-                    incomePaise += amt;
-                } else {
-                    // Default: refund reduces expense
-                    if (expensePaise >= amt) {
-                        expensePaise -= amt;
-                    } else {
-                        expensePaise = 0n;
-                    }
+                // 1. Operating/Finance Expense: debit to nominal expense lines only
+                // Note: Balance-sheet liability reductions (principal repayment) and asset exchanges are NEVER expenses
+                if (line.lineType === LedgerLineType.INTEREST_EXPENSE ||
+                    line.lineType === LedgerLineType.FEES_EXPENSE ||
+                    line.categoryId === 'finance_expense' ||
+                    line.categoryId === 'operating_expense' ||
+                    (line.accountId && line.accountId.startsWith('biz_exp_')) ||
+                    (line.accountId && line.accountId.startsWith('category_expense')) ||
+                    (line.accountId && line.accountId.startsWith('category_loan_fees'))) {
+                    grossExpensePaise += deb;
                 }
-                break;
 
-            case TransactionType.TRANSFER:
+                // 2. Operating Revenue: credit to nominal revenue lines only
+                // Note: Principal recovery or loan borrowing is NEVER revenue
+                if (line.lineType === LedgerLineType.INTEREST_INCOME ||
+                    line.categoryId === 'product_sale' ||
+                    (line.accountId && line.accountId.startsWith('biz_rev_')) ||
+                    (line.accountId && line.accountId.startsWith('category_income'))) {
+                    incomePaise += cred;
+                }
+
+                // 3. Cash Flow: debits/credits to cash/bank lines
+                if (line.lineType === LedgerLineType.CASH ||
+                    (line.accountId && (line.accountId.includes('bank') || line.accountId.includes('cash') || line.accountId.includes('wallet')))) {
+                    cashInflowPaise += deb;
+                    cashOutflowPaise += cred;
+                }
+            }
+
+            if (txn.transactionType === TransactionType.TRANSFER) {
                 transferVolumePaise += amt;
                 transferCount++;
-                break;
+            }
+        } else {
+            // Case B: Legacy transactions without lines (zero-clamping removed)
+            switch (txn.transactionType) {
+                case TransactionType.INCOME:
+                    incomePaise += amt;
+                    cashInflowPaise += amt;
+                    break;
 
-            case TransactionType.ADJUSTMENT:
-                if (txn.balanceEffect === BalanceEffect.INCREASE) {
-                    adjustmentPaise += amt;
-                } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
-                    adjustmentPaise -= amt;
-                }
-                break;
+                case TransactionType.EXPENSE:
+                    grossExpensePaise += amt;
+                    cashOutflowPaise += amt;
+                    break;
+
+                case TransactionType.REFUND:
+                    if (txn.refundTargetType === RefundTargetType.INCOME) {
+                        incomePaise += amt;
+                        cashInflowPaise += amt;
+                    } else {
+                        // Lossless: track expense refunds without clamping gross expense
+                        expenseRefundsPaise += amt;
+                        cashInflowPaise += amt;
+                    }
+                    break;
+
+                case TransactionType.TRANSFER:
+                    transferVolumePaise += amt;
+                    transferCount++;
+                    break;
+
+                case TransactionType.ADJUSTMENT:
+                    if (txn.balanceEffect === BalanceEffect.INCREASE) {
+                        adjustmentPaise += amt;
+                        cashInflowPaise += amt;
+                    } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
+                        adjustmentPaise -= amt;
+                        cashOutflowPaise += amt;
+                    }
+                    break;
+            }
         }
     }
 
-    const netCashFlowPaise = incomePaise - expensePaise;
+    const netExpensePaise = grossExpensePaise - expenseRefundsPaise;
+    const netCashFlowPaise = cashInflowPaise - cashOutflowPaise;
 
     return {
         income: {
@@ -342,15 +433,38 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
             paise: incomePaise.toString(),
             formatted: formatMoneyPaise(createMoneyPaise(incomePaise))
         },
+        grossExpense: {
+            bigIntPaise: grossExpensePaise,
+            paise: grossExpensePaise.toString(),
+            formatted: formatMoneyPaise(createMoneyPaise(grossExpensePaise))
+        },
+        expenseRefunds: {
+            bigIntPaise: expenseRefundsPaise,
+            paise: expenseRefundsPaise.toString(),
+            formatted: formatMoneyPaise(createMoneyPaise(expenseRefundsPaise))
+        },
+        netExpense: {
+            bigIntPaise: netExpensePaise,
+            paise: netExpensePaise.toString(),
+            isNegative: netExpensePaise < 0n,
+            formatted: (netExpensePaise < 0n ? '-' : '') + formatMoneyPaise(createMoneyPaise(netExpensePaise < 0n ? -netExpensePaise : netExpensePaise))
+        },
         expense: {
-            bigIntPaise: expensePaise,
-            paise: expensePaise.toString(),
-            formatted: formatMoneyPaise(createMoneyPaise(expensePaise))
+            bigIntPaise: netExpensePaise,
+            paise: netExpensePaise.toString(),
+            isNegative: netExpensePaise < 0n,
+            formatted: (netExpensePaise < 0n ? '-' : '') + formatMoneyPaise(createMoneyPaise(netExpensePaise < 0n ? -netExpensePaise : netExpensePaise))
         },
         refund: {
-            bigIntPaise: refundPaise,
-            paise: refundPaise.toString(),
-            formatted: formatMoneyPaise(createMoneyPaise(refundPaise))
+            bigIntPaise: expenseRefundsPaise,
+            paise: expenseRefundsPaise.toString(),
+            formatted: formatMoneyPaise(createMoneyPaise(expenseRefundsPaise))
+        },
+        cashFlow: {
+            inflowBigIntPaise: cashInflowPaise,
+            outflowBigIntPaise: cashOutflowPaise,
+            netBigIntPaise: netCashFlowPaise,
+            formatted: (netCashFlowPaise < 0n ? '-' : '') + formatMoneyPaise(createMoneyPaise(netCashFlowPaise < 0n ? -netCashFlowPaise : netCashFlowPaise))
         },
         netCashFlow: {
             bigIntPaise: netCashFlowPaise,
@@ -367,7 +481,12 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
         adjustments: {
             bigIntPaise: adjustmentPaise,
             paise: adjustmentPaise.toString()
-        }
+        },
+        grossExpensePaise,
+        expenseRefundsPaise,
+        netExpensePaise,
+        incomePaise,
+        pureCashFlowPaise: netCashFlowPaise
     };
 }
 

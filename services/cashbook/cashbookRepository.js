@@ -240,6 +240,28 @@ export const CashbookRepository = {
             await StorageService.save(key, envelope);
         }
 
+        // Boundary 4: Deterministic Idempotent Migration Resolver for legacy unassigned transactions.
+        // Guarantees strict book isolation: every transaction is authoritatively bound to a bookId.
+        if (envelope.transactions && envelope.transactions.length > 0) {
+            let unassignedMigrated = false;
+            const defaultBook = (envelope.books || []).find(b => b.isDefault) || (envelope.books && envelope.books[0]) || { id: 'book_personal_savings' };
+            for (const txn of envelope.transactions) {
+                if (!txn.bookId) {
+                    const migrationStamp = `cashbook-book-migration-v1:${txn.id}`;
+                    if (txn.migrationId !== migrationStamp) {
+                        txn.bookId = defaultBook.id;
+                        txn.migrationId = migrationStamp;
+                        txn.migratedAt = new Date().toISOString();
+                        unassignedMigrated = true;
+                    }
+                }
+            }
+            if (unassignedMigrated) {
+                envelope.checksum = computeEnvelopeChecksum(envelope);
+                await StorageService.save(key, envelope);
+            }
+        }
+
         // Ensure standard register accounts exist in demo envelopes
         if (mode === CashbookAppMode.DEMO && envelope.accounts && envelope.accounts.length > 0) {
             const existingIds = new Set(envelope.accounts.map(a => a.id));

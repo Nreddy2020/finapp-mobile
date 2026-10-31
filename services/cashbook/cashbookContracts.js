@@ -26,6 +26,22 @@ export const AccountNature = Object.freeze({
     LIABILITY: 'LIABILITY'
 });
 
+export const AccountClassification = Object.freeze({
+    CASH_AND_EQUIVALENTS: 'CASH_AND_EQUIVALENTS',
+    BANK: 'BANK',
+    LOAN_RECEIVABLE: 'LOAN_RECEIVABLE',
+    LOAN_PAYABLE: 'LOAN_PAYABLE',
+    INVESTMENT_ASSET: 'INVESTMENT_ASSET',
+    ACCOUNTS_RECEIVABLE: 'ACCOUNTS_RECEIVABLE',
+    ACCOUNTS_PAYABLE: 'ACCOUNTS_PAYABLE',
+    RESTRICTED_ASSET: 'RESTRICTED_ASSET',
+    OPERATING_EXPENSE: 'OPERATING_EXPENSE',
+    FINANCE_EXPENSE: 'FINANCE_EXPENSE',
+    OPERATING_INCOME: 'OPERATING_INCOME',
+    CAPITAL: 'CAPITAL',
+    GENERAL: 'GENERAL'
+});
+
 export const ACCOUNT_TYPE_NATURE = Object.freeze({
     [AccountType.BANK]: AccountNature.ASSET,
     [AccountType.CASH]: AccountNature.ASSET,
@@ -1574,6 +1590,65 @@ export function resolveCashbookExperience(bookOrType) {
  * Creates a formal balanced LedgerTransaction entity.
  * Guarantees Total Debits = Total Credits across lines[].
  */
+/**
+ * Validates a journal line array.
+ * Invariants:
+ * - Must be an array of length >= 2.
+ * - Each line must have non-empty accountId.
+ * - Each line must have valid integer paise >= 0.
+ * - Exactly one of debitPaise or creditPaise > 0n (never both, never neither).
+ * - Total Debits === Total Credits.
+ */
+export function validateJournalLines(lines) {
+    if (lines === undefined || lines === null) return true;
+    if (!Array.isArray(lines) || lines.length < 2) {
+        throw new Error('MALFORMED_JOURNAL_ENTRY: Journal lines must be an array with at least 2 lines');
+    }
+    let totalDebitPaise = 0n;
+    let totalCreditPaise = 0n;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line || typeof line !== 'object') {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} is not a valid object`);
+        }
+        if (!line.accountId || typeof line.accountId !== 'string' || !line.accountId.trim()) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} must have a non-empty accountId`);
+        }
+
+        const debStr = (line.debitPaise !== undefined && line.debitPaise !== null) ? String(line.debitPaise) : '0';
+        const credStr = (line.creditPaise !== undefined && line.creditPaise !== null) ? String(line.creditPaise) : '0';
+
+        let deb = 0n;
+        let cred = 0n;
+        try {
+            deb = BigInt(debStr);
+            cred = BigInt(credStr);
+        } catch {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has non-integer paise amount`);
+        }
+
+        if (deb < 0n || cred < 0n) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has negative paise amount`);
+        }
+        if (deb === 0n && cred === 0n) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has zero amount on both debit and credit`);
+        }
+        if (deb > 0n && cred > 0n) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has both debit and credit populated`);
+        }
+
+        totalDebitPaise += deb;
+        totalCreditPaise += cred;
+    }
+
+    if (totalDebitPaise !== totalCreditPaise) {
+        throw new Error(`UNBALANCED_JOURNAL_ENTRY: Total Debits (₹${(Number(totalDebitPaise)/100).toFixed(2)}) must equal Total Credits (₹${(Number(totalCreditPaise)/100).toFixed(2)})`);
+    }
+
+    return true;
+}
+
 export function createLedgerTransaction({
     transactionId,
     bookId,
@@ -1605,15 +1680,12 @@ export function createLedgerTransaction({
 
     // Enforce balanced lines if lines are present
     if (lines && lines.length > 0) {
+        validateJournalLines(lines);
         for (const line of lines) {
             const deb = BigInt(line.debitPaise || '0');
             const cred = BigInt(line.creditPaise || '0');
             totalDebitPaise += deb;
             totalCreditPaise += cred;
-        }
-
-        if (totalDebitPaise !== totalCreditPaise) {
-            throw new Error(`UNBALANCED_LEDGER_TRANSACTION: Total Debits (₹${(Number(totalDebitPaise)/100).toFixed(2)}) must equal Total Credits (₹${(Number(totalCreditPaise)/100).toFixed(2)})`);
         }
     }
 

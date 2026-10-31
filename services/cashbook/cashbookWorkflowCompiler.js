@@ -13,7 +13,12 @@
 
 import {
     CashbookExperienceProfile,
+    CashbookExperienceConfigMap,
+    resolveCashbookExperience,
     CashbookType,
+    AccountType,
+    AccountNature,
+    ACCOUNT_TYPE_NATURE,
     TransactionType,
     TransactionStatus,
     TransactionSource,
@@ -35,6 +40,64 @@ export class WorkflowCompilerError extends Error {
         this.details = details;
     }
 }
+
+/**
+ * Standard system register and liability account fallbacks for purpose-built books.
+ */
+export const SYSTEM_ACCOUNT_DEFAULTS = Object.freeze({
+    'acc_loan_liability': { id: 'acc_loan_liability', type: AccountType.LOAN, nature: AccountNature.LIABILITY, name: 'Home Loan Liability' },
+    'acc_loan_receivable': { id: 'acc_loan_receivable', type: AccountType.OTHER, nature: AccountNature.ASSET, name: 'Borrower Loan Receivables' },
+    'acc_epfo_uan': { id: 'acc_epfo_uan', type: AccountType.INVESTMENT, nature: AccountNature.ASSET, name: 'EPFO UAN Restricted Portfolio' },
+    'acc_payroll_deduction': { id: 'acc_payroll_deduction', type: AccountType.CASH, nature: AccountNature.ASSET, name: 'Payroll Deduction Clearing' },
+    'biz_acc_receivables': { id: 'biz_acc_receivables', type: AccountType.OTHER, nature: AccountNature.ASSET, name: 'Customer Receivables' },
+    'biz_acc_payables': { id: 'biz_acc_payables', type: AccountType.CREDIT_CARD, nature: AccountNature.LIABILITY, name: 'Supplier Payables' },
+    'acc_handy_till': { id: 'acc_handy_till', type: AccountType.CASH, nature: AccountNature.ASSET, name: 'Handy Cash Till' }
+});
+
+/**
+ * Resolves an account from registered accounts and enforces required nature.
+ */
+function resolveAndValidateAccount(accountId, expectedNature, accounts, accountLabel = 'Account') {
+    let acc = accounts && Array.isArray(accounts) ? accounts.find(a => a.id === accountId) : null;
+    if (!acc && SYSTEM_ACCOUNT_DEFAULTS[accountId]) {
+        acc = SYSTEM_ACCOUNT_DEFAULTS[accountId];
+    }
+    if (!acc) {
+        throw new WorkflowCompilerError(
+            'ACCOUNT_NOT_FOUND',
+            `${accountLabel} '${accountId}' does not exist in registered accounts`
+        );
+    }
+    const nature = acc.nature || ACCOUNT_TYPE_NATURE[acc.type] || AccountNature.ASSET;
+    if (nature !== expectedNature) {
+        throw new WorkflowCompilerError(
+            'INVALID_ACCOUNT_NATURE',
+            `${accountLabel} '${acc.name || accountId}' must be of nature ${expectedNature}, found ${nature}`
+        );
+    }
+    return acc;
+}
+
+export const CashbookWorkflowType = Object.freeze({
+    RECORD_EMI: 'RECORD_EMI',
+    PREPAY_LOAN: 'PREPAY_LOAN',
+    GIVE_LOAN: 'GIVE_LOAN',
+    DISBURSE_LOAN: 'DISBURSE_LOAN',
+    RECORD_REPAYMENT: 'RECORD_REPAYMENT',
+    RECEIVE_LOAN_REPAYMENT: 'RECEIVE_LOAN_REPAYMENT',
+    ADD_INCOME: 'ADD_INCOME',
+    ADD_EXPENSE: 'ADD_EXPENSE',
+    TRANSFER: 'TRANSFER',
+    PAY_BILL: 'PAY_BILL',
+    RECEIVE_CASH: 'RECEIVE_CASH',
+    PAY_CASH: 'PAY_CASH',
+    RECORD_SALE: 'RECORD_SALE',
+    RECORD_PURCHASE: 'RECORD_PURCHASE',
+    RECEIVE_PAYMENT: 'RECEIVE_PAYMENT',
+    PAY_SUPPLIER: 'PAY_SUPPLIER',
+    ADD_CONTRIBUTION: 'ADD_CONTRIBUTION',
+    ADD_INTEREST: 'ADD_INTEREST'
+});
 
 export const PROFILE_ALLOWED_ACTIONS = Object.freeze({
     [CashbookExperienceProfile.PERSONAL_FINANCE_BOOK]: new Set(['ADD_INCOME', 'ADD_EXPENSE', 'TRANSFER', 'PAY_BILL']),
@@ -535,9 +598,9 @@ export function compileWorkflowAction({
         // ==========================================
         case 'RECORD_EMI': {
             const split = createLoanRepaymentSplit({
-                principal: input.principalPaise || input.principal || '0',
-                interest: input.interestPaise || input.interest || '0',
-                fees: input.feesPaise || input.fees || '0'
+                principal: input.principalPaise || input.principalAmountPaise || input.principal || '0',
+                interest: input.interestPaise || input.interestAmountPaise || input.interest || '0',
+                fees: input.feesPaise || input.feesAmountPaise || input.fees || '0'
             });
 
             if (moneyToBigInt(split.total) <= 0n) {
@@ -546,6 +609,12 @@ export function compileWorkflowAction({
 
             if (!input.sourceAccountId) throw new WorkflowCompilerError('MISSING_ACCOUNT', 'Payment bank account is required');
             const loanAccId = input.loanAccountId || 'acc_loan_liability';
+
+            // Boundary 2.1: Explicit account resolution & nature enforcement
+            if (context.accounts) {
+                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
+                resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
+            }
 
             const lines = [
                 {
@@ -614,6 +683,12 @@ export function compileWorkflowAction({
             if (!input.sourceAccountId) throw new WorkflowCompilerError('MISSING_ACCOUNT', 'Payment bank account is required');
             const loanAccId = input.loanAccountId || 'acc_loan_liability';
 
+            // Boundary 2.1: Explicit account resolution & nature enforcement
+            if (context.accounts) {
+                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
+                resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
+            }
+
             const lines = [
                 {
                     lineId: `${txnId}_l1`,
@@ -634,10 +709,11 @@ export function compileWorkflowAction({
             compiledTxn = createLedgerTransaction({
                 transactionId: txnId,
                 bookId,
-                transactionType: TransactionType.EXPENSE,
+                transactionType: TransactionType.TRANSFER, // Debt reduction is capital movement, not operating expense
                 transactionDate: date,
                 description: input.description || 'Loan Principal Prepayment',
                 sourceAccountId: input.sourceAccountId,
+                destinationAccountId: loanAccId,
                 amount: amountMoney,
                 category: 'principal_prepayment',
                 idempotencyKey,
@@ -654,7 +730,13 @@ export function compileWorkflowAction({
             if (amtBi <= 0n) throw new WorkflowCompilerError('INVALID_AMOUNT', 'Loan disbursement amount must be positive');
             if (!input.sourceAccountId) throw new WorkflowCompilerError('MISSING_ACCOUNT', 'Disbursement source account is required');
             const borrower = input.borrowerName || input.counterpartyName || 'Borrower';
-            const receivableAccId = input.loanAccountId || 'acc_loan_receivable';
+            const receivableAccId = input.borrowerAccountId || input.loanAccountId || 'acc_loan_receivable';
+
+            // Boundary 2.1: Explicit account resolution & nature enforcement
+            if (context.accounts) {
+                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Disbursement source account');
+                resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
+            }
 
             const lines = [
                 {
@@ -677,10 +759,11 @@ export function compileWorkflowAction({
             compiledTxn = createLedgerTransaction({
                 transactionId: txnId,
                 bookId,
-                transactionType: TransactionType.EXPENSE,
+                transactionType: TransactionType.TRANSFER, // Lending is asset swap, zero operating expense
                 transactionDate: date,
                 description: input.description || `Loan Disbursed to ${borrower}`,
                 sourceAccountId: input.sourceAccountId,
+                destinationAccountId: receivableAccId,
                 amount: amountMoney,
                 category: 'loan_disbursement',
                 idempotencyKey,
@@ -703,6 +786,12 @@ export function compileWorkflowAction({
             const receivableAccId = input.loanAccountId || 'acc_loan_receivable';
             const borrower = input.borrowerName || input.counterpartyName || 'Borrower';
             const totalMoney = createMoneyPaise(totalBi);
+
+            // Boundary 2.1: Explicit account resolution & nature enforcement
+            if (context.accounts) {
+                resolveAndValidateAccount(input.destinationAccountId, AccountNature.ASSET, context.accounts, 'Repayment deposit account');
+                resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
+            }
 
             const lines = [
                 {
@@ -739,10 +828,11 @@ export function compileWorkflowAction({
             compiledTxn = createLedgerTransaction({
                 transactionId: txnId,
                 bookId,
-                transactionType: TransactionType.INCOME,
+                transactionType: TransactionType.INCOME, // Interest is operating income, principal reduction handled by lines
                 transactionDate: date,
                 description: input.description || `Loan Repayment from ${borrower} (Principal: ₹${(Number(principalMoney.paise)/100).toLocaleString('en-IN')}${iBi > 0n ? `, Interest: ₹${(Number(interestMoney.paise)/100).toLocaleString('en-IN')}` : ''})`,
                 destinationAccountId: input.destinationAccountId,
+                sourceAccountId: receivableAccId,
                 amount: totalMoney,
                 category: 'repayment_received',
                 idempotencyKey,
@@ -1093,3 +1183,22 @@ export function compileWorkflowAction({
 
     return compiledTxn;
 }
+
+export const CashbookWorkflowCompiler = Object.freeze({
+    compileWorkflow: (actionId, input, context = {}) => {
+        let profile = context.profile;
+        if (!profile && context.activeBook) {
+            profile = resolveCashbookExperience(context.activeBook);
+        }
+        if (!profile) {
+            for (const [profId, actions] of Object.entries(PROFILE_ALLOWED_ACTIONS)) {
+                if (actions.has(actionId)) {
+                    profile = CashbookExperienceConfigMap[profId];
+                    break;
+                }
+            }
+        }
+        return compileWorkflowAction({ profile, actionId, input, context });
+    },
+    compileWorkflowAction
+});
