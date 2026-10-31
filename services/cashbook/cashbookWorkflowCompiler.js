@@ -29,7 +29,8 @@ import {
     moneyToBigInt,
     createLedgerTransaction,
     createLoanRepaymentSplit,
-    createPFContributionProvenance
+    createPFContributionProvenance,
+    SYSTEM_CHART_OF_ACCOUNTS
 } from './cashbookContracts.js';
 
 export class WorkflowCompilerError extends Error {
@@ -56,11 +57,23 @@ export const SYSTEM_ACCOUNT_DEFAULTS = Object.freeze({
 
 /**
  * Resolves an account from registered accounts and enforces required nature.
+ * Removes silent fallback to hard-coded system defaults on the authoritative path.
  */
-function resolveAndValidateAccount(accountId, expectedNature, accounts, accountLabel = 'Account') {
-    let acc = accounts && Array.isArray(accounts) ? accounts.find(a => a.id === accountId) : null;
-    if (!acc && SYSTEM_ACCOUNT_DEFAULTS[accountId]) {
-        acc = SYSTEM_ACCOUNT_DEFAULTS[accountId];
+export function resolveAndValidateAccount(accountId, expectedNature, accounts, accountLabel = 'Account') {
+    if (!accounts || !Array.isArray(accounts)) {
+        throw new WorkflowCompilerError(
+            'MISSING_ACCOUNT_CONTEXT',
+            `Registered accounts array is required to resolve ${accountLabel}`
+        );
+    }
+    let acc = accounts.find(a => a.id === accountId);
+    if (!acc) {
+        if (SYSTEM_ACCOUNT_DEFAULTS[accountId]) {
+            acc = SYSTEM_ACCOUNT_DEFAULTS[accountId];
+        } else {
+            const sys = SYSTEM_CHART_OF_ACCOUNTS.find(s => s.id === accountId);
+            if (sys) acc = sys;
+        }
     }
     if (!acc) {
         throw new WorkflowCompilerError(
@@ -139,6 +152,11 @@ export function compileWorkflowAction({
             'UNSUPPORTED_ACTION',
             `Workflow action '${actionId}' is not supported for profile '${profile.profileId}'`
         );
+    }
+
+    const isLoanAction = actionId === 'RECORD_EMI' || actionId === 'PREPAY_LOAN' || actionId === 'GIVE_LOAN' || actionId === 'DISBURSE_LOAN' || actionId === 'RECORD_REPAYMENT' || actionId === 'RECEIVE_LOAN_REPAYMENT';
+    if (isLoanAction && (!context || !context.accounts || !Array.isArray(context.accounts))) {
+        throw new WorkflowCompilerError('MISSING_ACCOUNT_CONTEXT', 'Compilation requires registered accounts in execution context');
     }
 
     const bookId = context.activeBook?.id || input.bookId;
@@ -611,9 +629,11 @@ export function compileWorkflowAction({
             const loanAccId = input.loanAccountId || 'acc_loan_liability';
 
             // Boundary 2.1: Explicit account resolution & nature enforcement
-            if (context.accounts) {
-                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
-                resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
+            resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
+            resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
+            resolveAndValidateAccount('category_finance_expense', AccountNature.EXPENSE, context.accounts, 'Finance expense account');
+            if (moneyToBigInt(split.fees) > 0n) {
+                resolveAndValidateAccount('category_loan_fees', AccountNature.EXPENSE, context.accounts, 'Loan fees account');
             }
 
             const lines = [
@@ -684,10 +704,8 @@ export function compileWorkflowAction({
             const loanAccId = input.loanAccountId || 'acc_loan_liability';
 
             // Boundary 2.1: Explicit account resolution & nature enforcement
-            if (context.accounts) {
-                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
-                resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
-            }
+            resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Payment bank account');
+            resolveAndValidateAccount(loanAccId, AccountNature.LIABILITY, context.accounts, 'Loan liability account');
 
             const lines = [
                 {
@@ -730,13 +748,16 @@ export function compileWorkflowAction({
             if (amtBi <= 0n) throw new WorkflowCompilerError('INVALID_AMOUNT', 'Loan disbursement amount must be positive');
             if (!input.sourceAccountId) throw new WorkflowCompilerError('MISSING_ACCOUNT', 'Disbursement source account is required');
             const borrower = input.borrowerName || input.counterpartyName || 'Borrower';
-            const receivableAccId = input.borrowerAccountId || input.loanAccountId || 'acc_loan_receivable';
+            let receivableAccId = input.borrowerAccountId || input.loanAccountId;
+            if (!receivableAccId && context.accounts) {
+                const found = context.accounts.find(a => a.nature === AccountNature.ASSET && (a.id.includes('loan') || a.id.includes('rec') || a.type === AccountType.OTHER));
+                if (found) receivableAccId = found.id;
+            }
+            if (!receivableAccId) receivableAccId = 'acc_loan_receivable';
 
             // Boundary 2.1: Explicit account resolution & nature enforcement
-            if (context.accounts) {
-                resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Disbursement source account');
-                resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
-            }
+            resolveAndValidateAccount(input.sourceAccountId, AccountNature.ASSET, context.accounts, 'Disbursement source account');
+            resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
 
             const lines = [
                 {
@@ -783,15 +804,18 @@ export function compileWorkflowAction({
             if (totalBi <= 0n) throw new WorkflowCompilerError('INVALID_AMOUNT', 'Repayment amount must be positive');
             if (!input.destinationAccountId) throw new WorkflowCompilerError('MISSING_ACCOUNT', 'Repayment deposit account is required');
 
-            const receivableAccId = input.loanAccountId || 'acc_loan_receivable';
             const borrower = input.borrowerName || input.counterpartyName || 'Borrower';
+            let receivableAccId = input.borrowerAccountId || input.loanAccountId;
+            if (!receivableAccId && context.accounts) {
+                const found = context.accounts.find(a => a.nature === AccountNature.ASSET && (a.id.includes('loan') || a.id.includes('rec') || a.type === AccountType.OTHER));
+                if (found) receivableAccId = found.id;
+            }
+            if (!receivableAccId) receivableAccId = 'acc_loan_receivable';
             const totalMoney = createMoneyPaise(totalBi);
 
             // Boundary 2.1: Explicit account resolution & nature enforcement
-            if (context.accounts) {
-                resolveAndValidateAccount(input.destinationAccountId, AccountNature.ASSET, context.accounts, 'Repayment deposit account');
-                resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
-            }
+            resolveAndValidateAccount(input.destinationAccountId, AccountNature.ASSET, context.accounts, 'Repayment deposit account');
+            resolveAndValidateAccount(receivableAccId, AccountNature.ASSET, context.accounts, 'Loan receivable account');
 
             const lines = [
                 {

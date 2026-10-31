@@ -258,6 +258,13 @@ console.log('  ✅ All 4 purchase classifications route debits correctly to desi
 // --------------------------------------------------------------------------
 console.log('\nTest 5: Loan Separation & Finance Expense Terminology');
 
+const loanAccounts = [
+    { id: 'acc_salary_bank', name: 'Salary Bank', type: 'BANK', nature: 'ASSET' },
+    { id: 'acc_home_loan_liability', name: 'Home Loan Liability', type: 'LOAN', nature: 'LIABILITY' },
+    { id: 'acc_bank_1', name: 'Primary Bank', type: 'BANK', nature: 'ASSET' },
+    { id: 'acc_loan_receivable', name: 'Loan Receivable', type: 'OTHER', nature: 'ASSET' }
+];
+
 const loansTakenProfile = resolveCashbookExperience(CashbookType.LOANS_TAKEN);
 const emiTxn = compileWorkflowAction({
     profile: loansTakenProfile,
@@ -268,7 +275,7 @@ const emiTxn = compileWorkflowAction({
         sourceAccountId: 'acc_salary_bank',
         loanAccountId: 'acc_home_loan_liability'
     },
-    context: { activeBook: { id: 'book_home_loan' } }
+    context: { activeBook: { id: 'book_home_loan' }, accounts: loanAccounts }
 });
 
 // Interest line must explicitly route to category_finance_expense
@@ -288,7 +295,7 @@ const disburseTxn = compileWorkflowAction({
         borrowerName: 'Anil Kumar',
         sourceAccountId: 'acc_bank_1'
     },
-    context: { activeBook: { id: 'book_lending' } }
+    context: { activeBook: { id: 'book_lending' }, accounts: loanAccounts }
 });
 assert.strictEqual(disburseTxn.lines[0].accountId, 'acc_loan_receivable', 'Disbursement must debit loan receivable asset');
 
@@ -301,7 +308,7 @@ const repaymentTxn = compileWorkflowAction({
         borrowerName: 'Anil Kumar',
         destinationAccountId: 'acc_bank_1'
     },
-    context: { activeBook: { id: 'book_lending' } }
+    context: { activeBook: { id: 'book_lending' }, accounts: loanAccounts }
 });
 const pLine = repaymentTxn.lines.find(l => l.lineType === LedgerLineType.PRINCIPAL_REPAID);
 const iLine = repaymentTxn.lines.find(l => l.lineType === LedgerLineType.INTEREST_INCOME);

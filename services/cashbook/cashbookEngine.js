@@ -16,6 +16,10 @@
 import {
     AccountNature,
     ACCOUNT_TYPE_NATURE,
+    AccountClassification,
+    ACCOUNT_TYPE_DEFAULT_CLASSIFICATION,
+    isCashAccount,
+    SYSTEM_CHART_OF_ACCOUNTS,
     TransactionType,
     TransactionStatus,
     BalanceEffect,
@@ -41,17 +45,38 @@ import { validateTransferPairContinuity, validateLoanRepaymentSplit } from './ca
  * @returns {Record<string, { paise: string, bigIntPaise: bigint, formatted: string, nature: string }>}
  */
 export function computeAccountBalances(accounts, transactions) {
+    if (!accounts || !Array.isArray(accounts)) {
+        throw new Error('ACCOUNTS_REQUIRED: accounts array is required for balance computation');
+    }
+
     const balanceMap = {};
 
-    // 1. Initialize all accounts to 0n
+    // 1. Initialize registered accounts to 0n
     for (const acc of accounts) {
         balanceMap[acc.id] = {
             accountId: acc.id,
             accountName: acc.name,
             accountType: acc.type,
             nature: acc.nature || ACCOUNT_TYPE_NATURE[acc.type] || AccountNature.ASSET,
+            classification: acc.classification || ACCOUNT_TYPE_DEFAULT_CLASSIFICATION[acc.type] || AccountClassification.GENERAL,
+            bookId: acc.bookId || null,
             bigIntPaise: 0n
         };
+    }
+
+    // Include system chart of accounts in balanceMap so nominal accounts can receive journal postings
+    for (const sysAcc of SYSTEM_CHART_OF_ACCOUNTS) {
+        if (!balanceMap[sysAcc.id]) {
+            balanceMap[sysAcc.id] = {
+                accountId: sysAcc.id,
+                accountName: sysAcc.name,
+                accountType: sysAcc.type,
+                nature: sysAcc.nature,
+                classification: sysAcc.classification,
+                bookId: null,
+                bigIntPaise: 0n
+            };
+        }
     }
 
     // 2. Sort transactions chronologically (stable sort)
@@ -75,18 +100,32 @@ export function computeAccountBalances(accounts, transactions) {
         // Invariant: If txn.lines !== undefined, lines must be strictly validated.
         // If invalid, REJECT immediately with error (atomicity guarantee). Never fall back!
         if (txn.lines !== undefined) {
-            validateJournalLines(txn.lines);
+            validateJournalLines(txn.lines, { accounts, bookId: txn.bookId, isCrossBook: Boolean(txn.isCrossBook) });
 
+            // Pass 1: Strict account resolution & book ownership check
             for (const line of txn.lines) {
                 const target = balanceMap[line.accountId];
-                if (target) {
-                    const deb = BigInt(line.debitPaise || '0');
-                    const cred = BigInt(line.creditPaise || '0');
-                    if (target.nature === AccountNature.ASSET) {
-                        target.bigIntPaise += (deb - cred);
-                    } else if (target.nature === AccountNature.LIABILITY) {
-                        target.bigIntPaise += (cred - deb);
-                    }
+                if (!target) {
+                    throw new Error(
+                        `[UNREGISTERED_ACCOUNT] Journal line references unknown account '${line.accountId}'. Every journal line account must exist in the registered accounts.`
+                    );
+                }
+                if (txn.bookId && target.bookId && target.bookId !== txn.bookId && !txn.isCrossBook) {
+                    throw new Error(
+                        `[CROSS_BOOK_VIOLATION] Account '${line.accountId}' belongs to book '${target.bookId}', not transaction book '${txn.bookId}'.`
+                    );
+                }
+            }
+
+            // Pass 2: Atomic balance mutation
+            for (const line of txn.lines) {
+                const target = balanceMap[line.accountId];
+                const deb = BigInt(line.debitPaise || '0');
+                const cred = BigInt(line.creditPaise || '0');
+                if (target.nature === AccountNature.ASSET || target.nature === AccountNature.EXPENSE) {
+                    target.bigIntPaise += (deb - cred);
+                } else if (target.nature === AccountNature.LIABILITY || target.nature === AccountNature.INCOME || target.nature === AccountNature.EQUITY) {
+                    target.bigIntPaise += (cred - deb);
                 }
             }
             continue;
@@ -97,22 +136,24 @@ export function computeAccountBalances(accounts, transactions) {
         switch (txn.transactionType) {
             case TransactionType.OPENING_BALANCE: {
                 const target = balanceMap[txn.accountId];
-                if (target) {
-                    target.bigIntPaise += amountPaise;
+                if (!target) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Opening balance references unknown account '${txn.accountId}'`);
                 }
+                target.bigIntPaise += amountPaise;
                 break;
             }
 
             case TransactionType.INCOME: {
                 const destId = txn.destinationAccountId || txn.accountId;
                 const target = balanceMap[destId];
-                if (target) {
-                    if (target.nature === AccountNature.ASSET) {
-                        target.bigIntPaise += amountPaise;
-                    } else {
-                        // Income deposited into a liability account reduces the debt
-                        target.bigIntPaise -= amountPaise;
-                    }
+                if (!target) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Income transaction references unknown account '${destId}'`);
+                }
+                if (target.nature === AccountNature.ASSET) {
+                    target.bigIntPaise += amountPaise;
+                } else {
+                    // Income deposited into a liability account reduces the debt
+                    target.bigIntPaise -= amountPaise;
                 }
                 break;
             }
@@ -120,13 +161,14 @@ export function computeAccountBalances(accounts, transactions) {
             case TransactionType.EXPENSE: {
                 const srcId = txn.sourceAccountId || txn.accountId;
                 const target = balanceMap[srcId];
-                if (target) {
-                    if (target.nature === AccountNature.ASSET) {
-                        target.bigIntPaise -= amountPaise;
-                    } else {
-                        // Spending on a liability account (e.g. credit card) increases the debt
-                        target.bigIntPaise += amountPaise;
-                    }
+                if (!target) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Expense transaction references unknown account '${srcId}'`);
+                }
+                if (target.nature === AccountNature.ASSET) {
+                    target.bigIntPaise -= amountPaise;
+                } else {
+                    // Spending on a liability account (e.g. credit card) increases the debt
+                    target.bigIntPaise += amountPaise;
                 }
                 break;
             }
@@ -134,49 +176,53 @@ export function computeAccountBalances(accounts, transactions) {
             case TransactionType.TRANSFER: {
                 const src = balanceMap[txn.sourceAccountId];
                 const dest = balanceMap[txn.destinationAccountId];
+                if (!src) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Transfer source account '${txn.sourceAccountId}' does not exist`);
+                }
+                if (!dest) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Transfer destination account '${txn.destinationAccountId}' does not exist`);
+                }
 
                 // Source leg
-                if (src) {
-                    if (src.nature === AccountNature.ASSET) {
-                        src.bigIntPaise -= amountPaise;
-                    } else {
-                        src.bigIntPaise += amountPaise;
-                    }
+                if (src.nature === AccountNature.ASSET) {
+                    src.bigIntPaise -= amountPaise;
+                } else {
+                    src.bigIntPaise += amountPaise;
                 }
 
                 // Destination leg
-                if (dest) {
-                    if (dest.nature === AccountNature.ASSET) {
-                        dest.bigIntPaise += amountPaise;
-                    } else {
-                        // Transfer into liability (e.g. paying credit card bill from bank) reduces liability
-                        dest.bigIntPaise -= amountPaise;
-                    }
+                if (dest.nature === AccountNature.ASSET) {
+                    dest.bigIntPaise += amountPaise;
+                } else {
+                    // Transfer into liability (e.g. paying credit card bill from bank) reduces liability
+                    dest.bigIntPaise -= amountPaise;
                 }
                 break;
             }
 
             case TransactionType.REFUND: {
-                const targetId = txn.destinationAccountId || txn.accountId;
+                const targetId = txn.destinationAccountId || txn.sourceAccountId || txn.accountId;
                 const target = balanceMap[targetId];
-                if (target) {
-                    if (target.nature === AccountNature.ASSET) {
-                        target.bigIntPaise += amountPaise;
-                    } else {
-                        target.bigIntPaise -= amountPaise;
-                    }
+                if (!target) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Refund references unknown account '${targetId}'`);
+                }
+                if (target.nature === AccountNature.ASSET) {
+                    target.bigIntPaise += amountPaise;
+                } else {
+                    target.bigIntPaise -= amountPaise;
                 }
                 break;
             }
 
             case TransactionType.ADJUSTMENT: {
                 const target = balanceMap[txn.accountId];
-                if (target) {
-                    if (txn.balanceEffect === BalanceEffect.INCREASE) {
-                        target.bigIntPaise += amountPaise;
-                    } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
-                        target.bigIntPaise -= amountPaise;
-                    }
+                if (!target) {
+                    throw new Error(`[UNREGISTERED_ACCOUNT] Adjustment references unknown account '${txn.accountId}'`);
+                }
+                if (txn.balanceEffect === BalanceEffect.INCREASE) {
+                    target.bigIntPaise += amountPaise;
+                } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
+                    target.bigIntPaise -= amountPaise;
                 }
                 break;
             }
@@ -320,7 +366,7 @@ export function recomputeFromGenesis(accounts, transactions) {
  * Computes period financial metrics (Income, Expense, Net Cash Flow, Transfer Volume).
  * Transfers are strictly excluded from Income and Expense sums.
  */
-export function computePeriodSummary(transactions, startDate = null, endDate = null) {
+export function computePeriodSummary(transactions, startDate = null, endDate = null, accounts = []) {
     let incomePaise = 0n;
     let grossExpensePaise = 0n;
     let expenseRefundsPaise = 0n;
@@ -329,6 +375,11 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
     let adjustmentPaise = 0n;
     let cashInflowPaise = 0n;
     let cashOutflowPaise = 0n;
+
+    const accountMap = new Map((accounts || []).map(a => [a.id, a]));
+    for (const sys of SYSTEM_CHART_OF_ACCOUNTS) {
+        if (!accountMap.has(sys.id)) accountMap.set(sys.id, sys);
+    }
 
     for (const txn of transactions) {
         if (txn.status === TransactionStatus.VOIDED || txn.status === TransactionStatus.PENDING) {
@@ -348,31 +399,43 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
             for (const line of txn.lines) {
                 const deb = BigInt(line.debitPaise || '0');
                 const cred = BigInt(line.creditPaise || '0');
+                const acc = accountMap.get(line.accountId);
 
-                // 1. Operating/Finance Expense: debit to nominal expense lines only
-                // Note: Balance-sheet liability reductions (principal repayment) and asset exchanges are NEVER expenses
-                if (line.lineType === LedgerLineType.INTEREST_EXPENSE ||
+                // 1. Operating/Finance Expense: debit to nominal expense accounts only
+                const isExpenseAccount = (acc && (acc.classification === AccountClassification.OPERATING_EXPENSE ||
+                    acc.classification === AccountClassification.FINANCE_EXPENSE ||
+                    acc.nature === AccountNature.EXPENSE)) ||
+                    line.lineType === LedgerLineType.INTEREST_EXPENSE ||
                     line.lineType === LedgerLineType.FEES_EXPENSE ||
+                    line.lineType === LedgerLineType.OPERATING_EXPENSE ||
                     line.categoryId === 'finance_expense' ||
-                    line.categoryId === 'operating_expense' ||
-                    (line.accountId && line.accountId.startsWith('biz_exp_')) ||
-                    (line.accountId && line.accountId.startsWith('category_expense')) ||
-                    (line.accountId && line.accountId.startsWith('category_loan_fees'))) {
+                    line.categoryId === 'operating_expense';
+
+                if (isExpenseAccount) {
                     grossExpensePaise += deb;
                 }
 
-                // 2. Operating Revenue: credit to nominal revenue lines only
-                // Note: Principal recovery or loan borrowing is NEVER revenue
-                if (line.lineType === LedgerLineType.INTEREST_INCOME ||
-                    line.categoryId === 'product_sale' ||
-                    (line.accountId && line.accountId.startsWith('biz_rev_')) ||
-                    (line.accountId && line.accountId.startsWith('category_income'))) {
+                // 2. Contra-Expense / Refund
+                const isRefundContra = line.lineType === LedgerLineType.REFUND_CONTRA ||
+                    line.lineType === LedgerLineType.CONTRA_EXPENSE;
+                if (isRefundContra) {
+                    expenseRefundsPaise += cred;
+                }
+
+                // 3. Operating Revenue: credit to nominal revenue accounts only
+                const isRevenueAccount = (acc && (acc.classification === AccountClassification.OPERATING_INCOME ||
+                    acc.nature === AccountNature.INCOME)) ||
+                    line.lineType === LedgerLineType.INTEREST_INCOME ||
+                    line.lineType === LedgerLineType.OPERATING_REVENUE ||
+                    line.categoryId === 'product_sale';
+
+                if (isRevenueAccount) {
                     incomePaise += cred;
                 }
 
-                // 3. Cash Flow: debits/credits to cash/bank lines
-                if (line.lineType === LedgerLineType.CASH ||
-                    (line.accountId && (line.accountId.includes('bank') || line.accountId.includes('cash') || line.accountId.includes('wallet')))) {
+                // 4. Pure Cash Flow: debits/credits to liquid cash/bank accounts ONLY
+                const isCash = acc ? isCashAccount(acc) : (line.lineType === LedgerLineType.CASH || (line.accountId && (line.accountId.includes('bank') || line.accountId.includes('cash') || line.accountId.includes('wallet'))));
+                if (isCash) {
                     cashInflowPaise += deb;
                     cashOutflowPaise += cred;
                 }
@@ -385,41 +448,68 @@ export function computePeriodSummary(transactions, startDate = null, endDate = n
         } else {
             // Case B: Legacy transactions without lines (zero-clamping removed)
             switch (txn.transactionType) {
-                case TransactionType.INCOME:
+                case TransactionType.INCOME: {
                     incomePaise += amt;
-                    cashInflowPaise += amt;
-                    break;
-
-                case TransactionType.EXPENSE:
-                    grossExpensePaise += amt;
-                    cashOutflowPaise += amt;
-                    break;
-
-                case TransactionType.REFUND:
-                    if (txn.refundTargetType === RefundTargetType.INCOME) {
-                        incomePaise += amt;
-                        cashInflowPaise += amt;
-                    } else {
-                        // Lossless: track expense refunds without clamping gross expense
-                        expenseRefundsPaise += amt;
+                    const destAcc = accountMap.get(txn.destinationAccountId || txn.accountId);
+                    if (!destAcc || isCashAccount(destAcc)) {
                         cashInflowPaise += amt;
                     }
                     break;
+                }
 
-                case TransactionType.TRANSFER:
-                    transferVolumePaise += amt;
-                    transferCount++;
-                    break;
-
-                case TransactionType.ADJUSTMENT:
-                    if (txn.balanceEffect === BalanceEffect.INCREASE) {
-                        adjustmentPaise += amt;
-                        cashInflowPaise += amt;
-                    } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
-                        adjustmentPaise -= amt;
+                case TransactionType.EXPENSE: {
+                    grossExpensePaise += amt;
+                    const srcAcc = accountMap.get(txn.sourceAccountId || txn.accountId);
+                    // Non-cash expense (e.g. credit card liability increase) does not reduce liquid cash
+                    if (!srcAcc || isCashAccount(srcAcc)) {
                         cashOutflowPaise += amt;
                     }
                     break;
+                }
+
+                case TransactionType.REFUND: {
+                    if (txn.refundTargetType === RefundTargetType.INCOME) {
+                        incomePaise += amt;
+                    } else {
+                        // Lossless: track expense refunds without clamping gross expense
+                        expenseRefundsPaise += amt;
+                    }
+                    const targetAcc = accountMap.get(txn.destinationAccountId || txn.sourceAccountId || txn.accountId);
+                    if (!targetAcc || isCashAccount(targetAcc)) {
+                        cashInflowPaise += amt;
+                    }
+                    break;
+                }
+
+                case TransactionType.TRANSFER: {
+                    transferVolumePaise += amt;
+                    transferCount++;
+                    const srcAcc = accountMap.get(txn.sourceAccountId);
+                    const destAcc = accountMap.get(txn.destinationAccountId);
+                    const srcIsCash = srcAcc ? isCashAccount(srcAcc) : true;
+                    const destIsCash = destAcc ? isCashAccount(destAcc) : true;
+
+                    // Non-cash transfers affect cash flow only across boundary
+                    if (srcIsCash && !destIsCash) {
+                        cashOutflowPaise += amt;
+                    } else if (!srcIsCash && destIsCash) {
+                        cashInflowPaise += amt;
+                    }
+                    break;
+                }
+
+                case TransactionType.ADJUSTMENT: {
+                    const acc = accountMap.get(txn.accountId);
+                    const isCash = !acc || isCashAccount(acc);
+                    if (txn.balanceEffect === BalanceEffect.INCREASE) {
+                        adjustmentPaise += amt;
+                        if (isCash) cashInflowPaise += amt;
+                    } else if (txn.balanceEffect === BalanceEffect.DECREASE) {
+                        adjustmentPaise -= amt;
+                        if (isCash) cashOutflowPaise += amt;
+                    }
+                    break;
+                }
             }
         }
     }

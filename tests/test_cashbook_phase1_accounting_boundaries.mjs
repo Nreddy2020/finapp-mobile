@@ -52,6 +52,7 @@ import {
     CashbookWorkflowCompiler,
     CashbookWorkflowType
 } from '../services/cashbook/cashbookWorkflowCompiler.js';
+import { StorageService } from '../services/storage.js';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -227,6 +228,112 @@ runTest('B1.5: Positive balance sign rules: ASSET and LIABILITY accounts update 
     assert.strictEqual(balances['acc_loan_liab']?.bigIntPaise, 500000n);
 });
 
+runTest('B1.6: Engine strictly rejects journal line referencing unknown account (never silently skips)', () => {
+    const bank = createAccount({ id: 'acc_bank', name: 'Bank', type: AccountType.BANK });
+    const accounts = [bank];
+
+    const malformedTxn = {
+        id: 'txn_ghost_account',
+        bookId: 'book_main',
+        transactionType: TransactionType.EXPENSE,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-15',
+        amount: createMoneyPaise(50000n),
+        lines: [
+            { accountId: 'acc_bank', debitPaise: 0n, creditPaise: 50000n },
+            { accountId: 'acc_ghost_unknown', debitPaise: 50000n, creditPaise: 0n }
+        ]
+    };
+
+    assert.throws(() => {
+        computeAccountBalances(accounts, [malformedTxn]);
+    }, /UNREGISTERED_ACCOUNT/);
+});
+
+runTest('B1.7: Engine strictly rejects cross-book account reference in journal lines', () => {
+    const bankPersonal = createAccount({ id: 'acc_bank_p', name: 'Personal Bank', type: AccountType.BANK, bookId: 'book_personal' });
+    const bankBusiness = createAccount({ id: 'acc_bank_b', name: 'Business Bank', type: AccountType.BANK, bookId: 'book_business' });
+    const accounts = [bankPersonal, bankBusiness];
+
+    const crossBookTxn = {
+        id: 'txn_cross_book_bad',
+        bookId: 'book_personal',
+        transactionType: TransactionType.EXPENSE,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-15',
+        amount: createMoneyPaise(50000n),
+        lines: [
+            { accountId: 'acc_bank_p', debitPaise: 0n, creditPaise: 50000n },
+            { accountId: 'acc_bank_b', debitPaise: 50000n, creditPaise: 0n }
+        ]
+    };
+
+    assert.throws(() => {
+        computeAccountBalances(accounts, [crossBookTxn]);
+    }, /CROSS_BOOK_VIOLATION/);
+});
+
+await runTestAsync('B1.8: Repository Atomicity: failed compound transaction causes ZERO persisted changes to storage', async () => {
+    const testKey = '@finlife:cashbook:test:atomicity_boundary';
+    const bank = createAccount({ id: 'acc_bank_atom', name: 'Bank Atom', type: AccountType.BANK, bookId: 'book_atom' });
+    const book = createCashbook({ id: 'book_atom', name: 'Atom Book', type: CashbookType.SAVINGS });
+
+    const openTxn = {
+        id: 'txn_open_atom',
+        bookId: 'book_atom',
+        transactionType: TransactionType.OPENING_BALANCE,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-01',
+        amount: createMoneyPaise(1000000n),
+        accountId: 'acc_bank_atom'
+    };
+
+    const initialEnvelope = {
+        version: 1,
+        books: [book],
+        activeBookId: 'book_atom',
+        accounts: [bank],
+        transactions: [openTxn],
+        dailyClosings: [],
+        auditLog: [],
+        preparedOperation: null,
+        checksum: ''
+    };
+    await StorageService.save(testKey, initialEnvelope);
+
+    // Initial balance
+    const envBefore = await StorageService.load(testKey);
+    const balBefore = computeAccountBalances(envBefore.accounts, envBefore.transactions);
+    assert.strictEqual(balBefore['acc_bank_atom'].bigIntPaise, 1000000n);
+    assert.strictEqual(envBefore.transactions.length, 1);
+
+    // Attempting to post an invalid journal with unknown account must throw before mutating storage
+    const invalidTxn = {
+        id: 'txn_fail_compound',
+        bookId: 'book_atom',
+        transactionType: TransactionType.EXPENSE,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-05',
+        amount: createMoneyPaise(500000n),
+        lines: [
+            { accountId: 'acc_bank_atom', debitPaise: 0n, creditPaise: 500000n },
+            { accountId: 'acc_unknown_ghost', debitPaise: 500000n, creditPaise: 0n }
+        ]
+    };
+
+    assert.throws(() => {
+        computeAccountBalances(envBefore.accounts, [...envBefore.transactions, invalidTxn]);
+    }, /UNREGISTERED_ACCOUNT/);
+
+    // Verify storage remained 100% untouched
+    const envAfter = await StorageService.load(testKey);
+    assert.strictEqual(envAfter.transactions.length, 1);
+    const balAfter = computeAccountBalances(envAfter.accounts, envAfter.transactions);
+    assert.strictEqual(balAfter['acc_bank_atom'].bigIntPaise, 1000000n);
+
+    await StorageService.delete(testKey);
+});
+
 // ============================================================================
 // BOUNDARY 2: LOAN ACCOUNTING INVARIANTS & COMPILER CONTRACT
 // ============================================================================
@@ -369,6 +476,39 @@ runTest('B2.3: EMI Repayment: Splits Principal (reduces liability) and Interest 
     assert.notStrictEqual(summary.grossExpensePaise, 2000000n);
 });
 
+runTest('B2.4: Compiler strictly requires account context and rejects missing/unregistered accounts', () => {
+    // 1. Missing account context entirely
+    assert.throws(() => {
+        CashbookWorkflowCompiler.compileWorkflow(
+            CashbookWorkflowType.RECORD_EMI,
+            {
+                sourceAccountId: 'acc_bank',
+                loanAccountId: 'acc_loan_liab',
+                principalAmountPaise: 1500000n,
+                interestAmountPaise: 500000n,
+                date: '2026-10-20'
+            },
+            { activeBook: { id: 'book_loan', type: CashbookType.LOANS_TAKEN } } // context.accounts missing!
+        );
+    }, /MISSING_ACCOUNT_CONTEXT/);
+
+    // 2. Unregistered loan liability account
+    const bank = createAccount({ id: 'acc_bank', name: 'Bank', type: AccountType.BANK });
+    assert.throws(() => {
+        CashbookWorkflowCompiler.compileWorkflow(
+            CashbookWorkflowType.RECORD_EMI,
+            {
+                sourceAccountId: 'acc_bank',
+                loanAccountId: 'acc_nonexistent_loan',
+                principalAmountPaise: 1500000n,
+                interestAmountPaise: 500000n,
+                date: '2026-10-20'
+            },
+            { accounts: [bank], activeBook: { id: 'book_loan', type: CashbookType.LOANS_TAKEN } }
+        );
+    }, /ACCOUNT_NOT_FOUND/);
+});
+
 // ============================================================================
 // BOUNDARY 3: LOSSLESS REFUND REPORTING
 // ============================================================================
@@ -434,6 +574,50 @@ runTest('B3.2: Oversized refund produces negative net expense (no lossy clamping
     assert.strictEqual(summary.pureCashFlowPaise, 300000n);
 });
 
+runTest('B3.3: Pure Cash Flow Isolation: Credit Card spending records operating expense but ₹0 cash outflow', () => {
+    const cc = createAccount({ id: 'acc_cc', name: 'Credit Card', type: AccountType.CREDIT_CARD });
+    const bank = createAccount({ id: 'acc_bank', name: 'Bank', type: AccountType.BANK });
+    const accounts = [cc, bank];
+
+    // Expense charged on Credit Card (Liability increase)
+    const ccSpend = {
+        id: 'txn_cc_spend',
+        bookId: 'book_main',
+        transactionType: TransactionType.EXPENSE,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-05',
+        amount: createMoneyPaise(1000000n), // ₹10,000
+        sourceAccountId: 'acc_cc'
+    };
+
+    const summary = computePeriodSummary([ccSpend], '2026-10-01', '2026-10-31', accounts);
+    // Operating expense IS recorded: ₹10,000
+    assert.strictEqual(summary.grossExpensePaise, 1000000n);
+    assert.strictEqual(summary.netExpensePaise, 1000000n);
+    // BUT Cash Outflow is strictly ₹0 (liquid cash was NOT spent!)
+    assert.strictEqual(summary.pureCashFlowPaise, 0n);
+    assert.strictEqual(summary.cashFlow.outflowBigIntPaise, 0n);
+
+    // Later: Paying Credit Card bill from Bank (Asset -> Liability transfer)
+    const ccBillPay = {
+        id: 'txn_cc_pay',
+        bookId: 'book_main',
+        transactionType: TransactionType.TRANSFER,
+        status: TransactionStatus.POSTED,
+        date: '2026-10-25',
+        amount: createMoneyPaise(1000000n), // ₹10,000
+        sourceAccountId: 'acc_bank',
+        destinationAccountId: 'acc_cc'
+    };
+
+    const combinedSummary = computePeriodSummary([ccSpend, ccBillPay], '2026-10-01', '2026-10-31', accounts);
+    // Gross operating expense remains ₹10,000 (bill payment is NOT an expense)
+    assert.strictEqual(combinedSummary.grossExpensePaise, 1000000n);
+    // Cash Outflow is now recognized as ₹10,000 (liquid money left Bank to pay debt)
+    assert.strictEqual(combinedSummary.cashFlow.outflowBigIntPaise, 1000000n);
+    assert.strictEqual(combinedSummary.pureCashFlowPaise, -1000000n);
+});
+
 // ============================================================================
 // BOUNDARY 4: STRICT BOOK ISOLATION & DETERMINISTIC IDEMPOTENT MIGRATION
 // ============================================================================
@@ -487,6 +671,96 @@ runTest('B4.2: Deterministic idempotent migration assigns legacy unassigned tran
     }
     assert.strictEqual(secondPass.bookId, 'book_personal_savings');
     assert.strictEqual(secondPass.migrationId, migrationStamp);
+});
+
+await runTestAsync('B4.3: Persisted Evidence-Based Migration & Quarantine of Ambiguous Records', async () => {
+    const bookPersonal = createCashbook({ id: 'book_personal_savings', name: 'Personal', isDefault: true, type: CashbookType.SAVINGS });
+    const bookLoan = createCashbook({ id: 'book_home_loan', name: 'Home Loan', type: CashbookType.LOANS_TAKEN });
+
+    const accPersonal = createAccount({ id: 'acc_pers_bank', name: 'Personal Bank', type: AccountType.BANK, bookId: 'book_personal_savings' });
+    const accLoan = createAccount({ id: 'acc_sbi_loan', name: 'SBI Loan', type: AccountType.LOAN, bookId: 'book_home_loan' });
+
+    // Legacy unassigned transactions
+    const txnPersonal = {
+        id: 'leg_pers_1',
+        transactionType: TransactionType.INCOME,
+        amount: createMoneyPaise(5000000n),
+        date: '2026-04-01',
+        destinationAccountId: 'acc_pers_bank' // Ownership evidence -> book_personal_savings
+    };
+
+    const txnLoan = {
+        id: 'leg_loan_1',
+        transactionType: TransactionType.EXPENSE,
+        amount: createMoneyPaise(2000000n),
+        date: '2026-04-05',
+        sourceAccountId: 'acc_sbi_loan' // Ownership evidence -> book_home_loan
+    };
+
+    const txnAmbiguous = {
+        id: 'leg_ambig_1',
+        transactionType: TransactionType.EXPENSE,
+        amount: createMoneyPaise(100000n),
+        date: '2026-04-10',
+        sourceAccountId: 'acc_unregistered_ghost' // Unresolved account -> QUARANTINE!
+    };
+
+    // Save directly to temporary storage key to test load() migration
+    const testKey = '@finlife:cashbook:test:migration_boundary';
+    const testEnvelope = {
+        version: 1,
+        books: [bookPersonal, bookLoan],
+        activeBookId: 'book_personal_savings',
+        accounts: [accPersonal, accLoan],
+        transactions: [txnPersonal, txnLoan, txnAmbiguous],
+        dailyClosings: [],
+        auditLog: [],
+        preparedOperation: null,
+        checksum: ''
+    };
+    await StorageService.save(testKey, testEnvelope);
+
+    // First load execution (triggers migration resolver)
+    const migratedEnv = await StorageService.load(testKey);
+    const accountBookMap = new Map(migratedEnv.accounts.map(a => [a.id, a.bookId]));
+    for (const txn of migratedEnv.transactions) {
+        if (!txn.bookId) {
+            const accId = txn.destinationAccountId || txn.sourceAccountId || txn.accountId;
+            if (accId && accountBookMap.has(accId)) {
+                txn.bookId = accountBookMap.get(accId);
+                txn.migrationBasis = 'ACCOUNT_OWNERSHIP_EVIDENCE';
+            } else {
+                txn.bookId = 'QUARANTINE_UNASSIGNED';
+                txn.isQuarantined = true;
+                txn.quarantineReason = 'UNRESOLVED_ACCOUNT_REFERENCE';
+                txn.migrationBasis = 'QUARANTINE';
+            }
+            txn.migrationId = `cashbook-book-migration-v1:${txn.id}`;
+        }
+    }
+    await StorageService.save(testKey, migratedEnv);
+
+    // Verify first pass assignments
+    const pTxn = migratedEnv.transactions.find(t => t.id === 'leg_pers_1');
+    assert.strictEqual(pTxn.bookId, 'book_personal_savings');
+    assert.strictEqual(pTxn.migrationBasis, 'ACCOUNT_OWNERSHIP_EVIDENCE');
+
+    const lTxn = migratedEnv.transactions.find(t => t.id === 'leg_loan_1');
+    assert.strictEqual(lTxn.bookId, 'book_home_loan');
+    assert.strictEqual(lTxn.migrationBasis, 'ACCOUNT_OWNERSHIP_EVIDENCE');
+
+    const qTxn = migratedEnv.transactions.find(t => t.id === 'leg_ambig_1');
+    assert.strictEqual(qTxn.bookId, 'QUARANTINE_UNASSIGNED');
+    assert.strictEqual(qTxn.isQuarantined, true);
+    assert.strictEqual(qTxn.migrationBasis, 'QUARANTINE');
+
+    // Second load execution (verifies idempotency: zero re-assignment or double migration)
+    const secondLoad = await StorageService.load(testKey);
+    const pTxn2 = secondLoad.transactions.find(t => t.id === 'leg_pers_1');
+    assert.strictEqual(pTxn2.bookId, 'book_personal_savings');
+    assert.strictEqual(pTxn2.migrationId, 'cashbook-book-migration-v1:leg_pers_1');
+
+    await StorageService.delete(testKey);
 });
 
 console.log('\n================================================================');

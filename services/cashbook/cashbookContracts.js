@@ -23,7 +23,10 @@ export const AccountType = Object.freeze({
 
 export const AccountNature = Object.freeze({
     ASSET: 'ASSET',
-    LIABILITY: 'LIABILITY'
+    LIABILITY: 'LIABILITY',
+    EXPENSE: 'EXPENSE',
+    INCOME: 'INCOME',
+    EQUITY: 'EQUITY'
 });
 
 export const AccountClassification = Object.freeze({
@@ -42,6 +45,16 @@ export const AccountClassification = Object.freeze({
     GENERAL: 'GENERAL'
 });
 
+export const ACCOUNT_TYPE_DEFAULT_CLASSIFICATION = Object.freeze({
+    [AccountType.BANK]: AccountClassification.BANK,
+    [AccountType.CASH]: AccountClassification.CASH_AND_EQUIVALENTS,
+    [AccountType.WALLET]: AccountClassification.CASH_AND_EQUIVALENTS,
+    [AccountType.INVESTMENT]: AccountClassification.INVESTMENT_ASSET,
+    [AccountType.CREDIT_CARD]: AccountClassification.ACCOUNTS_PAYABLE,
+    [AccountType.LOAN]: AccountClassification.LOAN_PAYABLE,
+    [AccountType.OTHER]: AccountClassification.GENERAL
+});
+
 export const ACCOUNT_TYPE_NATURE = Object.freeze({
     [AccountType.BANK]: AccountNature.ASSET,
     [AccountType.CASH]: AccountNature.ASSET,
@@ -51,6 +64,58 @@ export const ACCOUNT_TYPE_NATURE = Object.freeze({
     [AccountType.CREDIT_CARD]: AccountNature.LIABILITY,
     [AccountType.LOAN]: AccountNature.LIABILITY
 });
+
+export function isCashAccount(acc) {
+    if (!acc) return false;
+    const classification = acc.classification || ACCOUNT_TYPE_DEFAULT_CLASSIFICATION[acc.type];
+    if (classification === AccountClassification.CASH_AND_EQUIVALENTS || classification === AccountClassification.BANK) {
+        return true;
+    }
+    return acc.type === AccountType.BANK || acc.type === AccountType.CASH || acc.type === AccountType.WALLET;
+}
+
+export const SYSTEM_CHART_OF_ACCOUNTS = Object.freeze([
+    {
+        id: 'category_finance_expense',
+        name: 'Finance Expense (Interest)',
+        type: AccountType.OTHER,
+        nature: AccountNature.EXPENSE,
+        classification: AccountClassification.FINANCE_EXPENSE,
+        isSystem: true
+    },
+    {
+        id: 'category_loan_fees',
+        name: 'Loan Processing Fees',
+        type: AccountType.OTHER,
+        nature: AccountNature.EXPENSE,
+        classification: AccountClassification.FINANCE_EXPENSE,
+        isSystem: true
+    },
+    {
+        id: 'biz_rev_sales',
+        name: 'Operating Sales Revenue',
+        type: AccountType.OTHER,
+        nature: AccountNature.INCOME,
+        classification: AccountClassification.OPERATING_INCOME,
+        isSystem: true
+    },
+    {
+        id: 'biz_exp_cogs',
+        name: 'Cost of Goods Sold',
+        type: AccountType.OTHER,
+        nature: AccountNature.EXPENSE,
+        classification: AccountClassification.OPERATING_EXPENSE,
+        isSystem: true
+    },
+    {
+        id: 'biz_exp_general',
+        name: 'General Operating Expense',
+        type: AccountType.OTHER,
+        nature: AccountNature.EXPENSE,
+        classification: AccountClassification.OPERATING_EXPENSE,
+        isSystem: true
+    }
+]);
 
 export const TransactionType = Object.freeze({
     OPENING_BALANCE: 'OPENING_BALANCE',
@@ -554,7 +619,9 @@ export function createAccount({
     institution = '',
     accountNumberLast4 = '',
     isActive = true,
-    metadata = {}
+    metadata = {},
+    bookId = null,
+    classification = null
 }) {
     if (!id || typeof id !== 'string') throw new Error('Account id is required');
     if (!name || typeof name !== 'string' || !name.trim()) throw new Error('Account name is required');
@@ -563,12 +630,15 @@ export function createAccount({
     }
 
     const nature = ACCOUNT_TYPE_NATURE[type] || AccountNature.ASSET;
+    const resolvedClassification = classification || ACCOUNT_TYPE_DEFAULT_CLASSIFICATION[type] || AccountClassification.GENERAL;
 
     return {
         id: id.trim(),
         name: name.trim(),
         type,
         nature,
+        classification: resolvedClassification,
+        bookId: bookId ? String(bookId).trim() : null,
         currency: currency.toUpperCase(),
         institution: institution.trim(),
         accountNumberLast4: accountNumberLast4.trim(),
@@ -1599,13 +1669,16 @@ export function resolveCashbookExperience(bookOrType) {
  * - Exactly one of debitPaise or creditPaise > 0n (never both, never neither).
  * - Total Debits === Total Credits.
  */
-export function validateJournalLines(lines) {
+export function validateJournalLines(lines, options = {}) {
     if (lines === undefined || lines === null) return true;
     if (!Array.isArray(lines) || lines.length < 2) {
         throw new Error('MALFORMED_JOURNAL_ENTRY: Journal lines must be an array with at least 2 lines');
     }
     let totalDebitPaise = 0n;
     let totalCreditPaise = 0n;
+
+    const registeredAccounts = options.accounts && Array.isArray(options.accounts) ? new Map(options.accounts.map(a => [a.id, a])) : null;
+    const systemAccounts = new Map(SYSTEM_CHART_OF_ACCOUNTS.map(a => [a.id, a]));
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -1616,8 +1689,36 @@ export function validateJournalLines(lines) {
             throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} must have a non-empty accountId`);
         }
 
+        if (registeredAccounts) {
+            const acc = registeredAccounts.get(line.accountId) || systemAccounts.get(line.accountId);
+            if (!acc) {
+                throw new Error(`[UNREGISTERED_ACCOUNT] Line at index ${i} references unregistered account '${line.accountId}'`);
+            }
+            if (options.bookId && acc.bookId && acc.bookId !== options.bookId && !options.isCrossBook) {
+                throw new Error(`[CROSS_BOOK_VIOLATION] Line at index ${i} references account '${line.accountId}' from book '${acc.bookId}', but transaction belongs to '${options.bookId}'`);
+            }
+        }
+
+        if (typeof line.debitPaise === 'number' && !Number.isInteger(line.debitPaise)) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has floating-point debit amount`);
+        }
+        if (typeof line.creditPaise === 'number' && !Number.isInteger(line.creditPaise)) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has floating-point credit amount`);
+        }
+
         const debStr = (line.debitPaise !== undefined && line.debitPaise !== null) ? String(line.debitPaise) : '0';
         const credStr = (line.creditPaise !== undefined && line.creditPaise !== null) ? String(line.creditPaise) : '0';
+
+        if (debStr.startsWith('-') || credStr.startsWith('-')) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has negative paise amount`);
+        }
+
+        if (!/^\d+$/.test(debStr)) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has non-integer paise amount`);
+        }
+        if (!/^\d+$/.test(credStr)) {
+            throw new Error(`MALFORMED_JOURNAL_ENTRY: Line at index ${i} has non-integer paise amount`);
+        }
 
         let deb = 0n;
         let cred = 0n;

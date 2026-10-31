@@ -240,16 +240,56 @@ export const CashbookRepository = {
             await StorageService.save(key, envelope);
         }
 
-        // Boundary 4: Deterministic Idempotent Migration Resolver for legacy unassigned transactions.
-        // Guarantees strict book isolation: every transaction is authoritatively bound to a bookId.
+        // Boundary 4: Evidence-Based Deterministic Idempotent Migration Resolver for legacy unassigned transactions.
+        // Guarantees strict book isolation:
+        // 1. Matches transactions to a book based on account ownership evidence.
+        // 2. If accounts belong to the primary single-book personal savings, assign to Personal.
+        // 3. If accounts are ambiguous or unknown, quarantine to avoid silent contamination.
+        // 4. Stamped idempotently with cashbook-book-migration-v1:<txnId>.
         if (envelope.transactions && envelope.transactions.length > 0) {
             let unassignedMigrated = false;
             const defaultBook = (envelope.books || []).find(b => b.isDefault) || (envelope.books && envelope.books[0]) || { id: 'book_personal_savings' };
+            const accountBookMap = new Map((envelope.accounts || []).map(a => [a.id, a.bookId]));
+
             for (const txn of envelope.transactions) {
                 if (!txn.bookId) {
                     const migrationStamp = `cashbook-book-migration-v1:${txn.id}`;
                     if (txn.migrationId !== migrationStamp) {
-                        txn.bookId = defaultBook.id;
+                        const referencedAccountIds = new Set();
+                        if (txn.accountId) referencedAccountIds.add(txn.accountId);
+                        if (txn.sourceAccountId) referencedAccountIds.add(txn.sourceAccountId);
+                        if (txn.destinationAccountId) referencedAccountIds.add(txn.destinationAccountId);
+                        if (Array.isArray(txn.lines)) {
+                            for (const line of txn.lines) {
+                                if (line.accountId) referencedAccountIds.add(line.accountId);
+                            }
+                        }
+
+                        const candidateBooks = new Set();
+                        let hasUnresolvedAccount = false;
+                        for (const accId of referencedAccountIds) {
+                            if (accountBookMap.has(accId)) {
+                                const accBookId = accountBookMap.get(accId);
+                                if (accBookId) candidateBooks.add(accBookId);
+                                else candidateBooks.add(defaultBook.id);
+                            } else {
+                                hasUnresolvedAccount = true;
+                            }
+                        }
+
+                        if (candidateBooks.size === 1) {
+                            txn.bookId = Array.from(candidateBooks)[0];
+                            txn.migrationBasis = 'ACCOUNT_OWNERSHIP_EVIDENCE';
+                        } else if (candidateBooks.size === 0 && !hasUnresolvedAccount) {
+                            txn.bookId = defaultBook.id;
+                            txn.migrationBasis = 'LEGACY_SINGLE_BOOK_PRIMARY';
+                        } else {
+                            txn.bookId = 'QUARANTINE_UNASSIGNED';
+                            txn.isQuarantined = true;
+                            txn.quarantineReason = hasUnresolvedAccount ? 'UNRESOLVED_ACCOUNT_REFERENCE' : 'MULTI_BOOK_AMBIGUITY';
+                            txn.migrationBasis = 'QUARANTINE';
+                        }
+
                         txn.migrationId = migrationStamp;
                         txn.migratedAt = new Date().toISOString();
                         unassignedMigrated = true;

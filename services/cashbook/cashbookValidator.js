@@ -17,7 +17,8 @@ import {
     StandardCategories,
     CashbookType,
     DailyClosingStatus,
-    moneyToBigInt
+    moneyToBigInt,
+    validateJournalLines
 } from './cashbookContracts.js';
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -90,6 +91,11 @@ export function validateTransaction(txn, availableAccounts = null) {
     }
     if (!Object.values(TransactionStatus).includes(txn.status)) {
         throw new Error(`Invalid transaction status: "${txn.status}"`);
+    }
+
+    // Authoritative Journal Lines validation
+    if (txn.lines !== undefined) {
+        validateJournalLines(txn.lines, { accounts: availableAccounts, bookId: txn.bookId });
     }
 
     // Amount validation
