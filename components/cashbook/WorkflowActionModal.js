@@ -41,6 +41,7 @@ import {
     createMoneyPaise
 } from '../../services/cashbook/cashbookContracts.js';
 import { compileWorkflowAction } from '../../services/cashbook/cashbookWorkflowCompiler.js';
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 
 export default function WorkflowActionModal({
     visible,
@@ -56,7 +57,7 @@ export default function WorkflowActionModal({
     const [description, setDescription] = useState('');
     const [selectedAccountId, setSelectedAccountId] = useState('');
     const [destAccountId, setDestAccountId] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(todayLocal());
 
     // Counterparty / Name
     const [counterpartyName, setCounterpartyName] = useState('');
@@ -87,7 +88,7 @@ export default function WorkflowActionModal({
             setFeesRupees('');
             setEmployeeRupees('');
             setEmployerRupees('');
-            setDate(new Date().toISOString().split('T')[0]);
+            setDate(todayLocal());
 
             // Set default account
             const defaultAcc = accounts[0]?.id || '';
@@ -351,7 +352,7 @@ export default function WorkflowActionModal({
                             style={styles.closeBtn}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                            <X size={20} color="#94A3B8" />
+                            <X size={20} color="#64748B" />
                         </TouchableOpacity>
                     </View>
 
@@ -363,7 +364,7 @@ export default function WorkflowActionModal({
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder="0.00"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor="#94A3B8"
                                     keyboardType="numeric"
                                     value={principalRupees}
                                     onChangeText={setPrincipalRupees}
@@ -373,7 +374,7 @@ export default function WorkflowActionModal({
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder="0.00"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor="#94A3B8"
                                     keyboardType="numeric"
                                     value={interestRupees}
                                     onChangeText={setInterestRupees}
@@ -383,7 +384,7 @@ export default function WorkflowActionModal({
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder="0.00 (Optional)"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor="#94A3B8"
                                     keyboardType="numeric"
                                     value={feesRupees}
                                     onChangeText={setFeesRupees}
@@ -412,7 +413,7 @@ export default function WorkflowActionModal({
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder="0.00"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor="#94A3B8"
                                     keyboardType="numeric"
                                     value={employerRupees}
                                     onChangeText={setEmployerRupees}
@@ -433,7 +434,7 @@ export default function WorkflowActionModal({
                                     <TextInput
                                         style={styles.amountInput}
                                         placeholder="0.00"
-                                        placeholderTextColor="#475569"
+                                        placeholderTextColor="#94A3B8"
                                         keyboardType="numeric"
                                         value={amountRupees}
                                         onChangeText={setAmountRupees}
@@ -457,8 +458,8 @@ export default function WorkflowActionModal({
                                 <Switch
                                     value={isCredit}
                                     onValueChange={setIsCredit}
-                                    trackColor={{ false: '#334155', true: '#10B981' }}
-                                    thumbColor={isCredit ? '#F8FAFC' : '#94A3B8'}
+                                    trackColor={{ false: '#E2E8F0', true: '#10B981' }}
+                                    thumbColor={isCredit ? '#FFFFFF' : '#CBD5E1'}
                                 />
                             </View>
                         )}
@@ -474,7 +475,7 @@ export default function WorkflowActionModal({
                                 <TextInput
                                     style={styles.textInput}
                                     placeholder="Enter entity name"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor="#94A3B8"
                                     value={counterpartyName}
                                     onChangeText={setCounterpartyName}
                                 />
@@ -487,7 +488,7 @@ export default function WorkflowActionModal({
                             <TextInput
                                 style={styles.textInput}
                                 placeholder="Enter description"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor="#94A3B8"
                                 value={description}
                                 onChangeText={setDescription}
                             />
@@ -507,7 +508,7 @@ export default function WorkflowActionModal({
                                             style={[styles.accountPill, selectedAccountId === acc.id && styles.accountPillActive]}
                                             onPress={() => setSelectedAccountId(acc.id)}
                                         >
-                                            <Wallet size={12} color={selectedAccountId === acc.id ? '#090D16' : '#94A3B8'} />
+                                            <Wallet size={12} color={selectedAccountId === acc.id ? '#6366F1' : '#64748B'} />
                                             <Text style={[styles.accountPillText, selectedAccountId === acc.id && styles.accountPillTextActive]}>
                                                 {acc.name}
                                             </Text>
@@ -528,7 +529,7 @@ export default function WorkflowActionModal({
                                             style={[styles.accountPill, destAccountId === acc.id && styles.accountPillActive]}
                                             onPress={() => setDestAccountId(acc.id)}
                                         >
-                                            <Wallet size={12} color={destAccountId === acc.id ? '#090D16' : '#94A3B8'} />
+                                            <Wallet size={12} color={destAccountId === acc.id ? '#6366F1' : '#64748B'} />
                                             <Text style={[styles.accountPillText, destAccountId === acc.id && styles.accountPillTextActive]}>
                                                 {acc.name}
                                             </Text>
@@ -544,7 +545,7 @@ export default function WorkflowActionModal({
                             <TextInput
                                 style={styles.textInput}
                                 placeholder="YYYY-MM-DD"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor="#94A3B8"
                                 value={date}
                                 onChangeText={setDate}
                             />
@@ -559,7 +560,7 @@ export default function WorkflowActionModal({
                             disabled={isSubmitting}
                             activeOpacity={0.8}
                         >
-                            <Check size={18} color="#090D16" />
+                            <Check size={18} color="#FFFFFF" />
                             <Text style={styles.submitButtonText}>
                                 {isSubmitting ? 'Recording...' : `Record ${getActionTitle()}`}
                             </Text>
@@ -574,17 +575,17 @@ export default function WorkflowActionModal({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
         justifyContent: 'flex-end'
     },
     modalContent: {
-        backgroundColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         maxHeight: '90%',
         paddingBottom: 24,
         borderWidth: 1,
-        borderColor: '#1E293B'
+        borderColor: '#E2E8F0'
     },
     modalHeader: {
         flexDirection: 'row',
@@ -594,16 +595,16 @@ const styles = StyleSheet.create({
         paddingTop: 20,
         paddingBottom: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#1E293B'
+        borderBottomColor: '#F1F5F9'
     },
     modalSubtitle: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 0.8
     },
     modalTitle: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 20,
         fontWeight: '800',
         marginTop: 2
@@ -612,7 +613,7 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F1F5F9',
         justifyContent: 'center',
         alignItems: 'center'
     },
@@ -623,14 +624,14 @@ const styles = StyleSheet.create({
     amountWrap: {
         alignItems: 'center',
         paddingVertical: 16,
-        backgroundColor: '#111827',
+        backgroundColor: '#F8FAFC',
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: '#1E293B',
+        borderColor: '#E2E8F0',
         marginBottom: 16
     },
     amountLabel: {
-        color: '#94A3B8',
+        color: '#64748B',
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 0.8,
@@ -642,24 +643,24 @@ const styles = StyleSheet.create({
         justifyContent: 'center'
     },
     currencySymbol: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 32,
         fontWeight: '800',
         marginRight: 6
     },
     amountInput: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 36,
         fontWeight: '800',
         minWidth: 140,
         textAlign: 'center'
     },
     splitInputContainer: {
-        backgroundColor: '#111827',
+        backgroundColor: '#F8FAFC',
         borderRadius: 16,
         padding: 16,
         borderWidth: 1,
-        borderColor: '#1E293B',
+        borderColor: '#E2E8F0',
         marginBottom: 16
     },
     splitTotalBox: {
@@ -669,15 +670,15 @@ const styles = StyleSheet.create({
         marginTop: 14,
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: '#334155'
+        borderTopColor: '#E2E8F0'
     },
     splitTotalLabel: {
-        color: '#94A3B8',
+        color: '#64748B',
         fontSize: 12,
         fontWeight: '600'
     },
     splitTotalValue: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 16,
         fontWeight: '800'
     },
@@ -685,19 +686,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: '#111827',
+        backgroundColor: '#F8FAFC',
         borderRadius: 14,
         padding: 14,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#1E293B'
+        borderColor: '#E2E8F0'
     },
     switchInfo: {
         flex: 1,
         marginRight: 12
     },
     switchTitle: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 13,
         fontWeight: '700'
     },
@@ -710,21 +711,21 @@ const styles = StyleSheet.create({
         marginBottom: 16
     },
     inputLabel: {
-        color: '#94A3B8',
+        color: '#64748B',
         fontSize: 10,
         fontWeight: '700',
         letterSpacing: 0.6,
         marginBottom: 6
     },
     textInput: {
-        backgroundColor: '#111827',
+        backgroundColor: '#F8FAFC',
         borderRadius: 12,
         paddingHorizontal: 14,
         paddingVertical: 12,
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 14,
         borderWidth: 1,
-        borderColor: '#1E293B'
+        borderColor: '#E2E8F0'
     },
     accountPillsScroll: {
         flexDirection: 'row',
@@ -734,35 +735,35 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: '#111827',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 10,
         marginRight: 8,
         borderWidth: 1,
-        borderColor: '#1E293B'
+        borderColor: '#E2E8F0'
     },
     accountPillActive: {
-        backgroundColor: '#38BDF8',
-        borderColor: '#38BDF8'
+        backgroundColor: '#EEF2FF',
+        borderColor: '#6366F1'
     },
     accountPillText: {
-        color: '#94A3B8',
+        color: '#64748B',
         fontSize: 12,
         fontWeight: '600'
     },
     accountPillTextActive: {
-        color: '#090D16',
+        color: '#6366F1',
         fontWeight: '700'
     },
     modalFooter: {
         paddingHorizontal: 20,
         paddingTop: 16,
         borderTopWidth: 1,
-        borderTopColor: '#1E293B'
+        borderTopColor: '#F1F5F9'
     },
     submitButton: {
-        backgroundColor: '#38BDF8',
+        backgroundColor: '#6366F1',
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
@@ -774,7 +775,7 @@ const styles = StyleSheet.create({
         opacity: 0.6
     },
     submitButtonText: {
-        color: '#090D16',
+        color: '#FFFFFF',
         fontSize: 15,
         fontWeight: '700'
     }

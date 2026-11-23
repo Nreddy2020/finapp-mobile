@@ -36,6 +36,7 @@ import {
     validateJournalLines
 } from './cashbookContracts.js';
 import { validateTransferPairContinuity, validateLoanRepaymentSplit } from './cashbookValidator.js';
+import { todayLocal as localDateString } from './cashbookDates.js';
 
 /**
  * Computes the exact balance for each account using BigInt paise arithmetic.
@@ -588,7 +589,7 @@ export function createTransferRecord({
     sourceAccountId,
     destinationAccountId,
     amount,
-    date = new Date().toISOString().split('T')[0],
+    date = localDateString(),
     description = 'Fund Transfer',
     notes = '',
     idempotencyKey,
@@ -893,7 +894,7 @@ export function computeRunningLedger({
         rows.push({
             id: 'row_opening_balance',
             transactionId: null,
-            date: sortedTxns[0]?.date || new Date().toISOString().split('T')[0],
+            date: sortedTxns[0]?.date || localDateString(),
             particulars: 'Opening Balance',
             reference: 'OPENING',
             transactionType: TransactionType.OPENING_BALANCE,
@@ -1120,7 +1121,7 @@ export function computePersonalDashboardMetrics({
     transactions = [],
     accounts = [],
     openingBalance = '0',
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     const currentMonthPrefix = currentDate.substring(0, 7); // 'YYYY-MM'
 
@@ -1199,7 +1200,7 @@ export function computeHandyCashDashboardMetrics({
     transactions = [],
     dailyClosings = [],
     openingBalance = '0',
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     let openingCashBi = typeof openingBalance === 'object' && openingBalance.paise
         ? moneyToBigInt(openingBalance)
@@ -1219,6 +1220,21 @@ export function computeHandyCashDashboardMetrics({
             } else if (txn.transactionType === TransactionType.EXPENSE) {
                 cashPaidTodayBi += amt;
             }
+        } else if (txn.date < currentDate) {
+            // Carry-forward: a till's opening cash for today is yesterday's closing,
+            // i.e. the book opening plus every earlier day's net movement.
+            if (txn.transactionType === TransactionType.INCOME) {
+                openingCashBi += amt;
+            } else if (txn.transactionType === TransactionType.EXPENSE) {
+                openingCashBi -= amt;
+            } else if (txn.transactionType === TransactionType.ADJUSTMENT) {
+                if (txn.balanceEffect === 'INCREASE') openingCashBi += amt;
+                else if (txn.balanceEffect === 'DECREASE') openingCashBi -= amt;
+            }
+        }
+        // Opening-balance records seed the till regardless of the date they were posted.
+        if (txn.transactionType === TransactionType.OPENING_BALANCE && txn.date <= currentDate) {
+            openingCashBi += amt;
         }
     }
 
@@ -1262,7 +1278,7 @@ export function computeHandyCashDashboardMetrics({
 export function computeBusinessDashboardMetrics({
     transactions = [],
     accounts = [],
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     let availableCashBi = 0n;
     let customerReceivablesBi = 0n;
@@ -1336,7 +1352,7 @@ export function computeBusinessDashboardMetrics({
  */
 export function computeLoanLiabilityDashboardMetrics({
     transactions = [],
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     const currentMonthPrefix = currentDate.substring(0, 7);
 
@@ -1393,7 +1409,7 @@ export function computeLoanLiabilityDashboardMetrics({
  */
 export function computeLoanReceivableDashboardMetrics({
     transactions = [],
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     const currentMonthPrefix = currentDate.substring(0, 7);
 
@@ -1437,7 +1453,7 @@ export function computeLoanReceivableDashboardMetrics({
  */
 export function computePFDashboardMetrics({
     transactions = [],
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     const currentYearPrefix = currentDate.substring(0, 4);
 
@@ -1501,7 +1517,7 @@ export function computePFDashboardMetrics({
  */
 export function computeInvestmentDashboardMetrics({
     transactions = [],
-    currentDate = new Date().toISOString().split('T')[0]
+    currentDate = localDateString()
 }) {
     let totalInvestedCostBi = 0n;
     let currentMarketValueBi = 0n;

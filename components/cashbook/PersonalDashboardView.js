@@ -58,6 +58,12 @@ export default function PersonalDashboardView({
     const transferVolumeFormatted = summary?.transferVolumeFormatted || '₹ 0';
     const netCashFlowFormatted = summary?.netCashFlowFormatted || metrics?.monthSavingsMovementFormatted || '₹ 0';
 
+    // Dynamic date range: show current month
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const dateRangeLabel = `${monthStart.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} – ${monthEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+
     // Filter accounts associated with active book (or show first 3 liquid accounts)
     const bookAccounts = accounts.filter(a => !a.bookId || a.bookId === activeBook?.id).slice(0, 4);
 
@@ -87,7 +93,7 @@ export default function PersonalDashboardView({
                 {/* 1. Date Range Filter Chip */}
                 <View style={styles.dateChipWrap}>
                     <TouchableOpacity style={styles.dateChip} activeOpacity={0.7}>
-                        <Text style={styles.dateChipText}>Jan 1, 2025 – Jan 31, 2025</Text>
+                        <Text style={styles.dateChipText}>{dateRangeLabel}</Text>
                         <ChevronDown size={14} color="#64748B" />
                     </TouchableOpacity>
                 </View>
@@ -99,11 +105,16 @@ export default function PersonalDashboardView({
                         <Text style={[styles.heroAmount, isNegative && styles.heroAmountNegative]}>
                             {closingBalance}
                         </Text>
-                        <View style={styles.trendBadge}>
-                            <ArrowUpRight size={13} color="#059669" />
-                            <Text style={styles.trendBadgeText}>+8.4%</Text>
-                            <Text style={styles.trendBadgeSub}>vs last month</Text>
-                        </View>
+                        {/* Show trend badge only when real data is available */}
+                        {metrics?.trendPercent != null && (
+                            <View style={[styles.trendBadge, metrics.trendPercent < 0 && styles.trendBadgeNegative]}>
+                                <ArrowUpRight size={13} color={metrics.trendPercent >= 0 ? '#059669' : '#EF4444'} />
+                                <Text style={[styles.trendBadgeText, metrics.trendPercent < 0 && styles.trendBadgeTextNeg]}>
+                                    {metrics.trendPercent >= 0 ? '+' : ''}{metrics.trendPercent.toFixed(1)}%
+                                </Text>
+                                <Text style={[styles.trendBadgeSub, metrics.trendPercent < 0 && styles.trendBadgeTextNeg]}>vs last month</Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Right 3D-Styled Wallet Graphic */}
@@ -299,6 +310,10 @@ const styles = StyleSheet.create({
         borderColor: '#A7F3D0',
         marginTop: 8
     },
+    trendBadgeNegative: {
+        backgroundColor: '#FEF2F2',
+        borderColor: '#FECACA'
+    },
     trendBadgeText: {
         fontSize: 11,
         fontWeight: '700',
@@ -308,6 +323,9 @@ const styles = StyleSheet.create({
         fontSize: 10,
         color: '#059669',
         fontWeight: '500'
+    },
+    trendBadgeTextNeg: {
+        color: '#EF4444'
     },
     walletGraphicWrap: {
         marginLeft: 12

@@ -10,14 +10,15 @@
  * - One-tap immutable Day Lock generating an audit log event.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    TextInput
+    TextInput,
+    Alert
 } from 'react-native';
 import {
     Lock,
@@ -39,6 +40,7 @@ import {
     createDailyClosingRecord,
     rupeesToMoneyPaise
 } from '../../services/cashbook/cashbookContracts.js';
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import {
     calculateDenominationTotal,
     computeDailyClosingDifference
@@ -47,7 +49,7 @@ import {
 export default function DailyClosingView({
     bookId,
     bookName = 'Cash Register',
-    todayDate = new Date().toISOString().split('T')[0],
+    todayDate = todayLocal(),
     existingClosing = null,
     dayOpeningBalance = '0',
     dayMoneyIn = '0',
@@ -74,10 +76,16 @@ export default function DailyClosingView({
     const isLocked = existingClosing?.status === DailyClosingStatus.LOCKED;
 
     // Calculate calculated cash: opening + in - out
-    const opBi = BigInt(dayOpeningBalance || '0');
-    const inBi = BigInt(dayMoneyIn || '0');
-    const outBi = BigInt(dayMoneyOut || '0');
+    const safeBigInt = (v) => {
+        try { return BigInt(v || '0'); } catch (e) { return 0n; }
+    };
+    const rawOpBi = safeBigInt(dayOpeningBalance);
+    // A till can never hold negative cash; MoneyPaise cannot represent it either.
+    const opBi = rawOpBi >= 0n ? rawOpBi : 0n;
+    const inBi = safeBigInt(dayMoneyIn);
+    const outBi = safeBigInt(dayMoneyOut);
     const calculatedClosingBi = opBi + inBi - outBi;
+    const isCalcNegative = calculatedClosingBi < 0n;
     const calculatedClosingMoney = createMoneyPaise(calculatedClosingBi >= 0n ? calculatedClosingBi : 0n);
 
     // Counted cash from denomination inputs
@@ -102,33 +110,61 @@ export default function DailyClosingView({
         setDenominations({ ...denominations, [key]: Math.max(0, count) });
     };
 
-    const handleLockDay = async () => {
-        if (isLocked) return;
-        const record = createDailyClosingRecord({
-            id: existingClosing?.id || `closing_${bookId}_${selectedDate}`,
-            bookId,
-            date: selectedDate,
-            openingBalance: createMoneyPaise(opBi),
-            totalMoneyIn: createMoneyPaise(inBi),
-            totalMoneyOut: createMoneyPaise(outBi),
-            calculatedClosing: calculatedClosingMoney,
-            denominations,
-            countedClosing: createMoneyPaise(countedResult.bigIntPaise),
-            difference: createMoneyPaise(diffResult.differenceBigIntPaise >= 0n ? diffResult.differenceBigIntPaise : -diffResult.differenceBigIntPaise),
-            status: DailyClosingStatus.LOCKED
-        });
+    const performLock = async () => {
+        try {
+            const absDiff = diffResult.differenceBigIntPaise >= 0n
+                ? diffResult.differenceBigIntPaise
+                : -diffResult.differenceBigIntPaise;
+            const record = createDailyClosingRecord({
+                id: existingClosing?.id || `closing_${bookId}_${selectedDate}`,
+                bookId,
+                date: selectedDate,
+                openingBalance: createMoneyPaise(opBi),
+                totalMoneyIn: createMoneyPaise(inBi),
+                totalMoneyOut: createMoneyPaise(outBi),
+                calculatedClosing: calculatedClosingMoney,
+                denominations,
+                countedClosing: createMoneyPaise(countedResult.bigIntPaise),
+                difference: createMoneyPaise(absDiff),
+                // The stored difference is an absolute amount; keep its direction explicit.
+                notes: diffResult.isBalanced ? 'BALANCED' : (diffResult.isExcess ? 'EXCESS' : 'SHORTAGE'),
+                status: DailyClosingStatus.LOCKED
+            });
 
-        if (onSaveClosing) {
-            await onSaveClosing(record);
+            if (onSaveClosing) {
+                await onSaveClosing(record);
+            }
+        } catch (err) {
+            Alert.alert('Could Not Close Day', err.message);
         }
     };
 
+    const handleLockDay = () => {
+        if (isLocked) return;
+        const verdict = diffResult.isBalanced
+            ? 'Cash is balanced.'
+            : (diffResult.isExcess ? `Excess of ${diffResult.formatted.replace(/^[+-]/, '')}.` : `Shortage of ${diffResult.formatted.replace(/^[+-]/, '')}.`);
+        Alert.alert(
+            `Close & lock ${selectedDate}?`,
+            `Counted ${countedResult.formatted} vs expected ${formatMoneyPaise(calculatedClosingMoney)}. ${verdict}\n\nA locked day cannot be edited and no transactions can be added to or voided on it.`,
+            [
+                { text: 'Review', style: 'cancel' },
+                { text: 'Close & Lock', style: 'destructive', onPress: performLock }
+            ]
+        );
+    };
+
     return (
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.contentContainer}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+        >
             {/* Date & Status Ribbon */}
             <View style={styles.dateRibbon}>
                 <View style={styles.dateLabelRow}>
-                    <Calendar size={15} color="#38BDF8" />
+                    <Calendar size={15} color="#6366F1" />
                     <Text style={styles.dateLabel}>{selectedDate}</Text>
                 </View>
 
@@ -151,6 +187,15 @@ export default function DailyClosingView({
                     <ShieldAlert size={16} color="#10B981" />
                     <Text style={styles.lockedBannerText}>
                         This register date is closed and locked as an immutable audit checkpoint.
+                    </Text>
+                </View>
+            )}
+
+            {isCalcNegative && (
+                <View style={styles.warnBanner}>
+                    <AlertCircle size={14} color="#B45309" />
+                    <Text style={styles.warnBannerText}>
+                        Cash paid out exceeds the cash on record. Check for a missing receipt or opening balance.
                     </Text>
                 </View>
             )}
@@ -183,7 +228,7 @@ export default function DailyClosingView({
             <View style={styles.denomSection}>
                 <View style={styles.denomHeaderRow}>
                     <View style={styles.denomTitleWrap}>
-                        <Coins size={16} color="#38BDF8" />
+                        <Coins size={16} color="#6366F1" />
                         <Text style={styles.denomTitle}>PHYSICAL DENOMINATION COUNTER</Text>
                     </View>
                     <Text style={styles.totalNotesCount}>
@@ -257,7 +302,7 @@ export default function DailyClosingView({
                     {diffResult.isBalanced ? (
                         <CheckCircle2 size={16} color="#10B981" />
                     ) : (
-                        <AlertCircle size={16} color={diffResult.isExcess ? '#38BDF8' : '#F43F5E'} />
+                        <AlertCircle size={16} color={diffResult.isExcess ? '#6366F1' : '#F43F5E'} />
                     )}
                     <Text style={[
                         styles.diffText,
@@ -267,7 +312,7 @@ export default function DailyClosingView({
                     ]}>
                         {diffResult.isBalanced
                             ? 'Balanced (₹0 Difference)'
-                            : (diffResult.isExcess ? `Excess Cash: ${diffResult.formatted}` : `Shortage: ${diffResult.formatted}`)}
+                            : (diffResult.isExcess ? `Excess Cash: ${diffResult.formatted.replace(/^[+-]/, '')}` : `Shortage: ${diffResult.formatted.replace(/^[+-]/, '')}`)}
                     </Text>
                 </View>
             </View>
@@ -279,7 +324,7 @@ export default function DailyClosingView({
                     onPress={handleLockDay}
                     activeOpacity={0.8}
                 >
-                    <Lock size={16} color="#0F172A" />
+                    <Lock size={16} color="#FFFFFF" />
                     <Text style={styles.lockDayButtonText}>Close & Lock Day</Text>
                 </TouchableOpacity>
             )}
@@ -290,14 +335,17 @@ export default function DailyClosingView({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        paddingHorizontal: 16,
-        paddingBottom: 40
+        paddingHorizontal: 16
+    },
+    contentContainer: {
+        paddingTop: 12,
+        paddingBottom: 48
     },
     dateRibbon: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F1F5F9',
         borderRadius: 12,
         paddingVertical: 10,
         paddingHorizontal: 14,
@@ -309,7 +357,7 @@ const styles = StyleSheet.create({
         gap: 6
     },
     dateLabel: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 14,
         fontWeight: '700'
     },
@@ -337,6 +385,23 @@ const styles = StyleSheet.create({
     statusTextOpen: {
         color: '#F59E0B'
     },
+    warnBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#FFFBEB',
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+        borderRadius: 10,
+        padding: 10,
+        marginBottom: 12
+    },
+    warnBannerText: {
+        flex: 1,
+        color: '#B45309',
+        fontSize: 12,
+        fontWeight: '500'
+    },
     lockedBanner: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -349,17 +414,17 @@ const styles = StyleSheet.create({
         marginBottom: 12
     },
     lockedBannerText: {
-        color: '#A7F3D0',
+        color: '#047857',
         fontSize: 12,
         flex: 1,
         fontWeight: '500'
     },
     summaryCard: {
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F1F5F9',
         borderRadius: 14,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#E2E8F0',
         marginBottom: 14
     },
     cardHeader: {
@@ -376,7 +441,7 @@ const styles = StyleSheet.create({
     },
     summaryItem: {
         width: '47%',
-        backgroundColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
         borderRadius: 10,
         padding: 10
     },
@@ -385,7 +450,7 @@ const styles = StyleSheet.create({
         fontSize: 11
     },
     summaryValue: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 14,
         fontWeight: '700',
         marginTop: 2
@@ -397,14 +462,14 @@ const styles = StyleSheet.create({
         color: '#F43F5E'
     },
     textCyan: {
-        color: '#38BDF8'
+        color: '#6366F1'
     },
     denomSection: {
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F1F5F9',
         borderRadius: 14,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#E2E8F0',
         marginBottom: 14
     },
     denomHeaderRow: {
@@ -413,7 +478,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         marginBottom: 10,
         borderBottomWidth: 1,
-        borderBottomColor: '#334155',
+        borderBottomColor: '#E2E8F0',
         paddingBottom: 8
     },
     denomTitleWrap: {
@@ -428,7 +493,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.6
     },
     totalNotesCount: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 12,
         fontWeight: '600'
     },
@@ -438,23 +503,23 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 6,
         borderBottomWidth: 1,
-        borderBottomColor: '#0F172A'
+        borderBottomColor: '#E2E8F0'
     },
     denomLabelWrap: {
         width: 50
     },
     denomNoteLabel: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 13,
         fontWeight: '700'
     },
     stepperWrap: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
     stepperBtn: {
         width: 32,
@@ -466,14 +531,14 @@ const styles = StyleSheet.create({
         opacity: 0.3
     },
     stepperBtnText: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontSize: 16,
         fontWeight: '700'
     },
     denomInput: {
         width: 44,
         textAlign: 'center',
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 13,
         fontWeight: '600'
     },
@@ -487,11 +552,11 @@ const styles = StyleSheet.create({
         fontWeight: '600'
     },
     comparisonCard: {
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F1F5F9',
         borderRadius: 14,
         padding: 14,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#E2E8F0',
         marginBottom: 16
     },
     comparisonRow: {
@@ -504,7 +569,7 @@ const styles = StyleSheet.create({
         fontSize: 13
     },
     compValue: {
-        color: '#F8FAFC',
+        color: '#0F172A',
         fontSize: 14,
         fontWeight: '700'
     },
@@ -521,7 +586,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(16, 185, 129, 0.15)'
     },
     diffBadgeExcess: {
-        backgroundColor: 'rgba(56, 189, 248, 0.15)'
+        backgroundColor: '#EEF2FF'
     },
     diffBadgeShortage: {
         backgroundColor: 'rgba(244, 63, 94, 0.15)'
@@ -534,7 +599,7 @@ const styles = StyleSheet.create({
         color: '#10B981'
     },
     diffTextExcess: {
-        color: '#38BDF8'
+        color: '#6366F1'
     },
     diffTextShortage: {
         color: '#F43F5E'
@@ -544,13 +609,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: '#38BDF8',
+        backgroundColor: '#6366F1',
         borderRadius: 12,
         paddingVertical: 14,
         marginBottom: 30
     },
     lockDayButtonText: {
-        color: '#0F172A',
+        color: '#FFFFFF',
         fontSize: 15,
         fontWeight: '800'
     }

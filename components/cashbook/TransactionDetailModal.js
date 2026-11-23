@@ -14,7 +14,7 @@
  * - Void transaction modal with mandatory audit reason
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     View,
     Text,
@@ -24,9 +24,10 @@ import {
     ScrollView,
     TextInput,
     Alert,
-    SafeAreaView,
+    KeyboardAvoidingView,
     Platform
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
     ArrowLeft,
     X,
@@ -54,6 +55,29 @@ import {
 } from '../../services/cashbook/cashbookContracts.js';
 import { formatDateHeader } from './TransactionList.js';
 
+ const TYPE_LABELS = {
+    [TransactionType.INCOME]: 'Income',
+    [TransactionType.EXPENSE]: 'Expense',
+    [TransactionType.TRANSFER]: 'Transfer',
+    [TransactionType.OPENING_BALANCE]: 'Opening Balance',
+    [TransactionType.ADJUSTMENT]: 'Adjustment',
+    [TransactionType.REFUND]: 'Refund'
+};
+
+/** Integer-paise -> "1,23,456.50" (always 2 decimals, Indian grouping, no float drift). */
+function fmtPaise(paise) {
+    let bi;
+    try { bi = BigInt(paise || '0'); } catch (e) { bi = 0n; }
+    const neg = bi < 0n;
+    if (neg) bi = -bi;
+    const whole = (bi / 100n).toString();
+    const frac = (bi % 100n).toString().padStart(2, '0');
+    const last3 = whole.slice(-3);
+    const rest = whole.slice(0, -3);
+    const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last3}` : last3;
+    return `${neg ? '-' : ''}${grouped}.${frac}`;
+}
+
 export default function TransactionDetailModal({
     visible,
     transaction,
@@ -62,10 +86,19 @@ export default function TransactionDetailModal({
     onClose,
     onVoid
 }) {
+    const insets = useSafeAreaInsets();
     const [isDoubleEntryExpanded, setIsDoubleEntryExpanded] = useState(true);
     const [isVoiding, setIsVoiding] = useState(false);
     const [voidReason, setVoidReason] = useState('');
     const [loading, setLoading] = useState(false);
+
+    // Void prompt / typed reason must never leak from one transaction to the next
+    const openTxnId = transaction ? ((transaction.rawTxn || transaction).id || null) : null;
+    useEffect(() => {
+        setIsVoiding(false);
+        setVoidReason('');
+        setLoading(false);
+    }, [openTxnId, visible]);
 
     // Unconditional Hook: Account Map
     const accountMap = useMemo(() => {
@@ -115,7 +148,7 @@ export default function TransactionDetailModal({
     const journalData = useMemo(() => {
         if (!raw) return { rows: [], isBalanced: true, totalFormatted: '0', isLegacyDerived: false };
         const paiseStr = raw.amount?.paise || '0';
-        const numRupees = (Number(paiseStr) / 100).toLocaleString('en-IN');
+        const numRupees = fmtPaise(paiseStr);
 
         if (raw.lines && Array.isArray(raw.lines) && raw.lines.length >= 2) {
             let totalDr = 0n;
@@ -131,12 +164,12 @@ export default function TransactionDetailModal({
 
                 return {
                     name,
-                    drFormatted: debBi > 0n ? (Number(debBi) / 100).toLocaleString('en-IN') : '—',
-                    crFormatted: credBi > 0n ? (Number(credBi) / 100).toLocaleString('en-IN') : '—'
+                    drFormatted: debBi > 0n ? fmtPaise(debBi.toString()) : '—',
+                    crFormatted: credBi > 0n ? fmtPaise(credBi.toString()) : '—'
                 };
             });
 
-            const totalRupees = (Number(totalDr) / 100).toLocaleString('en-IN');
+            const totalRupees = fmtPaise(totalDr.toString());
             return {
                 rows,
                 isBalanced: totalDr === totalCr,
@@ -212,9 +245,12 @@ export default function TransactionDetailModal({
             transparent={false}
             onRequestClose={onClose}
         >
-            <SafeAreaView style={styles.safeContainer}>
+            <KeyboardAvoidingView
+                style={[styles.safeContainer, { paddingBottom: insets.bottom }]}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
                 {/* Header Bar */}
-                <View style={styles.topHeader}>
+                <View style={[styles.topHeader, { paddingTop: insets.top + 8 }]}>
                     <TouchableOpacity
                         onPress={onClose}
                         style={styles.backBtn}
@@ -227,11 +263,20 @@ export default function TransactionDetailModal({
                     <TouchableOpacity
                         style={styles.menuBtn}
                         onPress={() => {
-                            if (!isOpening && !isVoided) {
+                            if (isVoided) {
+                                Alert.alert('Already Voided', 'This transaction has already been voided.');
+                            } else if (isOpening) {
+                                Alert.alert(
+                                    'Opening Balance',
+                                    'Opening balances are immutable. Post a corrective Adjustment instead.'
+                                );
+                            } else {
                                 setIsVoiding(true);
                             }
                         }}
                         activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Transaction actions"
                     >
                         <MoreVertical size={20} color="#64748B" />
                     </TouchableOpacity>
@@ -239,6 +284,7 @@ export default function TransactionDetailModal({
 
                 <ScrollView
                     style={styles.scrollBody}
+                    keyboardShouldPersistTaps="handled"
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
@@ -289,15 +335,19 @@ export default function TransactionDetailModal({
                                 styles.typeBadge,
                                 raw.transactionType === TransactionType.INCOME && styles.typeBadgeIncome,
                                 raw.transactionType === TransactionType.EXPENSE && styles.typeBadgeExpense,
-                                raw.transactionType === TransactionType.TRANSFER && styles.typeBadgeTransfer
+                                raw.transactionType === TransactionType.TRANSFER && styles.typeBadgeTransfer,
+                                raw.transactionType === TransactionType.OPENING_BALANCE && styles.typeBadgeOpening,
+                                raw.transactionType === TransactionType.ADJUSTMENT && styles.typeBadgeAdjustment
                             ]}>
                                 <Text style={[
                                     styles.typeBadgeText,
                                     raw.transactionType === TransactionType.INCOME && styles.typeTextIncome,
                                     raw.transactionType === TransactionType.EXPENSE && styles.typeTextExpense,
-                                    raw.transactionType === TransactionType.TRANSFER && styles.typeTextTransfer
+                                    raw.transactionType === TransactionType.TRANSFER && styles.typeTextTransfer,
+                                    raw.transactionType === TransactionType.OPENING_BALANCE && styles.typeTextOpening,
+                                    raw.transactionType === TransactionType.ADJUSTMENT && styles.typeTextAdjustment
                                 ]}>
-                                    {raw.transactionType === TransactionType.INCOME ? 'Income' : raw.transactionType === TransactionType.EXPENSE ? 'Expense' : 'Transfer'}
+                                    {TYPE_LABELS[raw.transactionType] || 'Transaction'}
                                 </Text>
                             </View>
                         </View>
@@ -401,6 +451,8 @@ export default function TransactionDetailModal({
                                 placeholderTextColor="#94A3B8"
                                 value={voidReason}
                                 onChangeText={setVoidReason}
+                                autoFocus
+                                maxLength={200}
                             />
                             <View style={styles.voidBtnRow}>
                                 <TouchableOpacity
@@ -422,7 +474,7 @@ export default function TransactionDetailModal({
                         </View>
                     )}
                 </ScrollView>
-            </SafeAreaView>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
@@ -437,7 +489,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'android' ? 38 : 10,
+        paddingTop: 12,
         paddingBottom: 12,
         backgroundColor: '#F8FAFC'
     },
@@ -549,7 +601,7 @@ const styles = StyleSheet.create({
     },
     metaRow: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
         paddingVertical: 10
     },
@@ -561,14 +613,16 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#64748B',
         fontWeight: '500',
-        marginRight: 12
+        marginRight: 12,
+        paddingTop: 1
     },
     metaValue: {
         flex: 1,
         textAlign: 'right',
         fontSize: 14,
         fontWeight: '700',
-        color: '#0F172A'
+        color: '#0F172A',
+        lineHeight: 18
     },
     typeBadge: {
         paddingHorizontal: 10,
@@ -584,6 +638,12 @@ const styles = StyleSheet.create({
     typeBadgeTransfer: {
         backgroundColor: '#DBEAFE'
     },
+    typeBadgeOpening: {
+        backgroundColor: '#EDE9FE'
+    },
+    typeBadgeAdjustment: {
+        backgroundColor: '#FEF3C7'
+    },
     typeBadgeText: {
         fontSize: 12,
         fontWeight: '700'
@@ -596,6 +656,12 @@ const styles = StyleSheet.create({
     },
     typeTextTransfer: {
         color: '#1D4ED8'
+    },
+    typeTextOpening: {
+        color: '#6D28D9'
+    },
+    typeTextAdjustment: {
+        color: '#B45309'
     },
     accordionContainer: {
         backgroundColor: '#FFFFFF',

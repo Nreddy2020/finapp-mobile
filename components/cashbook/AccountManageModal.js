@@ -5,7 +5,7 @@
  * a new account with an initial immutable opening balance.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -14,7 +14,9 @@ import {
     TouchableOpacity,
     ScrollView,
     TextInput,
-    Alert
+    Alert,
+    KeyboardAvoidingView,
+    Platform
 } from 'react-native';
 import { X, Plus, Landmark, Wallet, CreditCard, ShieldCheck } from 'lucide-react-native';
 import { AccountType, createAccount, createOpeningBalanceRecord, rupeesToMoneyPaise } from '../../services/cashbook/cashbookContracts.js';
@@ -22,6 +24,7 @@ import { AccountType, createAccount, createOpeningBalanceRecord, rupeesToMoneyPa
 export default function AccountManageModal({
     visible,
     accounts = [],
+    bookId,
     onClose,
     onSaveAccount
 }) {
@@ -32,6 +35,38 @@ export default function AccountManageModal({
     const [accountLast4, setAccountLast4] = useState('');
     const [openingRupees, setOpeningRupees] = useState('0');
     const [loading, setLoading] = useState(false);
+
+    // Warn in development if required bookId prop is missing
+    useEffect(() => {
+        if (!bookId && typeof __DEV__ !== 'undefined' && __DEV__) {
+            console.warn('[AccountManageModal] Missing required prop "bookId"');
+        }
+    }, [bookId]);
+
+    // Scope accounts to the current book (or legacy accounts with no bookId)
+    const bookAccounts = useMemo(() => {
+        if (!bookId) return accounts;
+        return accounts.filter(a => a.bookId === bookId || !a.bookId);
+    }, [accounts, bookId]);
+
+    // Always reopen on the account list, never half-way through the add form
+    useEffect(() => {
+        if (!visible) {
+            setIsAdding(false);
+            setLoading(false);
+        }
+    }, [visible]);
+
+    const TYPE_LABELS = {
+        BANK: 'Bank Account',
+        CASH: 'Cash in Hand',
+        WALLET: 'UPI / Wallet',
+        CREDIT_CARD: 'Credit Card',
+        LOAN: 'Loan Account',
+        INVESTMENT: 'Investment',
+        OTHER: 'Other'
+    };
+    const isLiabilityType = accountType === AccountType.CREDIT_CARD || accountType === AccountType.LOAN;
 
     const accountTypeOptions = [
         { type: AccountType.BANK, label: 'Bank Account' },
@@ -47,11 +82,20 @@ export default function AccountManageModal({
             return;
         }
 
-        const openingNum = parseFloat(openingRupees || '0');
-        if (isNaN(openingNum) || openingNum < 0) {
-            Alert.alert('Invalid Opening Balance', 'Opening balance must be a non-negative number.');
+        const duplicate = bookAccounts.some(
+            a => (a.name || '').trim().toLowerCase() === accountName.trim().toLowerCase()
+        );
+        if (duplicate) {
+            Alert.alert('Duplicate Account', `An account named "${accountName.trim()}" already exists.`);
             return;
         }
+
+        const openingText = (openingRupees || '0').replace(/[₹,\s]/g, '');
+        if (!/^\d+(\.\d{1,2})?$/.test(openingText) || Number(openingText) > 999999999999) {
+            Alert.alert('Invalid Opening Balance', 'Enter a non-negative amount with at most 2 decimal places.');
+            return;
+        }
+        const openingNum = Number(openingText);
 
         try {
             setLoading(true);
@@ -61,7 +105,8 @@ export default function AccountManageModal({
                 name: accountName.trim(),
                 type: accountType,
                 institution: institution.trim(),
-                accountNumberLast4: accountLast4.trim()
+                accountNumberLast4: accountLast4.trim(),
+                bookId: bookId || null
             });
 
             const openingRecord = createOpeningBalanceRecord({
@@ -93,7 +138,10 @@ export default function AccountManageModal({
             transparent={true}
             onRequestClose={onClose}
         >
-            <View style={styles.overlay}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.overlay}
+            >
                 <View style={styles.card}>
                     {/* Header */}
                     <View style={styles.header}>
@@ -103,22 +151,26 @@ export default function AccountManageModal({
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        contentContainerStyle={styles.body}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
                         {/* Existing Accounts List */}
                         {!isAdding && (
                             <View style={styles.accountsSection}>
                                 <Text style={styles.sectionTitle}>REGISTERED ACCOUNTS</Text>
-                                {accounts.length === 0 ? (
+                                {bookAccounts.length === 0 ? (
                                     <View style={styles.emptyWrap}>
-                                        <Text style={styles.emptyText}>No accounts registered yet.</Text>
+                                        <Text style={styles.emptyText}>No accounts registered for this cashbook yet.</Text>
                                     </View>
                                 ) : (
-                                    accounts.map(acc => (
+                                    bookAccounts.map(acc => (
                                         <View key={acc.id} style={styles.accountItem}>
                                             <View style={styles.accountItemLeft}>
                                                 <View style={styles.accountIconWrap}>
                                                     {acc.type === AccountType.BANK ? (
-                                                        <Landmark size={16} color="#38BDF8" />
+                                                        <Landmark size={16} color="#6366F1" />
                                                     ) : acc.type === AccountType.CREDIT_CARD ? (
                                                         <CreditCard size={16} color="#F472B6" />
                                                     ) : (
@@ -128,7 +180,7 @@ export default function AccountManageModal({
                                                 <View>
                                                     <Text style={styles.accName}>{acc.name}</Text>
                                                     <Text style={styles.accMeta}>
-                                                        {acc.type} {acc.accountNumberLast4 ? `• **** ${acc.accountNumberLast4}` : ''}
+                                                        {TYPE_LABELS[acc.type] || acc.type} {acc.accountNumberLast4 ? `• **** ${acc.accountNumberLast4}` : ''}
                                                     </Text>
                                                 </View>
                                             </View>
@@ -144,7 +196,7 @@ export default function AccountManageModal({
                                     onPress={() => setIsAdding(true)}
                                     activeOpacity={0.8}
                                 >
-                                    <Plus size={16} color="#0F172A" />
+                                    <Plus size={16} color="#FFFFFF" />
                                     <Text style={styles.addTriggerText}>Add New Account</Text>
                                 </TouchableOpacity>
                             </View>
@@ -213,12 +265,14 @@ export default function AccountManageModal({
 
                                 {/* Opening Balance */}
                                 <View style={styles.formGroup}>
-                                    <Text style={styles.label}>INITIAL OPENING BALANCE (₹)</Text>
+                                    <Text style={styles.label}>
+                                        {isLiabilityType ? 'AMOUNT CURRENTLY OWED (₹)' : 'INITIAL OPENING BALANCE (₹)'}
+                                    </Text>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="0.00"
                                         placeholderTextColor="#64748B"
-                                        keyboardType="numeric"
+                                        keyboardType="decimal-pad"
                                         value={openingRupees}
                                         onChangeText={setOpeningRupees}
                                     />
@@ -249,7 +303,7 @@ export default function AccountManageModal({
                         )}
                     </ScrollView>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 }
@@ -257,15 +311,15 @@ export default function AccountManageModal({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
         justifyContent: 'flex-end'
     },
     card: {
-        backgroundColor: '#0F172A',
+        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#E2E8F0',
         maxHeight: '85%'
     },
     header: {
@@ -276,17 +330,17 @@ const styles = StyleSheet.create({
         paddingTop: 18,
         paddingBottom: 14,
         borderBottomWidth: 1,
-        borderBottomColor: '#1E293B'
+        borderBottomColor: '#F1F5F9'
     },
     headerTitle: {
         fontSize: 17,
         fontWeight: '700',
-        color: '#F8FAFC'
+        color: '#0F172A'
     },
     closeBtn: {
         padding: 6,
         borderRadius: 8,
-        backgroundColor: '#1E293B'
+        backgroundColor: '#F1F5F9'
     },
     body: {
         padding: 20
@@ -305,11 +359,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F8FAFC',
         padding: 14,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: '#E2E8F0',
         marginBottom: 8
     },
     accountItemLeft: {
@@ -321,14 +375,14 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: '#0F172A',
+        backgroundColor: '#EEF2FF',
         alignItems: 'center',
         justifyContent: 'center'
     },
     accName: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#F8FAFC'
+        color: '#0F172A'
     },
     accMeta: {
         fontSize: 11,
@@ -338,7 +392,7 @@ const styles = StyleSheet.create({
     accBalance: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#F8FAFC'
+        color: '#10B981'
     },
     accBalanceNegative: {
         color: '#EF4444'
@@ -348,7 +402,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        backgroundColor: '#38BDF8',
+        backgroundColor: '#6366F1',
         paddingVertical: 12,
         borderRadius: 12,
         marginTop: 14
@@ -356,7 +410,7 @@ const styles = StyleSheet.create({
     addTriggerText: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#0F172A'
+        color: '#FFFFFF'
     },
     emptyWrap: {
         padding: 24,
@@ -380,14 +434,14 @@ const styles = StyleSheet.create({
         marginBottom: 6
     },
     input: {
-        backgroundColor: '#1E293B',
+        backgroundColor: '#F8FAFC',
         borderRadius: 12,
         paddingHorizontal: 14,
         paddingVertical: 10,
         fontSize: 14,
-        color: '#F8FAFC',
+        color: '#0F172A',
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
     fieldNote: {
         fontSize: 10,
@@ -399,24 +453,24 @@ const styles = StyleSheet.create({
         paddingVertical: 4
     },
     typePill: {
-        backgroundColor: '#1E293B',
+        backgroundColor: '#FFFFFF',
         paddingHorizontal: 12,
         paddingVertical: 7,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: '#334155'
+        borderColor: '#E2E8F0'
     },
     typePillActive: {
-        backgroundColor: 'rgba(56, 189, 248, 0.2)',
-        borderColor: '#38BDF8'
+        backgroundColor: '#EEF2FF',
+        borderColor: '#6366F1'
     },
     typePillText: {
         fontSize: 12,
-        color: '#94A3B8',
+        color: '#64748B',
         fontWeight: '500'
     },
     typePillTextActive: {
-        color: '#38BDF8',
+        color: '#6366F1',
         fontWeight: '700'
     },
     addFormActions: {
@@ -426,7 +480,7 @@ const styles = StyleSheet.create({
     },
     cancelBtn: {
         flex: 1,
-        backgroundColor: '#334155',
+        backgroundColor: '#F1F5F9',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center'
@@ -434,11 +488,11 @@ const styles = StyleSheet.create({
     cancelBtnText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#CBD5E1'
+        color: '#64748B'
     },
     confirmAddBtn: {
         flex: 2,
-        backgroundColor: '#38BDF8',
+        backgroundColor: '#6366F1',
         paddingVertical: 12,
         borderRadius: 12,
         alignItems: 'center'
@@ -446,6 +500,6 @@ const styles = StyleSheet.create({
     confirmAddText: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#0F172A'
+        color: '#FFFFFF'
     }
 });

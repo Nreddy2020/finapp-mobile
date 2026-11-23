@@ -74,6 +74,27 @@ export function getBookVisualMeta(book) {
     const type = book?.type;
     const name = (book?.name || '').toLowerCase();
 
+    // Explicit type wins over name heuristics (a HANDY_CASH book called
+    // "Personal Cash" must not be styled as a Personal book).
+    if (type === CashbookType.HANDY_CASH) {
+        return {
+            title: book?.name || 'Handy Cash',
+            subtitle: book?.description || 'Daily cash register with closing count',
+            iconColor: '#0EA5E9',
+            bgColor: '#F0F9FF',
+            iconKey: 'Handy'
+        };
+    }
+    if (type === CashbookType.REGULAR_INCOME) {
+        return {
+            title: book?.name || 'Regular Income',
+            subtitle: book?.description || 'Salary & recurring income',
+            iconColor: '#14B8A6',
+            bgColor: '#F0FDFA',
+            iconKey: 'Income'
+        };
+    }
+
     if (type === CashbookType.SAVINGS || name.includes('personal') || name.includes('savings')) {
         return {
             title: book?.name || 'Personal',

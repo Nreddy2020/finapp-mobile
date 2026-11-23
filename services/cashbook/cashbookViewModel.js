@@ -19,6 +19,19 @@ import {
     moneyToBigInt
 } from './cashbookContracts.js';
 import { computeAccountBalances, computePeriodSummary } from './cashbookEngine.js';
+import { todayLocal, yesterdayLocal } from './cashbookDates.js';
+
+/** Plain rupee text for amount search ("1500", "1500.50"); never throws. */
+function rupeeSearchText(txn) {
+    try {
+        const paise = BigInt(txn.amount?.paise || '0');
+        const whole = paise / 100n;
+        const frac = paise % 100n;
+        return frac === 0n ? whole.toString() : `${whole}.${String(frac).padStart(2, '0')}`;
+    } catch (e) {
+        return '';
+    }
+}
 
 export const FilterType = Object.freeze({
     ALL: 'ALL',
@@ -26,6 +39,13 @@ export const FilterType = Object.freeze({
     EXPENSE: 'EXPENSE',
     TRANSFER: 'TRANSFER'
 });
+
+/**
+ * Filters out soft-deleted books from directory lists.
+ */
+export function filterActiveBooks(books = []) {
+    return (books || []).filter(b => b && b.status !== 'DELETED');
+}
 
 /**
  * Builds the complete presentation View Model for the Cashbook screen.
@@ -40,6 +60,7 @@ export function buildCashbookViewModel({ accounts, transactions, activeFilter = 
             name: acc.name,
             type: acc.type,
             nature: acc.nature,
+            bookId: acc.bookId || null,
             institution: acc.institution || '',
             accountNumberLast4: acc.accountNumberLast4 || '',
             formattedBalance: bal.formatted,
@@ -78,13 +99,18 @@ export function buildCashbookViewModel({ accounts, transactions, activeFilter = 
     const closingFormatted = (isClosingNegative ? '-' : '') + formatMoneyPaise(createMoneyPaise(closingAbs));
 
     const balanceSummaryCard = {
+        openingBalancePaise: openingPaise.toString(),
         openingBalanceFormatted: openingFormatted,
+        totalIncomePaise: summary.income.paise,
         totalIncomeFormatted: summary.income.formatted,
+        totalExpensePaise: summary.expense.paise,
         totalExpenseFormatted: summary.expense.formatted,
+        netCashFlowPaise: summary.netCashFlow.paise,
         netCashFlowFormatted: summary.netCashFlow.formatted,
         isNetPositive: summary.netCashFlow.isPositive,
         transferVolumeFormatted: summary.transfers.volumeFormatted,
         transferCount: summary.transfers.count,
+        closingBalancePaise: closingPaise.toString(),
         closingBalanceFormatted: closingFormatted
     };
 
@@ -110,7 +136,14 @@ export function buildCashbookViewModel({ accounts, transactions, activeFilter = 
             const matchDesc = (txn.description || '').toLowerCase().includes(q);
             const matchCat = (txn.category || '').toLowerCase().includes(q);
             const matchNote = (txn.notes || '').toLowerCase().includes(q);
-            if (!matchDesc && !matchCat && !matchNote) return false;
+            const amountNeedle = q.replace(/[₹,\s]/g, '');
+            const matchAmount = amountNeedle.length > 0 && rupeeSearchText(txn).includes(amountNeedle);
+            const matchAccount = [txn.accountId, txn.sourceAccountId, txn.destinationAccountId]
+                .map(id => (id && accountMap.get(id) ? accountMap.get(id).name : ''))
+                .join(' ')
+                .toLowerCase()
+                .includes(q);
+            if (!matchDesc && !matchCat && !matchNote && !matchAmount && !matchAccount) return false;
         }
 
         return true;
@@ -153,6 +186,12 @@ export function buildCashbookViewModel({ accounts, transactions, activeFilter = 
             const dest = accountMap.get(t.destinationAccountId);
             accountDisplay = `${src ? src.name : 'Source'} → ${dest ? dest.name : 'Dest'}`;
             typeBadge = { label: 'Transfer', color: '#3B82F6' };
+        } else if (t.transactionType === TransactionType.REFUND) {
+            formattedAmount = `+${rawFormatted}`;
+            amountColor = isVoided ? '#94A3B8' : '#10B981';
+            const dest = accountMap.get(t.destinationAccountId || t.accountId);
+            accountDisplay = dest ? dest.name : 'Refund';
+            typeBadge = { label: 'Refund', color: '#10B981' };
         } else if (t.transactionType === TransactionType.OPENING_BALANCE) {
             formattedAmount = rawFormatted;
             amountColor = isVoided ? '#94A3B8' : '#8B5CF6'; // purple
@@ -188,10 +227,8 @@ export function buildCashbookViewModel({ accounts, transactions, activeFilter = 
     });
 
     // 6. Group into Date Sections
-    const todayStr = new Date().toISOString().split('T')[0];
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const todayStr = todayLocal();
+    const yesterdayStr = yesterdayLocal();
 
     const sectionMap = new Map();
     for (const row of formattedRows) {

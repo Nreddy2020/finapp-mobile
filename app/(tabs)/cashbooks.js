@@ -1,59 +1,47 @@
 /**
  * app/(tabs)/cashbooks.js
- * 
+ *
  * FinLife Universal Cashbook Experience (V3) — Purpose-Driven Financial Books.
- * 
- * Implements the complete 4-Screen Universal Architecture:
- * - Screen 1: Master Directory (Cashbooks / My Books / Templates)
- * - Screen 2: Book Dashboard (Hero Closing Balance, 2x2 Metric Grid, Account Balances, Add Pill)
- * - Screen 3: Transactions Ledger (Sub-tabs, Search with Filter Funnel, Date-grouped List)
- * - Screen 4: Transaction Details (Hero, Key-Value Metadata, Expandable Double-Entry Table & Balanced Entry Status)
- * 
+ *
+ * 4-Screen Universal Architecture:
+ * - Screen 1: Master Directory (My Books / Templates) + Create Book
+ * - Screen 2: Book Dashboard (purpose-built per book type)
+ * - Screen 3: Transactions Ledger (search, filters, date-grouped list)
+ * - Screen 4: Transaction Details (double-entry journal, void with audit reason)
+ *
  * Invariants:
- * - Strictly truthful ledger-computed metrics (no arbitrary floating point calculations)
+ * - Strictly ledger-computed metrics (integer paise / BigInt, no float math)
  * - Strict book isolation
- * - Non-lossy double-entry journal lines validation & presentation
+ * - All "today" logic uses the device's LOCAL calendar date (never UTC)
+ * - Save handlers THROW so the calling modal can show the error and stay open
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    SafeAreaView,
     ActivityIndicator,
     Alert,
     Share,
-    Platform,
     ScrollView,
-    TextInput,
+    Modal,
     BackHandler
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { setStatusBarStyle } from 'expo-status-bar';
 import {
     Plus,
     Download,
-    RefreshCw,
-    BookOpen,
-    Layers,
-    Calendar,
     Wallet,
-    CheckCircle2,
-    Home,
-    Store,
-    Briefcase,
-    TrendingUp,
-    ArrowDownRight,
-    ArrowUpRight,
-    Shield,
     ArrowLeft,
     MoreVertical,
-    Search,
-    Filter,
+    Users,
+    Repeat,
     X
 } from 'lucide-react-native';
-import AnimatedScreen from '../../components/ui/AnimatedScreen';
 
 import {
     CashbookAppMode,
@@ -61,12 +49,10 @@ import {
     TransactionType,
     CashbookExperienceProfile,
     resolveCashbookExperience,
-    formatMoneyPaise,
-    createMoneyPaise
+    createCashbook
 } from '../../services/cashbook/cashbookContracts.js';
 import { CashbookRepository } from '../../services/cashbook/cashbookRepository.js';
 import {
-    computeRunningLedger,
     computePersonalDashboardMetrics,
     computeHandyCashDashboardMetrics,
     computeBusinessDashboardMetrics,
@@ -76,6 +62,7 @@ import {
 } from '../../services/cashbook/cashbookEngine.js';
 import { buildCashbookViewModel, FilterType } from '../../services/cashbook/cashbookViewModel.js';
 import { CashbookExport } from '../../services/cashbook/cashbookExport.js';
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 
 // V3 Purpose-Built Screen Components
 import CashbookDirectoryView from '../../components/cashbook/CashbookDirectoryView.js';
@@ -85,8 +72,6 @@ import BusinessDashboardView from '../../components/cashbook/BusinessDashboardVi
 import LoansDashboardView from '../../components/cashbook/LoansDashboardView.js';
 import PFDashboardView from '../../components/cashbook/PFDashboardView.js';
 
-import BookHeaderBar from '../../components/cashbook/BookHeaderBar.js';
-import LedgerTableView from '../../components/cashbook/LedgerTableView.js';
 import DailyClosingView from '../../components/cashbook/DailyClosingView.js';
 import BalanceSummaryCard from '../../components/cashbook/BalanceSummaryCard.js';
 import TransactionFilterBar from '../../components/cashbook/TransactionFilterBar.js';
@@ -95,12 +80,20 @@ import AddTransactionModal from '../../components/cashbook/AddTransactionModal.j
 import TransactionDetailModal from '../../components/cashbook/TransactionDetailModal.js';
 import AccountManageModal from '../../components/cashbook/AccountManageModal.js';
 import WorkflowActionModal from '../../components/cashbook/WorkflowActionModal.js';
+import CreateBookModal from '../../components/cashbook/CreateBookModal.js';
+
+const VALID_TABS = ['DASHBOARD', 'TRANSACTIONS', 'ACCOUNTS', 'REPORTS', 'CLOSING'];
 
 export default function CashbooksScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [appMode, setAppMode] = useState(CashbookAppMode.PRODUCTION);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+
+    // Local calendar "today" (refreshed whenever the screen regains focus so it
+    // never goes stale across midnight).
+    const [today, setToday] = useState(todayLocal());
 
     // View Hierarchy: 'DIRECTORY' (Screen 1) | 'BOOK_VIEW' (Screen 2 / 3)
     const [viewMode, setViewMode] = useState('DIRECTORY');
@@ -115,7 +108,7 @@ export default function CashbooksScreen() {
         auditLog: []
     });
 
-    // Sub-tab Navigation within Active Book: 'DASHBOARD' | 'TRANSACTIONS' | 'ACCOUNTS' | 'REPORTS'
+    // Sub-tab Navigation within Active Book
     const [activeTab, setActiveTab] = useState('DASHBOARD');
 
     // UI filters & Search for Transactions Ledger
@@ -129,6 +122,8 @@ export default function CashbooksScreen() {
     const [detailModalVisible, setDetailModalVisible] = useState(false);
     const [selectedTransaction, setSelectedTransaction] = useState(null);
     const [accountsModalVisible, setAccountsModalVisible] = useState(false);
+    const [createBookVisible, setCreateBookVisible] = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
 
     // V3 Purpose-Driven Workflow Modal
     const [workflowModalVisible, setWorkflowModalVisible] = useState(false);
@@ -145,88 +140,112 @@ export default function CashbooksScreen() {
         return resolveCashbookExperience(activeBook);
     }, [activeBook]);
 
+    const isHandyCashBook = experienceProfile?.profileId === CashbookExperienceProfile.HANDY_CASH_REGISTER;
+
     // Filter transactions strictly by active book (Strict Book Isolation)
     const activeBookTransactions = useMemo(() => {
         if (!activeBook) return [];
         return (envelope.transactions || []).filter(t => t.bookId === activeBook.id);
     }, [envelope.transactions, activeBook]);
 
-    // Running balance ledger computation for active book
-    const runningLedgerData = useMemo(() => {
-        return computeRunningLedger({
-            transactions: activeBookTransactions,
-            accounts: envelope.accounts,
-            bookType: activeBook?.type || CashbookType.SAVINGS
-        });
-    }, [activeBookTransactions, envelope.accounts, activeBook]);
+    // Daily closings for the active book only
+    const bookClosings = useMemo(() => {
+        if (!activeBook) return [];
+        return (envelope.dailyClosings || []).filter(c => c.bookId === activeBook.id);
+    }, [envelope.dailyClosings, activeBook]);
+
+    // Filter accounts by active book (per-book scoping + legacy fallback)
+    const activeBookAccounts = useMemo(() => {
+        if (!activeBook) return envelope.accounts || [];
+        return (envelope.accounts || []).filter(a => a.bookId === activeBook.id || !a.bookId);
+    }, [envelope.accounts, activeBook]);
 
     // View Model for lists & summaries
     const viewModel = useMemo(() => {
         return buildCashbookViewModel({
-            accounts: envelope.accounts,
+            accounts: activeBookAccounts,
             transactions: activeBookTransactions,
             activeFilter,
             selectedAccountId,
             searchQuery
         });
-    }, [envelope.accounts, activeBookTransactions, activeFilter, selectedAccountId, searchQuery]);
+    }, [activeBookAccounts, activeBookTransactions, activeFilter, selectedAccountId, searchQuery]);
+
+    // Till figures for the Daily Closing screen / Handy Cash dashboard.
+    // (Previously the closing screen read non-existent summary fields and always showed ₹0.)
+    const closingMetrics = useMemo(() => {
+        if (!activeBook) return null;
+        try {
+            return computeHandyCashDashboardMetrics({
+                transactions: activeBookTransactions,
+                dailyClosings: bookClosings,
+                openingBalance: activeBook?.openingBalance,
+                currentDate: today
+            });
+        } catch (err) {
+            console.error('Closing metrics error:', err);
+            return null;
+        }
+    }, [activeBook, activeBookTransactions, bookClosings, today]);
 
     // Specialized V3 Dashboard Metrics
     const dashboardMetrics = useMemo(() => {
         if (!experienceProfile) return null;
-        const currentDate = new Date().toISOString().split('T')[0];
+        const currentDate = today;
+        const personal = () => computePersonalDashboardMetrics({
+            transactions: activeBookTransactions,
+            accounts: activeBookAccounts,
+            openingBalance: activeBook?.openingBalance,
+            currentDate
+        });
 
-        switch (experienceProfile.profileId) {
-            case CashbookExperienceProfile.PERSONAL_FINANCE_BOOK:
-            case CashbookExperienceProfile.REGULAR_INCOME_BOOK:
-                return computePersonalDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    accounts: envelope.accounts,
-                    openingBalance: activeBook?.openingBalance,
-                    currentDate
-                });
-            case CashbookExperienceProfile.HANDY_CASH_REGISTER:
-                return computeHandyCashDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    dailyClosings: envelope.dailyClosings,
-                    openingBalance: activeBook?.openingBalance,
-                    currentDate
-                });
-            case CashbookExperienceProfile.BUSINESS_OPERATIONS_CASHBOOK:
-                return computeBusinessDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    accounts: envelope.accounts,
-                    currentDate
-                });
-            case CashbookExperienceProfile.LOANS_TAKEN_REGISTER:
-                return computeLoanLiabilityDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    currentDate
-                });
-            case CashbookExperienceProfile.LOANS_GIVEN_REGISTER:
-                return computeLoanReceivableDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    currentDate
-                });
-            case CashbookExperienceProfile.PROVIDENT_FUND_REGISTER:
-                return computePFDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    currentDate
-                });
-            default:
-                return computePersonalDashboardMetrics({
-                    transactions: activeBookTransactions,
-                    accounts: envelope.accounts,
-                    openingBalance: activeBook?.openingBalance,
-                    currentDate
-                });
-        }
-    }, [experienceProfile, activeBookTransactions, envelope.accounts, envelope.dailyClosings, activeBook]);
-
-    const loadLedgerData = useCallback(async (modeToLoad = appMode) => {
         try {
-            const env = await CashbookRepository.load({ mode: modeToLoad });
+            switch (experienceProfile.profileId) {
+                case CashbookExperienceProfile.PERSONAL_FINANCE_BOOK:
+                case CashbookExperienceProfile.REGULAR_INCOME_BOOK:
+                    return personal();
+                case CashbookExperienceProfile.HANDY_CASH_REGISTER:
+                    return closingMetrics;
+                case CashbookExperienceProfile.BUSINESS_OPERATIONS_CASHBOOK:
+                    return computeBusinessDashboardMetrics({
+                        transactions: activeBookTransactions,
+                        accounts: activeBookAccounts,
+                        currentDate
+                    });
+                case CashbookExperienceProfile.LOANS_TAKEN_REGISTER:
+                    return computeLoanLiabilityDashboardMetrics({
+                        transactions: activeBookTransactions,
+                        currentDate
+                    });
+                case CashbookExperienceProfile.LOANS_GIVEN_REGISTER:
+                    return computeLoanReceivableDashboardMetrics({
+                        transactions: activeBookTransactions,
+                        currentDate
+                    });
+                case CashbookExperienceProfile.PROVIDENT_FUND_REGISTER:
+                    return computePFDashboardMetrics({
+                        transactions: activeBookTransactions,
+                        currentDate
+                    });
+                default:
+                    return personal();
+            }
+        } catch (err) {
+            console.error('Dashboard metrics error:', err);
+            return null;
+        }
+    }, [experienceProfile, activeBookTransactions, activeBookAccounts, activeBook, today, closingMetrics]);
+
+    const appModeRef = useRef(appMode);
+    appModeRef.current = appMode;
+    const hasLoadedRef = useRef(false);
+
+    const loadLedgerData = useCallback(async (modeToLoad) => {
+        const mode = modeToLoad || appModeRef.current;
+        try {
+            const env = await CashbookRepository.load({ mode });
             setEnvelope(env);
+            hasLoadedRef.current = true;
         } catch (err) {
             console.error('Error loading cashbook ledger:', err);
             Alert.alert('Ledger Load Error', err.message);
@@ -234,16 +253,45 @@ export default function CashbooksScreen() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [appMode]);
+    }, []);
 
+    // One-time init (previously re-ran whenever appMode changed => double load).
     useEffect(() => {
-        const init = async () => {
-            const savedMode = await CashbookRepository.getMode();
-            setAppMode(savedMode);
-            await loadLedgerData(savedMode);
-        };
-        init();
+        let active = true;
+        (async () => {
+            try {
+                const savedMode = await CashbookRepository.getMode();
+                if (!active) return;
+                setAppMode(savedMode);
+                appModeRef.current = savedMode;
+                await loadLedgerData(savedMode);
+            } catch (err) {
+                if (active) {
+                    setLoading(false);
+                    Alert.alert('Ledger Load Error', err.message);
+                }
+            }
+        })();
+        return () => { active = false; };
     }, [loadLedgerData]);
+
+    const resetBookScopedFilters = () => {
+        setActiveFilter(FilterType.ALL);
+        setSelectedAccountId(null);
+        setSearchQuery('');
+        setShowFilterPills(false);
+    };
+
+    const closeAllModals = () => {
+        setAddModalVisible(false);
+        setDetailModalVisible(false);
+        setSelectedTransaction(null);
+        setAccountsModalVisible(false);
+        setCreateBookVisible(false);
+        setMenuVisible(false);
+        setWorkflowModalVisible(false);
+        setActiveWorkflowActionId(null);
+    };
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -254,10 +302,19 @@ export default function CashbooksScreen() {
         const nextMode = appMode === CashbookAppMode.DEMO
             ? CashbookAppMode.PRODUCTION
             : CashbookAppMode.DEMO;
-        setLoading(true);
-        await CashbookRepository.setMode(nextMode);
-        setAppMode(nextMode);
-        await loadLedgerData(nextMode);
+        try {
+            setLoading(true);
+            await CashbookRepository.setMode(nextMode);
+            setAppMode(nextMode);
+            appModeRef.current = nextMode;
+            resetBookScopedFilters();
+            setViewMode('DIRECTORY');
+            setActiveTab('DASHBOARD');
+            await loadLedgerData(nextMode);
+        } catch (err) {
+            setLoading(false);
+            Alert.alert('Mode Switch Error', err.message);
+        }
     };
 
     // Switch Active Book
@@ -265,6 +322,7 @@ export default function CashbooksScreen() {
         try {
             await CashbookRepository.setActiveBookId(bookId, { mode: appMode });
             await loadLedgerData();
+            resetBookScopedFilters();
             setViewMode('BOOK_VIEW');
             setActiveTab('DASHBOARD');
         } catch (err) {
@@ -272,65 +330,104 @@ export default function CashbooksScreen() {
         }
     };
 
-    // Create New Book
-    const handleCreateBook = async (book) => {
+    // Create New Book. Accepts { name, type, description } (id optional).
+    // Always goes through createCashbook() so the book carries its full type
+    // configuration (balance mode, closing rules, denomination support ...).
+    const handleCreateBook = async (input) => {
         try {
+            const baseName = (input?.name || '').trim();
+            if (!baseName) throw new Error('Book name is required');
+
+            const existing = (envelope.books || []).map(b => (b.name || '').trim().toLowerCase());
+            let name = baseName;
+            let n = 2;
+            while (existing.includes(name.toLowerCase())) {
+                name = `${baseName} ${n++}`;
+            }
+
+            const book = createCashbook({
+                id: input.id || `book_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                name,
+                type: input.type || CashbookType.CUSTOM,
+                description: input.description || ''
+            });
             await CashbookRepository.saveBook(book, { mode: appMode });
             await CashbookRepository.setActiveBookId(book.id, { mode: appMode });
             await loadLedgerData();
+            resetBookScopedFilters();
             setViewMode('BOOK_VIEW');
             setActiveTab('DASHBOARD');
         } catch (err) {
             Alert.alert('Create Book Error', err.message);
+            throw err;
         }
     };
 
-    // Save transaction handler
-    const handleSaveTransaction = async (txn, isTransfer = false) => {
+    // Rename Book
+    const handleRenameBook = async (bookId, newName) => {
         try {
-            if (isTransfer || txn.transactionType === TransactionType.TRANSFER) {
-                await CashbookRepository.saveTransfer(txn, { mode: appMode });
-            } else {
-                await CashbookRepository.saveTransaction(txn, { mode: appMode });
-            }
+            await CashbookRepository.renameBook(bookId, newName, { mode: appMode });
             await loadLedgerData();
         } catch (err) {
-            Alert.alert('Save Error', err.message);
+            Alert.alert('Rename Error', err.message);
+            throw err;
         }
+    };
+
+    // Delete Book (Soft delete)
+    const handleDeleteBook = async (bookId) => {
+        try {
+            const res = await CashbookRepository.deleteBook(bookId, { mode: appMode });
+            await loadLedgerData();
+            if (activeBook?.id === bookId) {
+                setViewMode('DIRECTORY');
+                setActiveTab('DASHBOARD');
+            }
+            return res;
+        } catch (err) {
+            Alert.alert('Delete Error', err.message);
+            throw err;
+        }
+    };
+
+    // Save transaction handler — THROWS on failure so the modal shows the error
+    // and keeps the user's input instead of silently closing.
+    const handleSaveTransaction = async (txn, isTransfer = false) => {
+        if (isTransfer || txn.transactionType === TransactionType.TRANSFER) {
+            await CashbookRepository.saveTransfer(txn, { mode: appMode });
+        } else {
+            await CashbookRepository.saveTransaction(txn, { mode: appMode });
+        }
+        await loadLedgerData();
     };
 
     // Save Daily Closing
     const handleSaveDailyClosing = async (record) => {
         try {
             await CashbookRepository.saveDailyClosing(record, { mode: appMode });
-            Alert.alert('Daily Closing', 'Register for ' + record.date + ' has been saved and locked.');
             await loadLedgerData();
+            Alert.alert('Day Closed', `Register for ${record.date} has been saved and locked.`);
         } catch (err) {
             Alert.alert('Closing Error', err.message);
         }
     };
 
-    // Void transaction handler
+    // Void transaction handler — THROWS on failure (modal shows "Void Failed")
     const handleVoidTransaction = async (txnId, reason) => {
-        try {
-            await CashbookRepository.voidTransaction(txnId, { voidReason: reason }, { mode: appMode });
-            await loadLedgerData();
-        } catch (err) {
-            Alert.alert('Void Error', err.message);
-        }
+        await CashbookRepository.voidTransaction(txnId, { voidReason: reason }, { mode: appMode });
+        await loadLedgerData();
     };
 
-    // Save account & initial opening balance
+    // Save account & initial opening balance — THROWS on failure
     const handleSaveAccount = async (account, openingRecord) => {
-        try {
-            await CashbookRepository.saveAccount(account, { mode: appMode });
-            if (openingRecord) {
-                await CashbookRepository.saveTransaction(openingRecord, { mode: appMode });
-            }
-            await loadLedgerData();
-        } catch (err) {
-            Alert.alert('Account Save Error', err.message);
+        await CashbookRepository.saveAccount(account, { mode: appMode });
+        if (openingRecord) {
+            await CashbookRepository.saveTransaction(
+                { ...openingRecord, bookId: openingRecord.bookId || activeBook?.id },
+                { mode: appMode }
+            );
         }
+        await loadLedgerData();
     };
 
     // Quick action trigger from purpose dashboards
@@ -343,32 +440,42 @@ export default function CashbooksScreen() {
         setWorkflowModalVisible(true);
     };
 
+    // Dashboards ask for tabs by name; map legacy/unknown names to real tabs
+    // (a dashboard asked for 'LEDGER', which rendered a blank screen).
+    const handleNavigateTab = (tab) => {
+        const resolved = tab === 'LEDGER' ? 'TRANSACTIONS' : tab;
+        setActiveTab(VALID_TABS.includes(resolved) ? resolved : 'DASHBOARD');
+    };
+
+    const openTransaction = (txn) => {
+        setSelectedTransaction(txn);
+        setDetailModalVisible(true);
+    };
+
     // Back navigation handler (Hardware back + Header back button)
     const handleBack = useCallback(() => {
+        if (menuVisible) { setMenuVisible(false); return true; }
+        if (createBookVisible) { setCreateBookVisible(false); return true; }
         if (workflowModalVisible) {
             setWorkflowModalVisible(false);
             setActiveWorkflowActionId(null);
             return true;
         }
-        if (addModalVisible) {
-            setAddModalVisible(false);
-            return true;
-        }
+        if (addModalVisible) { setAddModalVisible(false); return true; }
         if (detailModalVisible) {
             setDetailModalVisible(false);
             setSelectedTransaction(null);
             return true;
         }
-        if (accountsModalVisible) {
-            setAccountsModalVisible(false);
-            return true;
-        }
+        if (accountsModalVisible) { setAccountsModalVisible(false); return true; }
+        if (showFilterPills) { setShowFilterPills(false); return true; }
         if (viewMode === 'BOOK_VIEW') {
             if (activeTab !== 'DASHBOARD') {
                 setActiveTab('DASHBOARD');
                 return true;
             }
             setViewMode('DIRECTORY');
+            setActiveTab('DASHBOARD');
             return true;
         }
         if (router.canGoBack()) {
@@ -377,20 +484,36 @@ export default function CashbooksScreen() {
         }
         router.replace('/(tabs)');
         return true;
-    }, [workflowModalVisible, addModalVisible, detailModalVisible, accountsModalVisible, activeTab, viewMode, router]);
+    }, [menuVisible, createBookVisible, workflowModalVisible, addModalVisible, detailModalVisible, accountsModalVisible, showFilterPills, activeTab, viewMode, router]);
 
-    useEffect(() => {
-        const onBackPress = () => handleBack();
-        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-        return () => subscription.remove();
-    }, [handleBack]);
+    const handleBackRef = useRef(handleBack);
+    handleBackRef.current = handleBack;
+
+    // Hardware back + status bar are bound ONLY while this screen is focused.
+    // Tabs keep screens mounted, so a permanent listener used to hijack the
+    // Android back button on every other screen.
+    useFocusEffect(
+        useCallback(() => {
+            setStatusBarStyle('dark'); // light page background => dark icons
+            setToday(todayLocal());
+            if (hasLoadedRef.current) {
+                loadLedgerData(); // pick up postings made by other modules
+            }
+            const subscription = BackHandler.addEventListener('hardwareBackPress', () => handleBackRef.current());
+            return () => {
+                subscription.remove();
+                setStatusBarStyle('light'); // restore the app's dark chrome
+                closeAllModals();
+            };
+        }, [loadLedgerData])
+    );
 
     // Export CSV
     const handleExportCSV = async () => {
         try {
             const csv = CashbookExport.toCSV(envelope.accounts, activeBookTransactions);
             await Share.share({
-                title: `FinLife_Cashbook_${activeBook?.name || 'Ledger'}_${new Date().toISOString().split('T')[0]}.csv`,
+                title: `FinLife_Cashbook_${activeBook?.name || 'Ledger'}_${todayLocal()}.csv`,
                 message: csv
             });
         } catch (err) {
@@ -398,28 +521,24 @@ export default function CashbooksScreen() {
         }
     };
 
-    const handleOpenBookMenu = () => {
-        Alert.alert(
-            `${activeBook?.name || 'Cashbook'} Options`,
-            `Active Book: ${activeBook?.name}\nMode: ${appMode}`,
-            [
-                { text: 'Switch Book (Directory)', onPress: () => setViewMode('DIRECTORY') },
-                { text: 'Export CSV Ledger', onPress: handleExportCSV },
-                {
-                    text: appMode === CashbookAppMode.DEMO ? 'Switch to Production' : 'Switch to Demo',
-                    onPress: handleToggleMode
-                },
-                { text: 'Cancel', style: 'cancel' }
-            ]
-        );
-    };
+    const menuItems = [
+        { key: 'switch', label: 'Switch Book', icon: Repeat, onPress: () => setViewMode('DIRECTORY') },
+        { key: 'accounts', label: 'Manage Accounts', icon: Users, onPress: () => setAccountsModalVisible(true) },
+        { key: 'export', label: 'Export CSV Ledger', icon: Download, onPress: handleExportCSV },
+        ...(__DEV__ ? [{
+            key: 'mode',
+            label: appMode === CashbookAppMode.DEMO ? 'Switch to Production Data' : 'Switch to Demo Data',
+            icon: Wallet,
+            onPress: handleToggleMode
+        }] : [])
+    ];
 
     if (loading && !refreshing) {
         return (
-            <SafeAreaView style={styles.loadingContainer}>
+            <View style={[styles.loadingContainer, { paddingTop: insets.top }]}>
                 <ActivityIndicator size="large" color="#6366F1" />
-                <Text style={styles.loadingText}>Loading Purpose-Driven Ledger...</Text>
-            </SafeAreaView>
+                <Text style={styles.loadingText}>Loading your cashbooks...</Text>
+            </View>
         );
     }
 
@@ -428,25 +547,28 @@ export default function CashbooksScreen() {
     // ─────────────────────────────────────────────────────────────────
     if (viewMode === 'DIRECTORY') {
         return (
-            <AnimatedScreen style={styles.container}>
+            <View style={styles.container}>
                 <CashbookDirectoryView
                     books={envelope.books || []}
                     activeBookId={envelope.activeBookId}
                     accounts={envelope.accounts || []}
                     transactions={envelope.transactions || []}
+                    topInset={insets.top}
+                    onBack={handleBack}
                     onSelectBook={handleSelectBook}
                     onCreateBook={handleCreateBook}
-                    onOpenCreateModal={() => setAccountsModalVisible(true)}
+                    onOpenCreateModal={() => setCreateBookVisible(true)}
+                    onRenameBook={handleRenameBook}
+                    onDeleteBook={handleDeleteBook}
                 />
 
-                {/* Account & New Book Modal */}
-                <AccountManageModal
-                    visible={accountsModalVisible}
-                    accounts={viewModel.accounts}
-                    onClose={() => setAccountsModalVisible(false)}
-                    onSaveAccount={handleSaveAccount}
+                <CreateBookModal
+                    visible={createBookVisible}
+                    existingNames={(envelope.books || []).map(b => b.name)}
+                    onClose={() => setCreateBookVisible(false)}
+                    onCreate={handleCreateBook}
                 />
-            </AnimatedScreen>
+            </View>
         );
     }
 
@@ -454,10 +576,10 @@ export default function CashbooksScreen() {
     // Screen 2 & 3: Active Cashbook Experience
     // ─────────────────────────────────────────────────────────────────
     return (
-        <AnimatedScreen style={styles.container}>
+        <View style={styles.container}>
             <View style={styles.container}>
                 {/* Book Header Bar */}
-                <View style={styles.bookHeaderBar}>
+                <View style={[styles.bookHeaderBar, { paddingTop: insets.top + 8 }]}>
                     <TouchableOpacity
                         onPress={handleBack}
                         style={styles.backBtn}
@@ -468,20 +590,31 @@ export default function CashbooksScreen() {
                     </TouchableOpacity>
 
                     <Text style={styles.bookHeaderTitle} numberOfLines={1}>
-                        {activeBook?.name ? `${activeBook.name} Cashbook` : 'Personal Cashbook'}
+                        {activeBook?.name
+                            ? (activeBook.name.toLowerCase().includes('cashbook')
+                                ? activeBook.name
+                                : `${activeBook.name} Cashbook`)
+                            : 'Personal Cashbook'}
                     </Text>
 
                     <TouchableOpacity
-                        onPress={handleOpenBookMenu}
+                        onPress={() => setMenuVisible(true)}
                         style={styles.menuBtn}
                         activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                        accessibilityLabel="Book options"
                     >
                         <MoreVertical size={20} color="#64748B" />
                     </TouchableOpacity>
                 </View>
 
                 {/* Sub-Tabs: [ Dashboard | Transactions | Accounts | Reports ] */}
-                <View style={styles.subTabBar}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.subTabScroll}
+                    contentContainerStyle={styles.subTabBar}
+                >
                     <TouchableOpacity
                         style={[styles.subTabItem, activeTab === 'DASHBOARD' && styles.subTabItemActive]}
                         onPress={() => setActiveTab('DASHBOARD')}
@@ -521,7 +654,19 @@ export default function CashbooksScreen() {
                             Reports
                         </Text>
                     </TouchableOpacity>
-                </View>
+
+                    {isHandyCashBook && (
+                        <TouchableOpacity
+                            style={[styles.subTabItem, activeTab === 'CLOSING' && styles.subTabItemActive]}
+                            onPress={() => setActiveTab('CLOSING')}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.subTabText, activeTab === 'CLOSING' && styles.subTabTextActive]}>
+                                Closing
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
 
                 {/* Sub-Tab 1: Purpose-Built Dashboard (Screen 2) */}
                 {activeTab === 'DASHBOARD' && (
@@ -531,26 +676,20 @@ export default function CashbooksScreen() {
                                 metrics={dashboardMetrics}
                                 profile={experienceProfile}
                                 onQuickAction={handleQuickAction}
-                                onNavigateTab={setActiveTab}
+                                onNavigateTab={handleNavigateTab}
                                 activeBook={activeBook}
                                 recentTransactions={activeBookTransactions}
-                                onSelectTransaction={(txn) => {
-                                    setSelectedTransaction(txn);
-                                    setDetailModalVisible(true);
-                                }}
+                                onSelectTransaction={openTransaction}
                             />
                         ) : experienceProfile?.profileId === CashbookExperienceProfile.BUSINESS_OPERATIONS_CASHBOOK ? (
                             <BusinessDashboardView
                                 metrics={dashboardMetrics}
                                 profile={experienceProfile}
                                 onQuickAction={handleQuickAction}
-                                onNavigateTab={setActiveTab}
+                                onNavigateTab={handleNavigateTab}
                                 activeBook={activeBook}
                                 recentTransactions={activeBookTransactions}
-                                onSelectTransaction={(txn) => {
-                                    setSelectedTransaction(txn);
-                                    setDetailModalVisible(true);
-                                }}
+                                onSelectTransaction={openTransaction}
                             />
                         ) : experienceProfile?.profileId === CashbookExperienceProfile.LOANS_TAKEN_REGISTER ||
                            experienceProfile?.profileId === CashbookExperienceProfile.LOANS_GIVEN_REGISTER ? (
@@ -558,26 +697,20 @@ export default function CashbooksScreen() {
                                 metrics={dashboardMetrics}
                                 profile={experienceProfile}
                                 onQuickAction={handleQuickAction}
-                                onNavigateTab={setActiveTab}
+                                onNavigateTab={handleNavigateTab}
                                 activeBook={activeBook}
                                 recentTransactions={activeBookTransactions}
-                                onSelectTransaction={(txn) => {
-                                    setSelectedTransaction(txn);
-                                    setDetailModalVisible(true);
-                                }}
+                                onSelectTransaction={openTransaction}
                             />
                         ) : experienceProfile?.profileId === CashbookExperienceProfile.PROVIDENT_FUND_REGISTER ? (
                             <PFDashboardView
                                 metrics={dashboardMetrics}
                                 profile={experienceProfile}
                                 onQuickAction={handleQuickAction}
-                                onNavigateTab={setActiveTab}
+                                onNavigateTab={handleNavigateTab}
                                 activeBook={activeBook}
                                 recentTransactions={activeBookTransactions}
-                                onSelectTransaction={(txn) => {
-                                    setSelectedTransaction(txn);
-                                    setDetailModalVisible(true);
-                                }}
+                                onSelectTransaction={openTransaction}
                             />
                         ) : (
                             <PersonalDashboardView
@@ -588,12 +721,9 @@ export default function CashbooksScreen() {
                                 accounts={viewModel.accounts}
                                 recentTransactions={activeBookTransactions}
                                 onQuickAction={handleQuickAction}
-                                onNavigateTab={setActiveTab}
+                                onNavigateTab={handleNavigateTab}
                                 onAddTransaction={() => setAddModalVisible(true)}
-                                onSelectTransaction={(txn) => {
-                                    setSelectedTransaction(txn);
-                                    setDetailModalVisible(true);
-                                }}
+                                onSelectTransaction={openTransaction}
                             />
                         )}
                     </>
@@ -602,9 +732,22 @@ export default function CashbooksScreen() {
                 {/* Sub-Tab 2: Transactions Ledger (Screen 3) */}
                 {activeTab === 'TRANSACTIONS' && (
                     <View style={styles.transactionsTabContainer}>
+                        {/* Collapsible Filter Bar ABOVE the transaction list */}
+                        {showFilterPills && (
+                            <TransactionFilterBar
+                                activeFilter={activeFilter}
+                                onSelectFilter={setActiveFilter}
+                                accounts={viewModel.accounts}
+                                selectedAccountId={selectedAccountId}
+                                onSelectAccount={setSelectedAccountId}
+                            />
+                        )}
+
                         {/* Date Grouped Transaction SectionList with built-in search bar */}
                         <TransactionList
                             sections={viewModel.sections}
+                            searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
                             refreshing={refreshing}
                             onRefresh={handleRefresh}
                             onPressRow={(row) => {
@@ -613,20 +756,8 @@ export default function CashbooksScreen() {
                             }}
                             onAddPress={() => setAddModalVisible(true)}
                             onFilter={() => setShowFilterPills(!showFilterPills)}
+                            filterActive={showFilterPills || activeFilter !== FilterType.ALL || !!selectedAccountId}
                         />
-
-                        {/* Collapsible Filter Bar */}
-                        {showFilterPills && (
-                            <TransactionFilterBar
-                                activeFilter={activeFilter}
-                                onSelectFilter={setActiveFilter}
-                                accounts={viewModel.accounts}
-                                selectedAccountId={selectedAccountId}
-                                onSelectAccount={setSelectedAccountId}
-                                searchQuery={searchQuery}
-                                onSearchChange={setSearchQuery}
-                            />
-                        )}
 
                         {/* Floating Add Pill Button */}
                         <TouchableOpacity
@@ -642,7 +773,11 @@ export default function CashbooksScreen() {
 
                 {/* Sub-Tab 3: Accounts View */}
                 {activeTab === 'ACCOUNTS' && (
-                    <ScrollView style={styles.accountsTabContainer} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        style={styles.accountsTabContainer}
+                        contentContainerStyle={styles.tabScrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
                         <View style={styles.accountsTabHeader}>
                             <Text style={styles.accountsTabTitle}>REGISTERED ACCOUNTS</Text>
                             <TouchableOpacity
@@ -654,29 +789,66 @@ export default function CashbooksScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        {viewModel.accounts.map((acc) => (
-                            <View key={acc.id} style={styles.accountCard}>
-                                <View style={styles.accountCardLeft}>
-                                    <View style={styles.accountTypeCircle}>
-                                        <Wallet size={16} color="#6366F1" />
-                                    </View>
-                                    <View>
-                                        <Text style={styles.accountCardName}>{acc.name}</Text>
-                                        <Text style={styles.accountCardType}>{acc.type} • {acc.nature}</Text>
-                                    </View>
-                                </View>
-                                <View style={styles.accountCardRight}>
-                                    <Text style={styles.accountCardBalance}>{acc.formattedBalance || '₹0'}</Text>
-                                    <Text style={styles.accountCardBalanceLabel}>Current Balance</Text>
-                                </View>
+                        {viewModel.accounts.length === 0 && (
+                            <View style={styles.emptyAccountsBox}>
+                                <Text style={styles.emptyAccountsTitle}>No accounts yet</Text>
+                                <Text style={styles.emptyAccountsText}>
+                                    Add a bank, cash or wallet account to start recording transactions in this book.
+                                </Text>
                             </View>
-                        ))}
+                        )}
+
+                        {viewModel.accounts.map((acc) => {
+                            const typeLabels = {
+                                BANK: 'Bank Account',
+                                CASH: 'Cash in Hand',
+                                WALLET: 'UPI / Wallet',
+                                CREDIT_CARD: 'Credit Card',
+                                LOAN: 'Loan Account',
+                                INVESTMENT: 'Investment',
+                            };
+                            const natureLabels = {
+                                ASSET: 'Asset',
+                                LIABILITY: 'Liability',
+                                EQUITY: 'Equity',
+                            };
+                            const typeDisplay = typeLabels[acc.type] || acc.type;
+                            const natureDisplay = natureLabels[acc.nature] || acc.nature;
+                            const isZero = acc.formattedBalance === '₹0' || acc.formattedBalance === '₹ 0';
+                            return (
+                                <View key={acc.id} style={styles.accountCard}>
+                                    <View style={styles.accountCardLeft}>
+                                        <View style={styles.accountTypeCircle}>
+                                            <Wallet size={16} color="#6366F1" />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.accountCardName}>{acc.name}</Text>
+                                            <Text style={styles.accountCardType}>{typeDisplay} • {natureDisplay}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={styles.accountCardRight}>
+                                        <Text style={[
+                                            styles.accountCardBalance,
+                                            acc.isNegative && styles.accountCardBalanceNegative,
+                                            isZero && styles.accountCardBalanceZero
+                                        ]}>
+                                            {acc.formattedBalance || '₹0'}
+                                        </Text>
+                                        <Text style={styles.accountCardBalanceLabel}>Current Balance</Text>
+                                    </View>
+                                </View>
+                            );
+                        })}
                     </ScrollView>
                 )}
 
                 {/* Sub-Tab 4: Reports View */}
                 {activeTab === 'REPORTS' && (
-                    <ScrollView style={styles.reportsTabContainer} showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        style={styles.reportsTabContainer}
+                        contentContainerStyle={styles.tabScrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
                         <BalanceSummaryCard
                             summary={viewModel.balanceSummaryCard}
                             appMode={appMode}
@@ -699,12 +871,14 @@ export default function CashbooksScreen() {
                 {/* Sub-Tab 5: Daily Closing */}
                 {activeTab === 'CLOSING' && (
                     <DailyClosingView
+                        key={`${activeBook?.id}_${today}_${closingMetrics ? closingMetrics.isLocked : ''}`}
                         bookId={activeBook?.id || 'book_personal_savings'}
                         bookName={activeBook?.name || 'Cash Register'}
-                        dayOpeningBalance={viewModel.balanceSummaryCard?.openingBalancePaise || '0'}
-                        dayMoneyIn={viewModel.balanceSummaryCard?.totalIncomePaise || '0'}
-                        dayMoneyOut={viewModel.balanceSummaryCard?.totalExpensePaise || '0'}
-                        existingClosing={(envelope.dailyClosings || []).find(c => c.bookId === activeBook?.id && c.date === new Date().toISOString().split('T')[0])}
+                        todayDate={today}
+                        dayOpeningBalance={closingMetrics?.openingCashPaise || '0'}
+                        dayMoneyIn={closingMetrics?.cashReceivedTodayPaise || '0'}
+                        dayMoneyOut={closingMetrics?.cashPaidTodayPaise || '0'}
+                        existingClosing={bookClosings.find(c => c.date === today) || null}
                         onSaveClosing={handleSaveDailyClosing}
                     />
                 )}
@@ -732,13 +906,17 @@ export default function CashbooksScreen() {
                     accounts={viewModel.accounts}
                     activeBook={activeBook}
                     onSave={handleSaveTransaction}
+                    onAddAccount={() => {
+                        setAddModalVisible(false);
+                        setAccountsModalVisible(true);
+                    }}
                 />
 
                 {/* Transaction Detail Modal (Screen 4 with Double-Entry Table) */}
                 <TransactionDetailModal
                     visible={detailModalVisible}
                     transaction={selectedTransaction}
-                    accounts={viewModel.accounts}
+                    accounts={envelope.accounts || []}
                     bookName={activeBook?.name || 'Personal'}
                     onClose={() => {
                         setDetailModalVisible(false);
@@ -751,11 +929,61 @@ export default function CashbooksScreen() {
                 <AccountManageModal
                     visible={accountsModalVisible}
                     accounts={viewModel.accounts}
+                    bookId={activeBook?.id}
                     onClose={() => setAccountsModalVisible(false)}
                     onSaveAccount={handleSaveAccount}
                 />
+
+                {/* Book options sheet (Alert.alert only shows 3 buttons on Android) */}
+                <Modal
+                    visible={menuVisible}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setMenuVisible(false)}
+                >
+                    <TouchableOpacity
+                        style={styles.menuOverlay}
+                        activeOpacity={1}
+                        onPress={() => setMenuVisible(false)}
+                    >
+                        <View style={[styles.menuSheet, { paddingBottom: insets.bottom + 12 }]}>
+                            <View style={styles.menuSheetHeader}>
+                                <Text style={styles.menuSheetTitle} numberOfLines={1}>
+                                    {activeBook?.name || 'Cashbook'} options
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => setMenuVisible(false)}
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                    accessibilityLabel="Close menu"
+                                >
+                                    <X size={18} color="#64748B" />
+                                </TouchableOpacity>
+                            </View>
+                            {menuItems.map((item) => {
+                                const ItemIcon = item.icon;
+                                return (
+                                    <TouchableOpacity
+                                        key={item.key}
+                                        style={styles.menuItem}
+                                        activeOpacity={0.7}
+                                        onPress={() => {
+                                            setMenuVisible(false);
+                                            setTimeout(item.onPress, 150);
+                                        }}
+                                    >
+                                        <ItemIcon size={18} color="#6366F1" />
+                                        <Text style={styles.menuItemText}>{item.label}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            <Text style={styles.menuFootnote}>
+                                Data set: {appMode === CashbookAppMode.DEMO ? 'Demo' : 'Production'}
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
             </View>
-        </AnimatedScreen>
+        </View>
     );
 }
 
@@ -781,7 +1009,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'android' ? 38 : 12,
         paddingBottom: 8,
         backgroundColor: '#F8FAFC'
     },
@@ -796,6 +1023,9 @@ const styles = StyleSheet.create({
         borderColor: '#E2E8F0'
     },
     bookHeaderTitle: {
+        flex: 1,
+        textAlign: 'center',
+        marginHorizontal: 8,
         fontSize: 18,
         fontWeight: '800',
         color: '#0F172A',
@@ -808,12 +1038,83 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center'
     },
-    subTabBar: {
-        flexDirection: 'row',
+    subTabScroll: {
+        flexGrow: 0,
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: '#E2E8F0',
+        borderBottomColor: '#E2E8F0'
+    },
+    subTabBar: {
+        flexDirection: 'row',
         paddingHorizontal: 16
+    },
+    tabScrollContent: {
+        paddingBottom: 48
+    },
+    emptyAccountsBox: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 14,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        alignItems: 'center',
+        marginBottom: 12
+    },
+    emptyAccountsTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#0F172A',
+        marginBottom: 4
+    },
+    emptyAccountsText: {
+        fontSize: 13,
+        color: '#64748B',
+        textAlign: 'center',
+        lineHeight: 18
+    },
+    menuOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        justifyContent: 'flex-end'
+    },
+    menuSheet: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingHorizontal: 20,
+        paddingTop: 16
+    },
+    menuSheetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8
+    },
+    menuSheetTitle: {
+        flex: 1,
+        fontSize: 16,
+        fontWeight: '800',
+        color: '#0F172A',
+        marginRight: 12
+    },
+    menuItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        paddingVertical: 14,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F1F5F9'
+    },
+    menuItemText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#0F172A'
+    },
+    menuFootnote: {
+        marginTop: 12,
+        fontSize: 11,
+        color: '#94A3B8',
+        textAlign: 'center'
     },
     subTabItem: {
         paddingVertical: 12,
@@ -880,7 +1181,7 @@ const styles = StyleSheet.create({
     },
     floatingAddPill: {
         position: 'absolute',
-        bottom: 20,
+        bottom: 24,
         alignSelf: 'center',
         flexDirection: 'row',
         alignItems: 'center',
@@ -968,6 +1269,12 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
         color: '#10B981'
+    },
+    accountCardBalanceNegative: {
+        color: '#EF4444'
+    },
+    accountCardBalanceZero: {
+        color: '#94A3B8'
     },
     accountCardBalanceLabel: {
         fontSize: 10,

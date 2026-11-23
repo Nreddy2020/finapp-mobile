@@ -39,6 +39,7 @@ import {
 import { checkIdempotency } from './cashbookIdempotency.js';
 import { buildDemoCashbookFixtures } from './cashbookMigration.js';
 import { CashbookMigrationEngine } from './cashbookMigrationEngine.js';
+import { todayLocal } from './cashbookDates.js';
 
 const STORAGE_KEY_PROD = 'FINLIFE_CASHBOOK_PROD_V1';
 const STORAGE_KEY_DEMO = 'FINLIFE_CASHBOOK_DEMO_V1';
@@ -618,6 +619,16 @@ export const CashbookRepository = {
     },
 
     /**
+     * Gets accounts for a specific book, including legacy accounts (no bookId) by default.
+     */
+    getAccounts: async (bookId = null, options = {}) => {
+        const envelope = await CashbookRepository.load(options);
+        const accounts = envelope.accounts || [];
+        if (!bookId) return accounts;
+        return accounts.filter(a => a.bookId === bookId || !a.bookId);
+    },
+
+    /**
      * Posts a regular transaction (INCOME, EXPENSE, REFUND, ADJUSTMENT, OPENING_BALANCE).
      */
     saveTransaction: async (txn, options = {}) => {
@@ -783,6 +794,16 @@ export const CashbookRepository = {
             throw new Error('OPENING_BALANCE records are immutable and cannot be voided. Post a corrective ADJUSTMENT transaction instead.');
         }
 
+        // Period lock: a locked daily closing is an immutable audit checkpoint, so
+        // transactions inside it cannot be voided either (otherwise the locked
+        // closing would silently stop matching the ledger).
+        const isTargetDateLocked = (envelope.dailyClosings || []).some(
+            c => c.bookId === target.bookId && c.date === target.date && c.status === DailyClosingStatus.LOCKED
+        );
+        if (isTargetDateLocked) {
+            throw new Error(`PERIOD_LOCKED: Cannot void a transaction on locked date "${target.date}". Post a corrective ADJUSTMENT on an open date instead.`);
+        }
+
         const updatedTxn = {
             ...target,
             status: TransactionStatus.VOIDED,
@@ -853,11 +874,13 @@ export const CashbookRepository = {
     },
 
     /**
-     * Gets all registered Cashbooks.
+     * Lists active books, filtering out soft-deleted books by default.
      */
     getBooks: async (options = {}) => {
         const envelope = await CashbookRepository.load(options);
-        return envelope.books || [];
+        const books = envelope.books || [];
+        if (options.includeDeleted) return books;
+        return books.filter(b => b.status !== 'DELETED');
     },
 
     /**
@@ -865,7 +888,7 @@ export const CashbookRepository = {
      */
     getActiveBookId: async (options = {}) => {
         const envelope = await CashbookRepository.load(options);
-        return envelope.activeBookId || (envelope.books && envelope.books[0]?.id) || 'book_personal_savings';
+        return envelope.activeBookId || (envelope.books && envelope.books.find(b => b.status !== 'DELETED')?.id) || 'book_personal_savings';
     },
 
     /**
@@ -873,8 +896,8 @@ export const CashbookRepository = {
      */
     getActiveBook: async (options = {}) => {
         const envelope = await CashbookRepository.load(options);
-        const activeId = envelope.activeBookId || (envelope.books && envelope.books[0]?.id);
-        return (envelope.books || []).find(b => b.id === activeId) || (envelope.books && envelope.books[0]) || null;
+        const activeId = envelope.activeBookId || (envelope.books && envelope.books.find(b => b.status !== 'DELETED')?.id);
+        return (envelope.books || []).find(b => b.id === activeId && b.status !== 'DELETED') || (envelope.books && envelope.books.find(b => b.status !== 'DELETED')) || null;
     },
 
     /**
@@ -886,7 +909,7 @@ export const CashbookRepository = {
         const envelope = await CashbookRepository.load({ mode });
 
         const book = (envelope.books || []).find(b => b.id === bookId);
-        if (!book) {
+        if (!book || book.status === 'DELETED') {
             throw new Error(`Cashbook not found: "${bookId}"`);
         }
 
@@ -935,6 +958,120 @@ export const CashbookRepository = {
         envelope.checksum = computeEnvelopeChecksum(envelope);
         await StorageService.save(key, envelope);
         return book;
+    },
+
+    /**
+     * Lists active books, filtering out soft-deleted books by default.
+     */
+    getBooks: async (options = {}) => {
+        const envelope = await CashbookRepository.load(options);
+        const books = envelope.books || [];
+        if (options.includeDeleted) return books;
+        return books.filter(b => b.status !== 'DELETED');
+    },
+
+    /**
+     * Renames an existing book.
+     * Validates newName (min 2 chars, trimmed, unique among non-deleted books).
+     */
+    renameBook: async (bookId, newName, options = {}) => {
+        if (!newName || typeof newName !== 'string') {
+            throw new Error('New book name must be a non-empty string');
+        }
+        const trimmed = newName.trim();
+        if (trimmed.length < 2) {
+            throw new Error('Book name must be at least 2 characters');
+        }
+
+        const mode = options.mode || await CashbookRepository.getMode();
+        const key = CashbookRepository._getStorageKey(mode);
+        const envelope = await CashbookRepository.load({ mode });
+
+        envelope.books = envelope.books || [];
+        const book = envelope.books.find(b => b.id === bookId);
+        if (!book || book.status === 'DELETED') {
+            throw new Error(`Book with id '${bookId}' does not exist or has been deleted`);
+        }
+
+        // Must be unique among non-deleted books
+        const duplicate = envelope.books.find(b => b.id !== bookId && b.status !== 'DELETED' && b.name.toLowerCase() === trimmed.toLowerCase());
+        if (duplicate) {
+            throw new Error(`A book named '${trimmed}' already exists`);
+        }
+
+        const oldName = book.name;
+        book.name = trimmed;
+        book.updatedAt = new Date().toISOString();
+
+        let lastEvent = envelope.auditLog.length > 0 ? envelope.auditLog[envelope.auditLog.length - 1] : null;
+        const auditEvent = createAuditEvent({
+            lastEvent,
+            eventType: AuditEventType.BOOK_RENAMED || AuditEventType.BOOK_UPDATED,
+            entityId: book.id,
+            payload: { bookId, oldName, newName: trimmed },
+            actor: options.actor || AuditActor.USER,
+            source: options.source || AuditSource.MANUAL
+        });
+        envelope.auditLog.push(auditEvent);
+
+        envelope.checksum = computeEnvelopeChecksum(envelope);
+        await StorageService.save(key, envelope);
+        return book;
+    },
+
+    /**
+     * Soft deletes a book.
+     * Refuses to delete a book that has a DailyClosing record with status LOCKED dated today or later.
+     */
+    deleteBook: async (bookId, options = {}) => {
+        const mode = options.mode || await CashbookRepository.getMode();
+        const key = CashbookRepository._getStorageKey(mode);
+        const envelope = await CashbookRepository.load({ mode });
+
+        envelope.books = envelope.books || [];
+        const book = envelope.books.find(b => b.id === bookId);
+        if (!book || book.status === 'DELETED') {
+            throw new Error(`Book with id '${bookId}' does not exist or has already been deleted`);
+        }
+
+        // Lock check: Refuse to delete a book that has a DailyClosing record with status LOCKED dated today or later
+        const today = todayLocal();
+        const closings = envelope.dailyClosings || [];
+        const lockedTodayOrLater = closings.find(c =>
+            c.bookId === bookId &&
+            c.status === 'LOCKED' &&
+            c.date >= today
+        );
+        if (lockedTodayOrLater) {
+            throw new Error(`Cannot delete book '${book.name}' with locked daily closing on or after today (${lockedTodayOrLater.date})`);
+        }
+
+        book.status = 'DELETED';
+        book.deletedAt = new Date().toISOString();
+        book.updatedAt = new Date().toISOString();
+
+        // If the deleted book was the activeBookId, switch to another available non-deleted book
+        let nextActiveBookId = envelope.activeBookId;
+        if (envelope.activeBookId === bookId) {
+            const nextBook = envelope.books.find(b => b.status !== 'DELETED');
+            nextActiveBookId = nextBook ? nextBook.id : null;
+            envelope.activeBookId = nextActiveBookId;
+        }
+
+        let lastEvent = envelope.auditLog.length > 0 ? envelope.auditLog[envelope.auditLog.length - 1] : null;
+        const auditEvent = createAuditEvent({
+            lastEvent,
+            eventType: AuditEventType.BOOK_DELETED || AuditEventType.BOOK_UPDATED,
+            entityId: book.id,
+            payload: { bookId, name: book.name, deletedAt: book.deletedAt },
+            actor: options.actor || AuditActor.USER,
+            source: options.source || AuditSource.MANUAL
+        });
+        envelope.auditLog.push(auditEvent);
+
+        envelope.checksum = computeEnvelopeChecksum(envelope);
+        await StorageService.save(key, envelope);
+        return { success: true, deletedBookId: bookId, activeBookId: nextActiveBookId };
     },
 
     /**

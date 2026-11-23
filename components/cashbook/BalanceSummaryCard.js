@@ -56,7 +56,7 @@ export default function BalanceSummaryCard({
                             </TouchableOpacity>
                         )}
 
-                        {onToggleMode && (
+                        {__DEV__ && onToggleMode && (
                             <TouchableOpacity
                                 onPress={onToggleMode}
                                 style={[

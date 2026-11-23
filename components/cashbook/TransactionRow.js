@@ -63,6 +63,8 @@ export default function TransactionRow({ item, onPress }) {
     let typeLabel = 'Expense';
     let isTransfer = false;
     let isIncome = false;
+    let isOpeningBalance = false;
+    let isAdjustment = false;
 
     if (rawTxn?.transactionType === TransactionType.INCOME) {
         typeLabel = 'Income';
@@ -72,8 +74,10 @@ export default function TransactionRow({ item, onPress }) {
         isTransfer = true;
     } else if (rawTxn?.transactionType === TransactionType.OPENING_BALANCE) {
         typeLabel = 'Opening';
+        isOpeningBalance = true;
     } else if (rawTxn?.transactionType === TransactionType.ADJUSTMENT) {
         typeLabel = 'Adjustment';
+        isAdjustment = true;
     }
 
     const subtitle = `${typeLabel} • ${accountDisplay || 'Primary'}`;
@@ -115,12 +119,14 @@ export default function TransactionRow({ item, onPress }) {
                     style={[
                         styles.amount,
                         isIncome && styles.amountIncome,
-                        !isIncome && !isTransfer && styles.amountExpense,
+                        !isIncome && !isTransfer && !isOpeningBalance && !isAdjustment && styles.amountExpense,
                         isTransfer && styles.amountTransfer,
+                        isOpeningBalance && styles.amountOpening,
+                        isAdjustment && styles.amountAdjustment,
                         isVoided && styles.amountVoided
                     ]}
                 >
-                    {isTransfer
+                    {isTransfer || isOpeningBalance || isAdjustment
                         ? formattedAmount.replace('+', '').replace('-', '').trim()
                         : isIncome
                             ? (formattedAmount.startsWith('+') ? formattedAmount : `+ ${formattedAmount}`)
@@ -205,6 +211,12 @@ const styles = StyleSheet.create({
     },
     amountTransfer: {
         color: '#0F172A'
+    },
+    amountOpening: {
+        color: '#8B5CF6'
+    },
+    amountAdjustment: {
+        color: '#F59E0B'
     },
     amountVoided: {
         color: '#94A3B8',

@@ -32,7 +32,9 @@ const SUITES = [
     'test_cashbook_gate9_logging_bridge.mjs',
     'test_cashbook_gate11_security_privacy.mjs',
     'test_cashbook_phase1_accounting_boundaries.mjs',
-    'test_cashbook_phase2_ui_views.mjs'
+    'test_cashbook_phase2_ui_views.mjs',
+    'test_cashbook_hardening.mjs',
+    'test_cashbook_book_lifecycle.mjs'
 ];
 
 console.log('================================================================');

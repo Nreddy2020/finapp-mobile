@@ -7,6 +7,16 @@
 import { moneyToRupees, canonicalJsonStringify } from './cashbookContracts.js';
 import { sha256 } from './cashbookAuditTrail.js';
 
+/**
+ * Quotes a CSV cell and neutralises spreadsheet formula injection
+ * (cells starting with = + - @ TAB or CR are prefixed with an apostrophe).
+ */
+function csvCell(value) {
+    let str = value === undefined || value === null ? '' : String(value);
+    if (/^[=+\-@\t\r]/.test(str)) str = `'${str}`;
+    return `"${str.replace(/"/g, '""')}"`;
+}
+
 export const CashbookExport = {
     /**
      * Generates an auditable CSV representation of transactions.
@@ -41,16 +51,16 @@ export const CashbookExport = {
                 t.date,
                 t.transactionType,
                 t.status,
-                `"${(srcAcc || '').replace(/"/g, '""')}"`,
-                `"${(destAcc || '').replace(/"/g, '""')}"`,
+                csvCell(srcAcc),
+                csvCell(destAcc),
                 amountInr.toFixed(2),
-                `"${(t.category || '').replace(/"/g, '""')}"`,
-                `"${(t.subcategory || '').replace(/"/g, '""')}"`,
-                `"${(t.description || '').replace(/"/g, '""')}"`,
+                csvCell(t.category),
+                csvCell(t.subcategory),
+                csvCell(t.description),
                 t.transferGroupId || '',
                 t.source || '',
                 t.idempotencyKey || '',
-                `"${(t.voidReason || '').replace(/"/g, '""')}"`
+                csvCell(t.voidReason)
             ].join(',');
         });
 
