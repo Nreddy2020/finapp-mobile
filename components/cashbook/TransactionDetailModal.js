@@ -258,7 +258,11 @@ export default function TransactionDetailModal({
                         >
                             {raw.transactionType === TransactionType.TRANSFER
                                 ? `₹ ${journalData.totalFormatted}`
-                                : transaction.formattedAmount}
+                                : raw.transactionType === TransactionType.EXPENSE
+                                    ? `- ₹ ${journalData.totalFormatted}`
+                                    : raw.transactionType === TransactionType.INCOME
+                                        ? `+ ₹ ${journalData.totalFormatted}`
+                                        : transaction.formattedAmount}
                         </Text>
                         <View style={styles.dateRow}>
                             <Calendar size={13} color="#64748B" />
@@ -556,9 +560,12 @@ const styles = StyleSheet.create({
     metaLabel: {
         fontSize: 13,
         color: '#64748B',
-        fontWeight: '500'
+        fontWeight: '500',
+        marginRight: 12
     },
     metaValue: {
+        flex: 1,
+        textAlign: 'right',
         fontSize: 14,
         fontWeight: '700',
         color: '#0F172A'

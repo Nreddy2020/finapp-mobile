@@ -4,15 +4,16 @@
  * FinLife Universal Cashbook — Grouped Transactions Ledger (Screen 3).
  * 
  * Features:
+ * - Search bar with filter icon (matching mockup)
  * - Date-grouped SectionList with formatted date headers ("Tue, Jan 28, 2025")
  * - Sticky section headers
  * - Smooth pull-to-refresh
  * - Clean light styling matching FinLife specification (#FFFFFF, #F8FAFC)
  */
 
-import React from 'react';
-import { View, Text, StyleSheet, SectionList, RefreshControl, TouchableOpacity } from 'react-native';
-import { Calendar, Plus } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, SectionList, RefreshControl, TouchableOpacity, TextInput } from 'react-native';
+import { Calendar, Plus, Search, SlidersHorizontal } from 'lucide-react-native';
 import TransactionRow from './TransactionRow.js';
 import { formatDateHeader } from '../../services/cashbook/cashbookPresentation.js';
 
@@ -24,8 +25,23 @@ export default function TransactionList({
     onRefresh,
     onPressRow,
     onAddPress,
+    onFilter,
     ListHeaderComponent
 }) {
+    const [searchText, setSearchText] = useState('');
+
+    const filteredSections = searchText.trim()
+        ? sections
+            .map(section => ({
+                ...section,
+                data: section.data.filter(item =>
+                    (item.description || '').toLowerCase().includes(searchText.toLowerCase()) ||
+                    (item.accountDisplay || '').toLowerCase().includes(searchText.toLowerCase())
+                )
+            }))
+            .filter(section => section.data.length > 0)
+        : sections;
+
     const renderSectionHeader = ({ section: { title } }) => (
         <View style={styles.sectionHeader}>
             <Text style={styles.sectionHeaderText}>{formatDateHeader(title)}</Text>
@@ -55,16 +71,46 @@ export default function TransactionList({
         </View>
     );
 
+    const SearchHeader = (
+        <View style={styles.searchBar}>
+            <View style={styles.searchInputWrap}>
+                <Search size={16} color="#94A3B8" style={styles.searchIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search transactions..."
+                    placeholderTextColor="#94A3B8"
+                    value={searchText}
+                    onChangeText={setSearchText}
+                    returnKeyType="search"
+                />
+            </View>
+            <TouchableOpacity
+                style={styles.filterBtn}
+                onPress={onFilter}
+                activeOpacity={0.7}
+                accessibilityLabel="Filter transactions"
+            >
+                <SlidersHorizontal size={18} color="#64748B" />
+            </TouchableOpacity>
+        </View>
+    );
+
     return (
         <SectionList
-            sections={sections}
+            sections={filteredSections}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             renderSectionHeader={renderSectionHeader}
-            ListHeaderComponent={ListHeaderComponent}
+            ListHeaderComponent={
+                <>
+                    {SearchHeader}
+                    {ListHeaderComponent}
+                </>
+            }
             ListEmptyComponent={renderEmpty}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled
             refreshControl={
                 onRefresh ? (
                     <RefreshControl
@@ -83,6 +129,45 @@ const styles = StyleSheet.create({
     listContent: {
         paddingBottom: 90,
         backgroundColor: '#F8FAFC'
+    },
+    searchBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        backgroundColor: '#F8FAFC'
+    },
+    searchInputWrap: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: '#E2E8F0',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        gap: 8
+    },
+    searchIcon: {
+        // small offset handled by gap
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#0F172A',
+        padding: 0
+    },
+    filterBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
     },
     sectionHeader: {
         paddingHorizontal: 20,

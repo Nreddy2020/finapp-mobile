@@ -602,32 +602,18 @@ export default function CashbooksScreen() {
                 {/* Sub-Tab 2: Transactions Ledger (Screen 3) */}
                 {activeTab === 'TRANSACTIONS' && (
                     <View style={styles.transactionsTabContainer}>
-                        {/* Search & Filter Funnel Bar */}
-                        <View style={styles.searchBarRow}>
-                            <View style={styles.searchInputContainer}>
-                                <Search size={16} color="#94A3B8" />
-                                <TextInput
-                                    style={styles.searchInput}
-                                    placeholder="Search transactions..."
-                                    placeholderTextColor="#94A3B8"
-                                    value={searchQuery}
-                                    onChangeText={setSearchQuery}
-                                />
-                                {searchQuery.length > 0 && (
-                                    <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                        <X size={14} color="#94A3B8" />
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
-                            <TouchableOpacity
-                                style={[styles.filterFunnelBtn, showFilterPills && styles.filterFunnelBtnActive]}
-                                onPress={() => setShowFilterPills(!showFilterPills)}
-                                activeOpacity={0.7}
-                            >
-                                <Filter size={18} color={showFilterPills ? '#6366F1' : '#64748B'} />
-                            </TouchableOpacity>
-                        </View>
+                        {/* Date Grouped Transaction SectionList with built-in search bar */}
+                        <TransactionList
+                            sections={viewModel.sections}
+                            refreshing={refreshing}
+                            onRefresh={handleRefresh}
+                            onPressRow={(row) => {
+                                setSelectedTransaction(row);
+                                setDetailModalVisible(true);
+                            }}
+                            onAddPress={() => setAddModalVisible(true)}
+                            onFilter={() => setShowFilterPills(!showFilterPills)}
+                        />
 
                         {/* Collapsible Filter Bar */}
                         {showFilterPills && (
@@ -641,18 +627,6 @@ export default function CashbooksScreen() {
                                 onSearchChange={setSearchQuery}
                             />
                         )}
-
-                        {/* Date Grouped Transaction SectionList */}
-                        <TransactionList
-                            sections={viewModel.sections}
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            onPressRow={(row) => {
-                                setSelectedTransaction(row);
-                                setDetailModalVisible(true);
-                            }}
-                            onAddPress={() => setAddModalVisible(true)}
-                        />
 
                         {/* Floating Add Pill Button */}
                         <TouchableOpacity

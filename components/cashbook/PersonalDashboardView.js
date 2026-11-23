@@ -26,8 +26,8 @@ import {
     Wallet,
     ArrowUpRight,
     ArrowDownLeft,
+    ArrowLeftRight,
     TrendingUp,
-    Layers,
     Landmark,
     Phone,
     CreditCard,
@@ -126,7 +126,7 @@ export default function PersonalDashboardView({
                             </View>
                             <Text style={styles.metricCardLabel}>Income</Text>
                         </View>
-                        <Text style={styles.metricCardValue}>{incomeFormatted}</Text>
+                        <Text style={[styles.metricCardValue, styles.metricCardValueIncome]}>{incomeFormatted}</Text>
                     </View>
 
                     {/* Expense */}
@@ -137,14 +137,14 @@ export default function PersonalDashboardView({
                             </View>
                             <Text style={styles.metricCardLabel}>Expense</Text>
                         </View>
-                        <Text style={styles.metricCardValue}>{expenseFormatted}</Text>
+                        <Text style={[styles.metricCardValue, styles.metricCardValueExpense]}>{expenseFormatted}</Text>
                     </View>
 
                     {/* Transfers */}
                     <View style={styles.metricCard}>
                         <View style={styles.metricCardHeader}>
                             <View style={[styles.metricIconWrap, { backgroundColor: '#EFF6FF' }]}>
-                                <Layers size={16} color="#3B82F6" />
+                                <ArrowLeftRight size={16} color="#3B82F6" />
                             </View>
                             <Text style={styles.metricCardLabel}>Transfers</Text>
                         </View>
@@ -160,7 +160,7 @@ export default function PersonalDashboardView({
                             </View>
                             <Text style={styles.metricCardLabel}>Net Cash Flow</Text>
                         </View>
-                        <Text style={styles.metricCardValue}>{netCashFlowFormatted}</Text>
+                        <Text style={[styles.metricCardValue, styles.metricCardValuePositive]}>{netCashFlowFormatted}</Text>
                     </View>
                 </View>
 
@@ -372,6 +372,15 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         color: '#0F172A',
         letterSpacing: -0.3
+    },
+    metricCardValueIncome: {
+        color: '#10B981'
+    },
+    metricCardValueExpense: {
+        color: '#EF4444'
+    },
+    metricCardValuePositive: {
+        color: '#10B981'
     },
     metricCardSub: {
         fontSize: 10,

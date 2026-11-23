@@ -34,15 +34,15 @@ export { getTransactionIconMeta };
 function resolveTransactionIconComp(iconKey) {
     switch (iconKey) {
         case 'Ban': return Ban;
-        case 'Income': return ArrowDownLeft;
+        case 'Income': return ArrowUpRight;
         case 'Transfer': return ArrowLeftRight;
         case 'Rent': return Home;
         case 'Groceries': return ShoppingCart;
         case 'Health': return Shield;
-        case 'Fuel': return Car;
+        case 'Fuel': return Fuel;
         case 'Expense':
         default:
-            return ArrowUpRight;
+            return ArrowDownLeft;
     }
 }
 
@@ -120,7 +120,12 @@ export default function TransactionRow({ item, onPress }) {
                         isVoided && styles.amountVoided
                     ]}
                 >
-                    {isTransfer ? formattedAmount.replace('+', '').replace('-', '') : formattedAmount}
+                    {isTransfer
+                        ? formattedAmount.replace('+', '').replace('-', '').trim()
+                        : isIncome
+                            ? (formattedAmount.startsWith('+') ? formattedAmount : `+ ${formattedAmount}`)
+                            : (formattedAmount.startsWith('-') ? formattedAmount : `- ${formattedAmount}`)
+                    }
                 </Text>
             </View>
         </TouchableOpacity>
