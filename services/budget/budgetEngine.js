@@ -12,7 +12,8 @@ import {
     DEBT_STRATEGY,
     DEFAULT_DEBT_POLICY,
     CATEGORY_TYPE_MAPPING,
-    RECOMMENDATION_POLICY
+    RECOMMENDATION_POLICY,
+    parsePaise
 } from './budgetContracts.js';
 
 /**
@@ -191,8 +192,10 @@ export function computeAllocationBreakdown({
         const type = b.type || CATEGORY_TYPE_MAPPING[catName] || 'Needs';
         const bucket = breakdown[type] ? type : 'Needs';
         
-        breakdown[bucket].allocated += Number(b.limit) || 0;
-        breakdown[bucket].spent += Number(b.spent) || 0;
+        const allocPaise = parsePaise(b.limitPaise, b.limit);
+        const spentPaise = parsePaise(b.spentPaise, b.spent);
+        breakdown[bucket].allocated += Number(allocPaise / 100n);
+        breakdown[bucket].spent += Number(spentPaise / 100n);
         breakdown[bucket].count += 1;
     });
 

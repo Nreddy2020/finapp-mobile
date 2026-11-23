@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, Alert } from 'react-native';
 import { X, Save, Trash2, Edit2, Info, Utensils, ShoppingBag, Car, Home, Heart, Zap, Smartphone, Plane, GraduationCap, Gift, Wallet } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -49,22 +49,26 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
 
     const handleSave = () => {
         if (!limit.trim()) {
-            alert('Please set a budget limit');
+            Alert.alert('Invalid budget', 'Please set a budget limit');
             return;
         }
 
         const parsedLimit = parseFloat(limit);
         if (isNaN(parsedLimit) || parsedLimit <= 0) {
-            alert('Please enter a valid positive budget limit');
+            Alert.alert('Invalid budget', 'Please enter a valid positive budget limit');
             return;
         }
+
+        const limitPaise = BigInt(Math.round(parsedLimit * 100));
 
         const budgetData = {
             id: editingBudget?.id || Date.now().toString(),
             category,
             type: allocationType,
             limit: parsedLimit,
+            limitPaise,
             period,
+            periodKey: editingBudget?.periodKey || null,
             updatedAt: new Date().toISOString()
         };
 
@@ -73,9 +77,19 @@ export default function AddBudgetModal({ visible, onClose, onSave, onDelete, edi
     };
 
     const handleDelete = () => {
-        if (onDelete && editingBudget) {
-            onDelete(editingBudget.id);
-        }
+        if (!onDelete || !editingBudget) return;
+        Alert.alert(
+            'Delete this budget?',
+            `"${editingBudget.category}" budget will be removed. This can't be undone.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: () => onDelete(editingBudget.id)
+                }
+            ]
+        );
     };
 
 

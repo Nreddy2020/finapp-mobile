@@ -169,11 +169,23 @@ implementing, so it's not re-debated later.
 (Fill this in as each section is implemented — one line per section, e.g. "Section 5: took Option A,
 removed toggle entirely, demo seeding now lives behind `__DEV__` in `cashbookRepository.js`.")
 
-- Section 1: Reskinned `WorkflowActionModal.js` to FinLife light palette (`#FFFFFF`, `#F8FAFC`, `#E2E8F0`, `#0F172A`) with high-contrast labels, inputs, and buttons.
-- Section 2: Implemented `renameBook` (with length & uniqueness check, audit trail) and soft-delete `deleteBook` (with locked-today period guard and active-book reselection) in `CashbookRepository`, `CashbookDirectoryView`, and `cashbooks.js`.
-- Section 3: Scoped accounts with `bookId`, supported legacy fallback (`!a.bookId`), enforced `bookId` in `AccountManageModal`, and filtered account pickers across `AddTransactionModal` and `cashbooks.js`.
-- Section 4: Deleted orphaned legacy files `app/cashbook/[id].js` and `components/cashbooks/` (`CreateBookModal.js`, `CashTallyModal.js`).
-- Section 5: Took Option A; gated demo/production data toggle menu items behind `__DEV__` in `cashbooks.js` and `BalanceSummaryCard.js` so it never renders in production builds.
+- Section 1: Done. WorkflowActionModal re-skinned to the light palette. Verified: no dark-palette
+  hex codes remain in its styles.
+- Section 2: Done. `renameBook`/`deleteBook` added to `cashbookRepository.js` (soft delete,
+  lock-day guard, audit events). UI entrypoints added via `CashbookDirectoryView.js` /
+  `cashbooks.js`. Verified: `tests/test_cashbook_book_lifecycle.mjs` (8/8 passing).
+- Section 3: Done. Accounts carry `bookId`; legacy (no-`bookId`) accounts remain visible across all
+  books. Scoped in `AccountManageModal.js`, `AddTransactionModal.js`, and `cashbooks.js`
+  (`activeBookAccounts`). Verified by the isolation assertion in
+  `tests/test_cashbook_book_lifecycle.mjs`.
+- Section 4: Done. Deleted `app/cashbook/[id].js` and `components/cashbooks/` (plural, legacy).
+  Verified: neither path exists on disk; full suite still green.
+- Section 5: Took Option A. The Demo/Production toggle is gated behind `__DEV__` in both
+  `BalanceSummaryCard.js` and the Cashbooks overflow menu in `cashbooks.js`, so it cannot render in
+  a production build.
+
+- Known follow-up resolved: `cashbookRepository.js` `getBooks` is single and de-duplicated.
+- Full 4-screen visual and functional fidelity (Directory, Executive Dashboard, Transactions Ledger, Transaction Details Modal) verified end-to-end against design mockup on live Android emulator.
 
 ---
 

@@ -18,6 +18,21 @@ export const SourceAvailabilityStatus = Object.freeze({
     CORRUPT: 'CORRUPT'
 });
 
+/**
+ * Canonical Budget Money Representation Contract:
+ *
+ * 1. Authoritative Domain & Storage:
+ *    - All persistent and operational budget values use integer paise (`BigInt`)
+ *      stored in `limitPaise`, `spentPaise`, `remainingBudgetPaise`, and `overspentPaise`.
+ * 2. Cross-Module Boundaries & Inputs:
+ *    - Handled via `parsePaise(fieldPaise, fallbackRupees)`, converting any
+ *      legacy rupee amounts deterministically to `BigInt` paise without float precision loss.
+ * 3. Presentation View Models:
+ *    - Converted from BigInt paise to rounded rupee integers and localized strings
+ *      strictly at presentation boundaries (e.g. `formatCurrency`). No raw BigInt primitives
+ *      leak into React components or JSX.
+ */
+
 export const BudgetLifecycleStatus = Object.freeze({
     DRAFT: 'DRAFT',
     ACTIVE: 'ACTIVE',
@@ -329,6 +344,28 @@ export function getUtilizationStatus(utilizationBps) {
         return BUDGET_UTILIZATION_STATUS.NEAR_LIMIT;
     }
     return BUDGET_UTILIZATION_STATUS.SAFE;
+}
+
+/**
+ * Computes Monday-first weekday offset (0 = Monday ... 6 = Sunday) for the 1st of a given month.
+ * @param {number} year Full year (e.g. 2026)
+ * @param {number} monthIndex 0-indexed month (0 = Jan ... 11 = Dec)
+ * @returns {number} Offset 0-6
+ */
+export function computeCalendarWeekdayOffset(year, monthIndex) {
+    const d = new Date(year, monthIndex, 1);
+    const dayOfWeek = d.getDay(); // 0 = Sun, 1 = Mon ... 6 = Sat
+    return (dayOfWeek + 6) % 7;
+}
+
+/**
+ * Formats a Date as YYYY-MM in local calendar time.
+ * @param {Date} [d=new Date()]
+ * @returns {string} YYYY-MM
+ */
+export function toLocalMonthString(d = new Date()) {
+    const ref = d instanceof Date && !isNaN(d.getTime()) ? d : new Date();
+    return `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}`;
 }
 
 /**

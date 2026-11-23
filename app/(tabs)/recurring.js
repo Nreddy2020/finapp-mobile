@@ -21,7 +21,8 @@ import {
     StyleSheet,
     TouchableOpacity,
     BackHandler,
-    StatusBar
+    StatusBar,
+    Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +33,9 @@ import {
     buildRecurringCommitmentsViewModel,
     CommitmentFilterPill
 } from '../../services/commitments/commitmentViewModel.js';
+// Reuse the project's established local-date convention (see
+// docs/planning/003-recurring-commitments-followups.md Section 2) instead of a hardcoded literal.
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 
 import CommitmentHeroCard from '../../components/commitments/CommitmentHeroCard.js';
 import CommitmentFilterPills from '../../components/commitments/CommitmentFilterPills.js';
@@ -45,7 +49,11 @@ export default function RecurringScreen() {
     const insets = useSafeAreaInsets();
 
     const [refreshing, setRefreshing] = useState(false);
-    const [appMode, setAppMode] = useState('DEMO'); // 'DEMO' | 'PRODUCTION'
+    // Start as null (not 'DEMO') until the persisted mode has actually been read — see
+    // docs/planning/003-recurring-commitments-followups.md Section 3. Hardcoding 'DEMO' here
+    // meant this screen always opened in demo mode and ignored whatever the user had chosen
+    // elsewhere, since CommitmentsService.getMode() was never consulted.
+    const [appMode, setAppMode] = useState(null); // null (loading) | 'DEMO' | 'PRODUCTION'
     const [commitments, setCommitments] = useState([]);
     const [occurrences, setOccurrences] = useState([]);
     const [activeFilter, setActiveFilter] = useState(CommitmentFilterPill.ALL);
@@ -95,7 +103,22 @@ export default function RecurringScreen() {
         }
     };
 
+    // Sync the local appMode state from the persisted value exactly once on mount, instead of
+    // hardcoding 'DEMO' and ignoring whatever was last chosen (Plan 003, Section 3).
+    useEffect(() => {
+        let isMounted = true;
+        CommitmentsService.getMode()
+            .then(mode => {
+                if (isMounted) setAppMode(mode);
+            })
+            .catch(() => {
+                if (isMounted) setAppMode('PRODUCTION');
+            });
+        return () => { isMounted = false; };
+    }, []);
+
     const loadData = useCallback(async () => {
+        if (!appMode) return; // persisted mode not resolved yet; the mode-sync effect will re-trigger this
         try {
             const data = await CommitmentsService.load({ mode: appMode });
             setCommitments(data.commitments || []);
@@ -116,9 +139,16 @@ export default function RecurringScreen() {
         loadData();
     };
 
-    const toggleAppMode = () => {
+    const toggleAppMode = async () => {
         const nextMode = appMode === 'DEMO' ? 'PRODUCTION' : 'DEMO';
         setAppMode(nextMode);
+        // Persist the choice — without this, the toggle was purely local React state and reset to
+        // 'DEMO' every time this screen remounted (Plan 003, Section 3).
+        try {
+            await CommitmentsService.setMode(nextMode);
+        } catch (err) {
+            console.error('Failed to persist app mode:', err);
+        }
     };
 
     // Build View Model via pure presentation adapter
@@ -126,7 +156,7 @@ export default function RecurringScreen() {
         commitments,
         occurrences,
         activeFilter,
-        asOfDate: '2026-09-01'
+        asOfDate: todayLocal()
     });
 
     // Action Handlers
@@ -289,7 +319,10 @@ export default function RecurringScreen() {
                 <CommitmentHeroCard
                     heroMetrics={viewModel.hero}
                     appMode={appMode}
-                    onToggleMode={toggleAppMode}
+                    // Dev-only: the Demo/Production switch must never be reachable in a
+                    // production build (same convention as Cashbooks, Plan 001 Section 5).
+                    // CommitmentHeroCard only renders the toggle when onToggleMode is truthy.
+                    onToggleMode={__DEV__ ? toggleAppMode : undefined}
                 />
 
                 {/* Filter Pills */}

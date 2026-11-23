@@ -50,11 +50,22 @@ export default function GroupExpensesScreen() {
 
     const loadData = useCallback(async () => {
         try {
-            let data = await GroupViewModel.getDashboardData('You');
-            if (!data || data.groups.length === 0) {
-                data = await GroupViewModel.seedMockupDemoData();
-            }
+            // IMPORTANT: never auto-seed/reset data here just because `groups` looks empty.
+            // An empty groups array can mean either "genuinely no groups yet" (fine — the UI
+            // already has an empty state for that further down this screen) or "storage failed
+            // checksum verification / parsing" (NOT fine — that must never be treated as an
+            // invitation to wipe and reseed demo data). See
+            // docs/planning/004-group-expenses-followups.md Section 1.
+            const data = await GroupViewModel.getDashboardData('You');
             setDashboardData(data);
+            if (data.storageQuarantined) {
+                Alert.alert(
+                    'Shared Costs Data Issue',
+                    "We couldn't verify your saved Shared Costs data (it may be damaged). " +
+                    'Your groups list may look empty, but nothing has been deleted. ' +
+                    'Please avoid using "Reset Demo Data" and contact support if this persists.'
+                );
+            }
         } catch (err) {
             console.error('[GroupExpensesScreen] Error loading data:', err);
             Alert.alert('Error Loading Groups', err.message);
@@ -112,13 +123,19 @@ export default function GroupExpensesScreen() {
     }, [expenseDetailVisible, recordSettlementVisible, addExpenseVisible, createGroupVisible, groupDetailVisible, handleBack]);
 
     const handleResetDemoData = async () => {
+        // Dev-only utility: seedMockupDemoData() calls GroupRepository.clearStore() first, which
+        // permanently deletes every real group, member, and expense currently saved. This button
+        // is gated behind __DEV__ (see the header render below) so it can never reach a production
+        // build, but keep the confirmation copy honest in case __DEV__ tooling exposes it anyway.
         Alert.alert(
-            'Reset Demo Data',
-            'Restore default mockup demo dataset (Goa Trip, Home Expenses, Office Friends)?',
+            'Reset Demo Data (Dev Only)',
+            'This will PERMANENTLY DELETE all groups, members, and expenses currently saved on ' +
+            'this device — including any real data you have entered — and replace them with the ' +
+            'mockup demo dataset (Goa Trip, Home Expenses, Office Friends). This cannot be undone.',
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Reset Demo Data',
+                    text: 'Delete Everything & Reset',
                     style: 'destructive',
                     onPress: async () => {
                         setLoading(true);
@@ -248,9 +265,13 @@ export default function GroupExpensesScreen() {
                 </View>
 
                 <View style={styles.headerActions}>
-                    <Pressable style={styles.iconActionBtn} onPress={handleResetDemoData}>
-                        <RefreshCw size={18} color="#94A3B8" />
-                    </Pressable>
+                    {/* Dev-only: this action deletes all real data (see handleResetDemoData).
+                        Never render it in a production build. */}
+                    {__DEV__ && (
+                        <Pressable style={styles.iconActionBtn} onPress={handleResetDemoData}>
+                            <RefreshCw size={18} color="#94A3B8" />
+                        </Pressable>
+                    )}
                     <Pressable style={styles.addBtnSmall} onPress={() => setCreateGroupVisible(true)}>
                         <Plus size={20} color="#FFF" />
                     </Pressable>

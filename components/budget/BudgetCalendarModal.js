@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ScrollView } from 'rea
 import { ArrowLeft, ChevronLeft, ChevronRight, Home, CreditCard, GraduationCap, Shield, Zap, Wallet, CheckCircle2 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatCurrency } from '../../services/budget/budgetViewModel.js';
+import { computeCalendarWeekdayOffset } from '../../services/budget/budgetContracts.js';
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -15,19 +16,35 @@ const COMMITMENT_ICONS = {
     'Salary Expected': Wallet
 };
 
-export default function BudgetCalendarModal({ visible, onClose, calendarData, reconciledTotals }) {
+function formatSelectedDayLabel(year, monthIndex, day) {
+    if (!year || monthIndex === undefined || !day) return '';
+    const dateObj = new Date(year, monthIndex, day);
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const monthShorts = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${dayNames[dateObj.getDay()]}, ${day} ${monthShorts[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+}
+
+export default function BudgetCalendarModal({
+    visible,
+    onClose,
+    calendarData,
+    reconciledTotals,
+    onPrevMonth,
+    onNextMonth
+}) {
     const insets = useSafeAreaInsets();
     const [selectedDay, setSelectedDay] = useState(5);
     const [viewMode, setViewMode] = useState('Calendar'); // 'Calendar' | 'Summary'
 
     if (!visible || !calendarData) return null;
 
-    const period = calendarData.period || { monthName: 'September', year: 2026, daysInPeriod: 30 };
+    const period = calendarData.period || { monthName: 'September', year: 2026, month: 9, daysInPeriod: 30 };
     const eventsByDay = calendarData.eventsByDay || {};
 
-    // September 2026 starts on Tuesday (offset = 1)
-    const startDayOffset = 1;
-    const totalSlots = 35; // 5 weeks * 7 days
+    const monthIndex = (period.month || 1) - 1;
+    const startDayOffset = computeCalendarWeekdayOffset(period.year, monthIndex);
+    const neededSlots = startDayOffset + (period.daysInPeriod || 30);
+    const totalSlots = neededSlots > 35 ? 42 : 35;
 
     const selectedEvents = eventsByDay[selectedDay] || [];
 
@@ -50,8 +67,26 @@ export default function BudgetCalendarModal({ visible, onClose, calendarData, re
                     <View style={styles.monthNav}>
                         <Text style={styles.navTitle}>{period.monthName} {period.year}</Text>
                         <View style={styles.chevronGroup}>
-                            <TouchableOpacity style={styles.navChevron}><ChevronLeft size={16} color="#94A3B8" /></TouchableOpacity>
-                            <TouchableOpacity style={styles.navChevron}><ChevronRight size={16} color="#94A3B8" /></TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.navChevron}
+                                onPress={onPrevMonth}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityLabel="Previous month"
+                                accessibilityRole="button"
+                            >
+                                <ChevronLeft size={16} color="#94A3B8" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.navChevron}
+                                onPress={onNextMonth}
+                                activeOpacity={0.7}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityLabel="Next month"
+                                accessibilityRole="button"
+                            >
+                                <ChevronRight size={16} color="#94A3B8" />
+                            </TouchableOpacity>
                         </View>
                     </View>
 
@@ -129,7 +164,7 @@ export default function BudgetCalendarModal({ visible, onClose, calendarData, re
                     <View style={styles.selectedSection}>
                         <Text style={styles.sectionHeaderTitle}>Selected Date</Text>
                         <Text style={styles.dateSubtitle}>
-                            {selectedDay === 5 ? 'Fri, 5 Sep 2026' : `Day ${selectedDay} ${period.monthName} ${period.year}`}
+                            {formatSelectedDayLabel(period.year, monthIndex, selectedDay)}
                         </Text>
 
                         {selectedEvents.length > 0 ? (

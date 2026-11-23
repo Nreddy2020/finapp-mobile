@@ -63,6 +63,7 @@ import {
 import { buildCashbookViewModel, FilterType } from '../../services/cashbook/cashbookViewModel.js';
 import { CashbookExport } from '../../services/cashbook/cashbookExport.js';
 import { todayLocal } from '../../services/cashbook/cashbookDates.js';
+import { getBookVisualMeta } from '../../services/cashbook/cashbookPresentation.js';
 
 // V3 Purpose-Built Screen Components
 import CashbookDirectoryView from '../../components/cashbook/CashbookDirectoryView.js';
@@ -442,8 +443,14 @@ export default function CashbooksScreen() {
 
     // Dashboards ask for tabs by name; map legacy/unknown names to real tabs
     // (a dashboard asked for 'LEDGER', which rendered a blank screen).
-    const handleNavigateTab = (tab) => {
+    const handleNavigateTab = (tab, options = {}) => {
         const resolved = tab === 'LEDGER' ? 'TRANSACTIONS' : tab;
+        if (options?.filter) {
+            if (options.filter === 'INCOME') setActiveFilter(FilterType.INCOME);
+            else if (options.filter === 'EXPENSE') setActiveFilter(FilterType.EXPENSE);
+            else if (options.filter === 'TRANSFER') setActiveFilter(FilterType.TRANSFER);
+            setShowFilterPills(true);
+        }
         setActiveTab(VALID_TABS.includes(resolved) ? resolved : 'DASHBOARD');
     };
 
@@ -522,8 +529,10 @@ export default function CashbooksScreen() {
     };
 
     const menuItems = [
-        { key: 'switch', label: 'Switch Book', icon: Repeat, onPress: () => setViewMode('DIRECTORY') },
+        { key: 'ledger', label: 'View Transactions Ledger', icon: Repeat, onPress: () => setActiveTab('TRANSACTIONS') },
         { key: 'accounts', label: 'Manage Accounts', icon: Users, onPress: () => setAccountsModalVisible(true) },
+        { key: 'reports', label: 'Financial Reports', icon: Wallet, onPress: () => setActiveTab('REPORTS') },
+        { key: 'switch', label: 'Switch Book', icon: Repeat, onPress: () => setViewMode('DIRECTORY') },
         { key: 'export', label: 'Export CSV Ledger', icon: Download, onPress: handleExportCSV },
         ...(__DEV__ ? [{
             key: 'mode',
@@ -590,11 +599,11 @@ export default function CashbooksScreen() {
                     </TouchableOpacity>
 
                     <Text style={styles.bookHeaderTitle} numberOfLines={1}>
-                        {activeBook?.name
-                            ? (activeBook.name.toLowerCase().includes('cashbook')
-                                ? activeBook.name
-                                : `${activeBook.name} Cashbook`)
-                            : 'Personal Cashbook'}
+                        {(() => {
+                            const meta = getBookVisualMeta(activeBook);
+                            const title = meta?.title || activeBook?.name || 'Personal';
+                            return title.toLowerCase().includes('cashbook') ? title : `${title} Cashbook`;
+                        })()}
                     </Text>
 
                     <TouchableOpacity
@@ -608,65 +617,53 @@ export default function CashbooksScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Sub-Tabs: [ Dashboard | Transactions | Accounts | Reports ] */}
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.subTabScroll}
-                    contentContainerStyle={styles.subTabBar}
-                >
-                    <TouchableOpacity
-                        style={[styles.subTabItem, activeTab === 'DASHBOARD' && styles.subTabItemActive]}
-                        onPress={() => setActiveTab('DASHBOARD')}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={[styles.subTabText, activeTab === 'DASHBOARD' && styles.subTabTextActive]}>
-                            Dashboard
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.subTabItem, activeTab === 'TRANSACTIONS' && styles.subTabItemActive]}
-                        onPress={() => setActiveTab('TRANSACTIONS')}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={[styles.subTabText, activeTab === 'TRANSACTIONS' && styles.subTabTextActive]}>
-                            Transactions
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.subTabItem, activeTab === 'ACCOUNTS' && styles.subTabItemActive]}
-                        onPress={() => setActiveTab('ACCOUNTS')}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={[styles.subTabText, activeTab === 'ACCOUNTS' && styles.subTabTextActive]}>
-                            Accounts
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[styles.subTabItem, activeTab === 'REPORTS' && styles.subTabItemActive]}
-                        onPress={() => setActiveTab('REPORTS')}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={[styles.subTabText, activeTab === 'REPORTS' && styles.subTabTextActive]}>
-                            Reports
-                        </Text>
-                    </TouchableOpacity>
-
-                    {isHandyCashBook && (
+                {/* Sub-Tabs for Ledger View (Screen 3): [ Transactions | Accounts | Reports ] */}
+                {/* On Screen 2 (DASHBOARD), the tab bar is hidden to match the executive design mockup. */}
+                {activeTab !== 'DASHBOARD' && (
+                    <View style={styles.subTabBarContainer}>
                         <TouchableOpacity
-                            style={[styles.subTabItem, activeTab === 'CLOSING' && styles.subTabItemActive]}
-                            onPress={() => setActiveTab('CLOSING')}
+                            style={[styles.subTabItem, activeTab === 'TRANSACTIONS' && styles.subTabItemActive]}
+                            onPress={() => setActiveTab('TRANSACTIONS')}
                             activeOpacity={0.7}
                         >
-                            <Text style={[styles.subTabText, activeTab === 'CLOSING' && styles.subTabTextActive]}>
-                                Closing
+                            <Text style={[styles.subTabText, activeTab === 'TRANSACTIONS' && styles.subTabTextActive]}>
+                                Transactions
                             </Text>
                         </TouchableOpacity>
-                    )}
-                </ScrollView>
+
+                        <TouchableOpacity
+                            style={[styles.subTabItem, activeTab === 'ACCOUNTS' && styles.subTabItemActive]}
+                            onPress={() => setActiveTab('ACCOUNTS')}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.subTabText, activeTab === 'ACCOUNTS' && styles.subTabTextActive]}>
+                                Accounts
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.subTabItem, activeTab === 'REPORTS' && styles.subTabItemActive]}
+                            onPress={() => setActiveTab('REPORTS')}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={[styles.subTabText, activeTab === 'REPORTS' && styles.subTabTextActive]}>
+                                Reports
+                            </Text>
+                        </TouchableOpacity>
+
+                        {isHandyCashBook && (
+                            <TouchableOpacity
+                                style={[styles.subTabItem, activeTab === 'CLOSING' && styles.subTabItemActive]}
+                                onPress={() => setActiveTab('CLOSING')}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={[styles.subTabText, activeTab === 'CLOSING' && styles.subTabTextActive]}>
+                                    Closing
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
 
                 {/* Sub-Tab 1: Purpose-Built Dashboard (Screen 2) */}
                 {activeTab === 'DASHBOARD' && (
@@ -1116,9 +1113,16 @@ const styles = StyleSheet.create({
         color: '#94A3B8',
         textAlign: 'center'
     },
+    subTabBarContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E2E8F0',
+        paddingHorizontal: 16
+    },
     subTabItem: {
+        flex: 1,
         paddingVertical: 12,
-        paddingHorizontal: 14,
         alignItems: 'center',
         justifyContent: 'center'
     },

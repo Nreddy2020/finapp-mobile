@@ -54,6 +54,11 @@ import {
     createMoneyPaise
 } from '../../services/cashbook/cashbookContracts.js';
 import { formatDateHeader } from './TransactionList.js';
+import {
+    formatCategoryLabel,
+    formatCleanPaise,
+    formatHeroAmount
+} from '../../services/cashbook/cashbookPresentation.js';
 
  const TYPE_LABELS = {
     [TransactionType.INCOME]: 'Income',
@@ -148,7 +153,7 @@ export default function TransactionDetailModal({
     const journalData = useMemo(() => {
         if (!raw) return { rows: [], isBalanced: true, totalFormatted: '0', isLegacyDerived: false };
         const paiseStr = raw.amount?.paise || '0';
-        const numRupees = fmtPaise(paiseStr);
+        const numRupees = formatCleanPaise(paiseStr);
 
         if (raw.lines && Array.isArray(raw.lines) && raw.lines.length >= 2) {
             let totalDr = 0n;
@@ -164,12 +169,12 @@ export default function TransactionDetailModal({
 
                 return {
                     name,
-                    drFormatted: debBi > 0n ? fmtPaise(debBi.toString()) : '—',
-                    crFormatted: credBi > 0n ? fmtPaise(credBi.toString()) : '—'
+                    drFormatted: debBi > 0n ? formatCleanPaise(debBi.toString()) : '—',
+                    crFormatted: credBi > 0n ? formatCleanPaise(credBi.toString()) : '—'
                 };
             });
 
-            const totalRupees = fmtPaise(totalDr.toString());
+            const totalRupees = formatCleanPaise(totalDr.toString());
             return {
                 rows,
                 isBalanced: totalDr === totalCr,
@@ -181,9 +186,10 @@ export default function TransactionDetailModal({
         // Canonical Synthesized Double-Entry for Legacy Transactions
         const srcAcc = accountMap.get(raw.sourceAccountId || raw.accountId);
         const destAcc = accountMap.get(raw.destinationAccountId || raw.accountId);
-        const srcName = srcAcc?.name || raw.sourceAccountId || 'Cash/Bank Account';
+        const srcName = srcAcc?.name || raw.sourceAccountId || 'Bank / Primary Account';
         const destName = destAcc?.name || raw.destinationAccountId || 'Destination Account';
-        const catName = raw.category ? `${raw.category.charAt(0).toUpperCase() + raw.category.slice(1)} Expense` : 'Operating Expense';
+        const catLabel = formatCategoryLabel(raw.category, raw.description);
+        const catName = `${catLabel} Expense`;
 
         let rows = [];
         if (raw.transactionType === TransactionType.EXPENSE) {
@@ -192,7 +198,7 @@ export default function TransactionDetailModal({
                 { name: srcName, drFormatted: '—', crFormatted: numRupees }
             ];
         } else if (raw.transactionType === TransactionType.INCOME) {
-            const incCat = raw.category ? `${raw.category.charAt(0).toUpperCase() + raw.category.slice(1)} Revenue` : 'Income Revenue';
+            const incCat = `${catLabel} Revenue`;
             rows = [
                 { name: destName, drFormatted: numRupees, crFormatted: '—' },
                 { name: incCat, drFormatted: '—', crFormatted: numRupees }
@@ -302,13 +308,7 @@ export default function TransactionDetailModal({
                                 raw.transactionType === TransactionType.TRANSFER && styles.heroAmountTransfer
                             ]}
                         >
-                            {raw.transactionType === TransactionType.TRANSFER
-                                ? `₹ ${journalData.totalFormatted}`
-                                : raw.transactionType === TransactionType.EXPENSE
-                                    ? `- ₹ ${journalData.totalFormatted}`
-                                    : raw.transactionType === TransactionType.INCOME
-                                        ? `+ ₹ ${journalData.totalFormatted}`
-                                        : transaction.formattedAmount}
+                            {formatHeroAmount(raw.amount?.paise, raw.transactionType)}
                         </Text>
                         <View style={styles.dateRow}>
                             <Calendar size={13} color="#64748B" />
@@ -356,7 +356,7 @@ export default function TransactionDetailModal({
 
                         <View style={styles.metaRow}>
                             <Text style={styles.metaLabel}>Category</Text>
-                            <Text style={styles.metaValue}>{raw.category || 'General'}</Text>
+                            <Text style={styles.metaValue}>{formatCategoryLabel(raw.category, raw.description)}</Text>
                         </View>
 
                         <View style={styles.metaDivider} />
@@ -427,11 +427,6 @@ export default function TransactionDetailModal({
                                         <Text style={styles.balancedSub}>
                                             Total Debits = Total Credits = ₹ {journalData.totalFormatted}
                                         </Text>
-                                        {journalData.isLegacyDerived && (
-                                            <Text style={styles.legacyDerivedTag}>
-                                                Derived posting (legacy transaction)
-                                            </Text>
-                                        )}
                                     </View>
                                 </View>
                             </View>

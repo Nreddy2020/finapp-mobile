@@ -264,13 +264,6 @@ export default function CashbookDirectoryView({
                 </TouchableOpacity>
             </View>
 
-            {/* Subtitle Banner */}
-            <View style={styles.bannerContainer}>
-                <Text style={styles.bannerText}>
-                    Track money in and out, manage accounts, and see your financial position — by purpose.
-                </Text>
-            </View>
-
             {/* Segmented Control Pills */}
             <View style={styles.segmentedContainer}>
                 <TouchableOpacity
@@ -351,17 +344,6 @@ export default function CashbookDirectoryView({
                                             );
                                         })()}
                                     </View>
-
-                                    {/* Overflow Options Button */}
-                                    <TouchableOpacity
-                                        style={styles.bookMoreBtn}
-                                        onPress={() => handleBookOptions(book)}
-                                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                                        activeOpacity={0.6}
-                                        accessibilityLabel="Book options"
-                                    >
-                                        <MoreVertical size={16} color="#94A3B8" />
-                                    </TouchableOpacity>
                                 </TouchableOpacity>
                             );
                         })}

@@ -21,13 +21,13 @@ import { BudgetService } from '../../services/budgets.js';
 import { CashbookRepository } from '../../services/cashbook/cashbookRepository.js';
 import { BankingService } from '../../services/bankingService.js';
 import { CommitmentsService } from '../../services/commitments/commitmentsService.js';
-import { parsePaise } from '../../services/budget/budgetContracts.js';
+import { parsePaise, toLocalMonthString } from '../../services/budget/budgetContracts.js';
 
 export default function BudgetsScreen() {
     const insets = useSafeAreaInsets();
     const [activeTab, setActiveTab] = useState('Overview'); // 'Overview' | 'Categories' | 'Planner'
     const [selectedStrategyId, setSelectedStrategyId] = useState('50/30/20');
-    const [selectedMonth, setSelectedMonth] = useState('2026-09');
+    const [selectedMonth, setSelectedMonth] = useState(() => toLocalMonthString());
     
     // Modal states
     const [calendarVisible, setCalendarVisible] = useState(false);
@@ -92,6 +92,7 @@ export default function BudgetsScreen() {
         selectedStrategyId,
         currentCash: liquidCash,
         commitments,
+        now: new Date(),
         allowSyntheticFallback: false
     });
 
@@ -117,6 +118,22 @@ export default function BudgetsScreen() {
             setAddBudgetVisible(false);
             setEditingBudget(null);
         }
+    };
+
+    const handlePrevMonth = () => {
+        setSelectedMonth(prev => {
+            const [y, m] = prev.split('-').map(Number);
+            const prevDate = new Date(y, m - 2, 1);
+            return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+        });
+    };
+
+    const handleNextMonth = () => {
+        setSelectedMonth(prev => {
+            const [y, m] = prev.split('-').map(Number);
+            const nextDate = new Date(y, m, 1);
+            return `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+        });
     };
 
     const handleBack = () => {
@@ -296,6 +313,8 @@ export default function BudgetsScreen() {
                 onClose={() => setCalendarVisible(false)}
                 calendarData={vm.calendar}
                 reconciledTotals={vm.reconciledTotals}
+                onPrevMonth={handlePrevMonth}
+                onNextMonth={handleNextMonth}
             />
 
             {/* Add / Edit Budget Modal */}

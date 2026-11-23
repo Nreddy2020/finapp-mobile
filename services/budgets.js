@@ -29,6 +29,7 @@ import {
     calculateUtilizationBps,
     getUtilizationStatus,
     resolveBudgetPeriod,
+    toLocalMonthString,
     isDateInPeriod,
     toBigIntPaise,
     parsePaise,
@@ -170,7 +171,9 @@ export const BudgetService = {
         }
 
         const canonicalGroup = budgetData.canonicalGroup || resolveCanonicalCategoryGroup(category) || 'Other';
-        const periodKey = budgetData.periodKey || budgetData.period || null;
+        const periodKey = budgetData.periodKey !== undefined
+            ? budgetData.periodKey
+            : (budgetData.period && budgetData.period.includes('-') ? budgetData.period : null);
         const allocationType = budgetData.allocationType || budgetData.type || CATEGORY_TYPE_MAPPING[category] || 'Needs';
         const nowIso = new Date().toISOString();
 
@@ -299,9 +302,10 @@ export const BudgetService = {
      * @param {Array} [options.overrideTransactions] Optional transaction list for testing/preview
      * @returns {Promise<Object>} Authoritative budget performance report
      */
-    getBudgetsWithActuals: async (periodKey = '2026-09', options = {}) => {
-        const period = resolveBudgetPeriod({ selectedMonth: periodKey });
-        const budgets = await BudgetService.getBudgets(periodKey, { includeArchived: false });
+    getBudgetsWithActuals: async (periodKey = null, options = {}) => {
+        const resolvedPeriodKey = periodKey || toLocalMonthString(options.now || new Date());
+        const period = resolveBudgetPeriod({ selectedMonth: resolvedPeriodKey, now: options.now || new Date() });
+        const budgets = await BudgetService.getBudgets(resolvedPeriodKey, { includeArchived: false });
 
         if (!budgets || budgets.length === 0) {
             return {

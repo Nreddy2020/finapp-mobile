@@ -96,8 +96,9 @@ export function getBookVisualMeta(book) {
     }
 
     if (type === CashbookType.SAVINGS || name.includes('personal') || name.includes('savings')) {
+        const title = (book?.name === 'Personal Savings' || !book?.name) ? 'Personal' : book.name;
         return {
-            title: book?.name || 'Personal',
+            title,
             subtitle: book?.description || 'Salary, household & personal expenses',
             iconColor: '#3B82F6',
             bgColor: '#EFF6FF',
@@ -105,8 +106,9 @@ export function getBookVisualMeta(book) {
         };
     }
     if (type === CashbookType.BUSINESS_CASH_AND_OBLIGATIONS || name.includes('business')) {
+        const title = (book?.name === 'Business Cash & Obligations' || !book?.name) ? 'Business' : book.name;
         return {
-            title: book?.name || 'Business',
+            title,
             subtitle: book?.description || 'Business income & expenses',
             iconColor: '#F97316',
             bgColor: '#FFF7ED',
@@ -114,8 +116,9 @@ export function getBookVisualMeta(book) {
         };
     }
     if (type === CashbookType.LOANS_TAKEN || type === CashbookType.LOANS_GIVEN || name.includes('loan')) {
+        const title = (book?.name === 'Home Loan A/c' || !book?.name) ? 'Loans' : book.name;
         return {
-            title: book?.name || 'Loans',
+            title,
             subtitle: book?.description || 'Loans given & taken',
             iconColor: '#EAB308',
             bgColor: '#FEFCE8',
@@ -132,8 +135,9 @@ export function getBookVisualMeta(book) {
         };
     }
     if (type === CashbookType.PF || name.includes('pf') || name.includes('retirement') || name.includes('epfo')) {
+        const title = (book?.name === 'Provident Fund (PF)' || !book?.name) ? 'PF / Retirement' : book.name;
         return {
-            title: book?.name || 'PF / Retirement',
+            title,
             subtitle: book?.description || 'Provident fund & retirement savings',
             iconColor: '#8B5CF6',
             bgColor: '#F5F3FF',
@@ -212,4 +216,76 @@ export function getTransactionIconMeta(item) {
     }
 
     return { iconKey: 'Expense', color: '#EF4444', bg: '#FEF2F2' };
+}
+
+/**
+ * Formats a category slug / key into an executive display label (e.g. "housing" -> "Rent & Housing").
+ */
+export function formatCategoryLabel(category, description = '') {
+    const cat = (category || '').trim().toLowerCase();
+    const desc = (description || '').trim().toLowerCase();
+
+    if (cat.includes('housing') || cat.includes('rent') || desc.includes('rent')) {
+        return 'Rent & Housing';
+    }
+    if (cat.includes('food') || cat.includes('grocer') || desc.includes('grocer') || desc.includes('blinkit')) {
+        return 'Groceries';
+    }
+    if (cat.includes('health') || cat.includes('insurance') || desc.includes('insurance')) {
+        return 'Health Insurance';
+    }
+    if (cat.includes('fuel') || cat.includes('transport') || desc.includes('fuel') || desc.includes('petrol')) {
+        return 'Fuel';
+    }
+    if (cat.includes('salary') || desc.includes('salary')) {
+        return 'Salary';
+    }
+    if (cat.includes('freelance') || cat.includes('consult')) {
+        return 'Professional Consulting';
+    }
+    if (cat.includes('utility') || cat.includes('bill') || desc.includes('electricity') || desc.includes('bill')) {
+        return 'Utilities & Bills';
+    }
+    if (cat.includes('invest') || desc.includes('mutual') || desc.includes('stock')) {
+        return 'Investments';
+    }
+
+    if (!cat) return 'General';
+    // Title Case default
+    return cat.charAt(0).toUpperCase() + cat.slice(1);
+}
+
+/**
+ * Formats integer paise into clean Indian currency string:
+ * - Omits ".00" when paise has no fractional cents (e.g. 2000000n -> "20,000")
+ * - Includes ".50" when fractional paise exists (e.g. 2000050n -> "20,000.50")
+ */
+export function formatCleanPaise(paise) {
+    let bi;
+    try { bi = BigInt(paise || '0'); } catch (e) { bi = 0n; }
+    const neg = bi < 0n;
+    if (neg) bi = -bi;
+    const whole = (bi / 100n).toString();
+    const frac = (bi % 100n).toString().padStart(2, '0');
+    const last3 = whole.slice(-3);
+    const rest = whole.slice(0, -3);
+    const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${last3}` : last3;
+    if (frac === '00') {
+        return `${neg ? '-' : ''}${grouped}`;
+    }
+    return `${neg ? '-' : ''}${grouped}.${frac}`;
+}
+
+/**
+ * Formats hero amount for Transaction Details (Screen 4).
+ */
+export function formatHeroAmount(paise, transactionType) {
+    const formatted = formatCleanPaise(paise);
+    if (transactionType === TransactionType.INCOME) {
+        return `+ ₹ ${formatted}`;
+    }
+    if (transactionType === TransactionType.EXPENSE) {
+        return `- ₹ ${formatted}`;
+    }
+    return `₹ ${formatted}`;
 }

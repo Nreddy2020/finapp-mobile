@@ -10,7 +10,8 @@ import {
     ALLOCATION_STRATEGIES,
     DATA_QUALITY_STATUS,
     RISK_LEVEL,
-    VIABILITY_STATUS
+    VIABILITY_STATUS,
+    parsePaise
 } from './budgetContracts.js';
 import {
     computeSafeToSpend,
@@ -167,10 +168,10 @@ export function buildBudgetControlCenterViewModel({
     let totalSpent = 0;
     let totalBudgetLimit = 0;
     activeBudgets.forEach(b => {
-        const itemSpent = b.spentPaise !== undefined ? Number(b.spentPaise / 100n) : (Number(b.spent) || 0);
-        const itemLimit = b.limitPaise !== undefined ? Number(b.limitPaise / 100n) : (Number(b.limit) || 0);
-        totalSpent += itemSpent;
-        totalBudgetLimit += itemLimit;
+        const itemSpentPaise = parsePaise(b.spentPaise, b.spent);
+        const itemLimitPaise = parsePaise(b.limitPaise, b.limit);
+        totalSpent += Number(itemSpentPaise / 100n);
+        totalBudgetLimit += Number(itemLimitPaise / 100n);
     });
 
     // Commitments total (excluding salary income)
@@ -194,8 +195,10 @@ export function buildBudgetControlCenterViewModel({
 
     // 5. Category run-rate & risk evaluation
     const evaluatedCategories = activeBudgets.map(b => {
-        const itemSpent = b.spentPaise !== undefined ? Number(b.spentPaise / 100n) : (Number(b.spent) || 0);
-        const itemLimit = b.limitPaise !== undefined ? Number(b.limitPaise / 100n) : (Number(b.limit) || 0);
+        const itemSpentPaise = parsePaise(b.spentPaise, b.spent);
+        const itemLimitPaise = parsePaise(b.limitPaise, b.limit);
+        const itemSpent = Number(itemSpentPaise / 100n);
+        const itemLimit = Number(itemLimitPaise / 100n);
 
         const runRate = computeCategoryRunRate({
             spent: itemSpent,
@@ -232,7 +235,7 @@ export function buildBudgetControlCenterViewModel({
                 category: c.category,
                 percentUsed: c.percentUsed,
                 note: c.percentUsed >= 100
-                    ? `${c.percentUsed}% used · Over budget by ${formatCurrency(c.overspentPaise ? Number(c.overspentPaise / 100n) : (c.spent - c.limit))}`
+                    ? `${c.percentUsed}% used · Over budget by ${formatCurrency(Number(parsePaise(c.overspentPaise, Math.max(0, c.spent - c.limit)) / 100n))}`
                     : `${c.percentUsed}% used · ${c.formattedRemaining} remaining`,
                 icon: c.icon || 'AlertCircle',
                 color: c.percentUsed >= 100 ? '#EF4444' : '#F59E0B',

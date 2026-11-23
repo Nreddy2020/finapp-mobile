@@ -22,7 +22,8 @@ const SHARED_COSTS_SUITES = [
     'test_sc08_recurring_expenses.mjs',
     'test_sc09_persistence_audit_chain.mjs',
     'test_sc10_cashbook_commitment_binding.mjs',
-    'test_sc11_security_boundary_fuzzing.mjs'
+    'test_sc11_security_boundary_fuzzing.mjs',
+    'test_sc12_no_destructive_autoseed.mjs'
 ];
 
 console.log('================================================================');

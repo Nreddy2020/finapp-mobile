@@ -16,7 +16,10 @@ import {
     getBookVisualMeta,
     CASHBOOK_TEMPLATES,
     formatDateHeader,
-    getTransactionIconMeta
+    getTransactionIconMeta,
+    formatCategoryLabel,
+    formatCleanPaise,
+    formatHeroAmount
 } from '../services/cashbook/cashbookPresentation.js';
 
 console.log('================================================================');
@@ -133,6 +136,26 @@ console.log('\n--- TEST 3: Screen 3 Transaction Row Category Icons ---');
     console.log('  [PASS] Fuel maps to Car/Fuel icon');
 }
 
+// 4. Screen 4: Transaction Details Category Labels & Clean Amount Formatting
+console.log('\n--- TEST 4: Screen 4 Details Formatting ---');
+{
+    assert.strictEqual(formatCategoryLabel('housing'), 'Rent & Housing');
+    assert.strictEqual(formatCategoryLabel('food'), 'Groceries');
+    assert.strictEqual(formatCategoryLabel('health'), 'Health Insurance');
+    assert.strictEqual(formatCategoryLabel('salary'), 'Salary');
+    console.log('  [PASS] Category slugs resolve to executive display labels');
+
+    assert.strictEqual(formatCleanPaise('2000000'), '20,000');
+    assert.strictEqual(formatCleanPaise('45230000'), '4,52,300');
+    assert.strictEqual(formatCleanPaise('2000050'), '20,000.50');
+    console.log('  [PASS] Clean paise omits .00 for whole rupees and preserves fractional cents');
+
+    assert.strictEqual(formatHeroAmount('2000000', TransactionType.EXPENSE), '- ₹ 20,000');
+    assert.strictEqual(formatHeroAmount('8000000', TransactionType.INCOME), '+ ₹ 80,000');
+    assert.strictEqual(formatHeroAmount('1000000', TransactionType.TRANSFER), '₹ 10,000');
+    console.log('  [PASS] Hero transaction amount formats with matching design signs');
+}
+
 console.log('\n================================================================');
-console.log('✅ ALL PHASE 2 UI PRESENTATION TESTS PASSED (14/14)');
+console.log('✅ ALL PHASE 2 UI PRESENTATION TESTS PASSED (17/17)');
 console.log('================================================================\n');

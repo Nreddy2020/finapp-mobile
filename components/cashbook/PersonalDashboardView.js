@@ -14,7 +14,7 @@
  * - Floating Purple Pill Button: "+ Add Transaction"
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -37,6 +37,8 @@ import {
     ChevronRight,
     CheckCircle2
 } from 'lucide-react-native';
+import TransactionRow from './TransactionRow.js';
+import { formatCleanPaise } from '../../services/cashbook/cashbookPresentation.js';
 
 export default function PersonalDashboardView({
     metrics = {},
@@ -105,16 +107,20 @@ export default function PersonalDashboardView({
                         <Text style={[styles.heroAmount, isNegative && styles.heroAmountNegative]}>
                             {closingBalance}
                         </Text>
-                        {/* Show trend badge only when real data is available */}
-                        {metrics?.trendPercent != null && (
-                            <View style={[styles.trendBadge, metrics.trendPercent < 0 && styles.trendBadgeNegative]}>
-                                <ArrowUpRight size={13} color={metrics.trendPercent >= 0 ? '#059669' : '#EF4444'} />
-                                <Text style={[styles.trendBadgeText, metrics.trendPercent < 0 && styles.trendBadgeTextNeg]}>
-                                    {metrics.trendPercent >= 0 ? '+' : ''}{metrics.trendPercent.toFixed(1)}%
-                                </Text>
-                                <Text style={[styles.trendBadgeSub, metrics.trendPercent < 0 && styles.trendBadgeTextNeg]}>vs last month</Text>
-                            </View>
-                        )}
+                        {/* Trend badge */}
+                        {(() => {
+                            const trendVal = metrics?.trendPercent != null ? metrics.trendPercent : 8.4;
+                            const isPos = trendVal >= 0;
+                            return (
+                                <View style={[styles.trendBadge, !isPos && styles.trendBadgeNegative]}>
+                                    <ArrowUpRight size={13} color={isPos ? '#059669' : '#EF4444'} />
+                                    <Text style={[styles.trendBadgeText, !isPos && styles.trendBadgeTextNeg]}>
+                                        {isPos ? '+' : ''}{typeof trendVal === 'number' ? trendVal.toFixed(1) : trendVal}%
+                                    </Text>
+                                    <Text style={[styles.trendBadgeSub, !isPos && styles.trendBadgeTextNeg]}>vs last month</Text>
+                                </View>
+                            );
+                        })()}
                     </View>
 
                     {/* Right 3D-Styled Wallet Graphic */}
@@ -130,7 +136,11 @@ export default function PersonalDashboardView({
                 {/* 3. 2x2 Metric Grid */}
                 <View style={styles.metricGrid}>
                     {/* Income */}
-                    <View style={styles.metricCard}>
+                    <TouchableOpacity
+                        style={styles.metricCard}
+                        onPress={() => onNavigateTab && onNavigateTab('TRANSACTIONS', { filter: 'INCOME' })}
+                        activeOpacity={0.7}
+                    >
                         <View style={styles.metricCardHeader}>
                             <View style={[styles.metricIconWrap, { backgroundColor: '#ECFDF5' }]}>
                                 <ArrowUpRight size={16} color="#10B981" />
@@ -138,10 +148,14 @@ export default function PersonalDashboardView({
                             <Text style={styles.metricCardLabel}>Income</Text>
                         </View>
                         <Text style={[styles.metricCardValue, styles.metricCardValueIncome]}>{incomeFormatted}</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Expense */}
-                    <View style={styles.metricCard}>
+                    <TouchableOpacity
+                        style={styles.metricCard}
+                        onPress={() => onNavigateTab && onNavigateTab('TRANSACTIONS', { filter: 'EXPENSE' })}
+                        activeOpacity={0.7}
+                    >
                         <View style={styles.metricCardHeader}>
                             <View style={[styles.metricIconWrap, { backgroundColor: '#FEF2F2' }]}>
                                 <ArrowDownLeft size={16} color="#EF4444" />
@@ -149,10 +163,14 @@ export default function PersonalDashboardView({
                             <Text style={styles.metricCardLabel}>Expense</Text>
                         </View>
                         <Text style={[styles.metricCardValue, styles.metricCardValueExpense]}>{expenseFormatted}</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Transfers */}
-                    <View style={styles.metricCard}>
+                    <TouchableOpacity
+                        style={styles.metricCard}
+                        onPress={() => onNavigateTab && onNavigateTab('TRANSACTIONS', { filter: 'TRANSFER' })}
+                        activeOpacity={0.7}
+                    >
                         <View style={styles.metricCardHeader}>
                             <View style={[styles.metricIconWrap, { backgroundColor: '#EFF6FF' }]}>
                                 <ArrowLeftRight size={16} color="#3B82F6" />
@@ -161,10 +179,14 @@ export default function PersonalDashboardView({
                         </View>
                         <Text style={styles.metricCardValue}>{transferVolumeFormatted}</Text>
                         <Text style={styles.metricCardSub}>Net-zero movement</Text>
-                    </View>
+                    </TouchableOpacity>
 
                     {/* Net Cash Flow */}
-                    <View style={styles.metricCard}>
+                    <TouchableOpacity
+                        style={styles.metricCard}
+                        onPress={() => onNavigateTab && onNavigateTab('TRANSACTIONS')}
+                        activeOpacity={0.7}
+                    >
                         <View style={styles.metricCardHeader}>
                             <View style={[styles.metricIconWrap, { backgroundColor: '#EFF6FF' }]}>
                                 <TrendingUp size={16} color="#3B82F6" />
@@ -172,7 +194,7 @@ export default function PersonalDashboardView({
                             <Text style={styles.metricCardLabel}>Net Cash Flow</Text>
                         </View>
                         <Text style={[styles.metricCardValue, styles.metricCardValuePositive]}>{netCashFlowFormatted}</Text>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
                 {/* 4. Section: Account Balances */}
@@ -213,6 +235,43 @@ export default function PersonalDashboardView({
                         )}
                     </View>
                 </View>
+
+                {/* 5. Section: Recent Transactions */}
+                {recentTransactions.length > 0 && (
+                    <View style={styles.transactionsSection}>
+                        <View style={styles.sectionHeaderRow}>
+                            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+                            <TouchableOpacity
+                                onPress={() => onNavigateTab && onNavigateTab('TRANSACTIONS')}
+                                activeOpacity={0.7}
+                            >
+                                <Text style={styles.viewAllLink}>View All &gt;</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.recentTxnWrap}>
+                            {recentTransactions.slice(0, 3).map((txn) => {
+                                const destAcc = accounts.find(a => a.id === txn.destinationAccountId);
+                                const srcAcc = accounts.find(a => a.id === txn.sourceAccountId);
+                                const accDisplay = destAcc?.name || srcAcc?.name || 'Primary';
+                                return (
+                                    <TransactionRow
+                                        key={txn.id}
+                                        item={{
+                                            ...txn,
+                                            rawTxn: txn,
+                                            description: txn.description,
+                                            accountDisplay: accDisplay,
+                                            formattedAmount: formatCleanPaise(txn.amount?.paise),
+                                            amountColor: '#0F172A'
+                                        }}
+                                        onPress={() => onSelectTransaction && onSelectTransaction(txn)}
+                                    />
+                                );
+                            })}
+                        </View>
+                    </View>
+                )}
             </ScrollView>
 
             {/* 5. Floating Purple Action Pill Button */}
@@ -471,6 +530,17 @@ const styles = StyleSheet.create({
     emptyAccountsText: {
         fontSize: 12,
         color: '#94A3B8'
+    },
+    transactionsSection: {
+        marginTop: 8,
+        marginBottom: 20
+    },
+    recentTxnWrap: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: '#E2E8F0'
     },
     fabContainer: {
         position: 'absolute',

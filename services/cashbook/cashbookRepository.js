@@ -149,34 +149,46 @@ export const CashbookRepository = {
                 // Initialize demo envelope with multi-book fixtures
                 const defaultBook = createCashbook({
                     id: 'book_personal_savings',
-                    name: 'Personal Savings',
+                    name: 'Personal',
                     type: CashbookType.SAVINGS,
-                    description: 'Primary Personal & Household Ledger',
+                    description: 'Salary, household & personal expenses',
                     isDefault: true
+                });
+                const businessBook = createCashbook({
+                    id: 'book_business',
+                    name: 'Business',
+                    type: CashbookType.BUSINESS_CASH_AND_OBLIGATIONS,
+                    description: 'Business income & expenses'
+                });
+                const loanBook = createCashbook({
+                    id: 'book_home_loan',
+                    name: 'Loans',
+                    type: CashbookType.LOANS_TAKEN,
+                    description: 'Loans given & taken'
+                });
+                const investBook = createCashbook({
+                    id: 'book_investments',
+                    name: 'Investments',
+                    type: CashbookType.INVESTMENTS,
+                    description: 'Mutual funds, stocks, & other investments'
+                });
+                const pfBook = createCashbook({
+                    id: 'book_epfo_pf',
+                    name: 'PF / Retirement',
+                    type: CashbookType.PF,
+                    description: 'Provident fund & retirement savings'
+                });
+                const customBook = createCashbook({
+                    id: 'book_custom_home',
+                    name: 'Custom – Home Project',
+                    type: CashbookType.CUSTOM,
+                    description: 'Dedicated fund for home construction'
                 });
                 const handyBook = createCashbook({
                     id: 'book_handy_cash',
                     name: 'Handy Cash Register',
                     type: CashbookType.HANDY_CASH,
                     description: 'Physical Cash Register'
-                });
-                const businessBook = createCashbook({
-                    id: 'book_business',
-                    name: 'Business Cash & Obligations',
-                    type: CashbookType.BUSINESS_CASH_AND_OBLIGATIONS,
-                    description: 'Operations & Invoices'
-                });
-                const loanBook = createCashbook({
-                    id: 'book_home_loan',
-                    name: 'Home Loan A/c',
-                    type: CashbookType.LOANS_TAKEN,
-                    description: 'SBI Home Loan'
-                });
-                const pfBook = createCashbook({
-                    id: 'book_epfo_pf',
-                    name: 'Provident Fund (PF)',
-                    type: CashbookType.PF,
-                    description: 'EPFO UAN Portfolio'
                 });
 
                 const fixtures = buildDemoCashbookFixtures();
@@ -187,7 +199,7 @@ export const CashbookRepository = {
 
                 envelope = {
                     version: CURRENT_SCHEMA_VERSION,
-                    books: [defaultBook, handyBook, businessBook, loanBook, pfBook],
+                    books: [defaultBook, businessBook, loanBook, investBook, pfBook, customBook, handyBook],
                     activeBookId: 'book_personal_savings',
                     accounts: fixtures.accounts,
                     transactions: demoTxns,
@@ -871,16 +883,6 @@ export const CashbookRepository = {
             transactionCount: envelope.transactions.length,
             auditEventCount: envelope.auditLog.length
         };
-    },
-
-    /**
-     * Lists active books, filtering out soft-deleted books by default.
-     */
-    getBooks: async (options = {}) => {
-        const envelope = await CashbookRepository.load(options);
-        const books = envelope.books || [];
-        if (options.includeDeleted) return books;
-        return books.filter(b => b.status !== 'DELETED');
     },
 
     /**

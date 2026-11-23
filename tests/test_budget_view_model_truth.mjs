@@ -9,7 +9,7 @@ import {
     buildBudgetControlCenterViewModel,
     formatCurrency
 } from '../services/budget/budgetViewModel.js';
-import { DATA_QUALITY_STATUS, ALLOCATION_STRATEGIES } from '../services/budget/budgetContracts.js';
+import { DATA_QUALITY_STATUS, ALLOCATION_STRATEGIES, computeCalendarWeekdayOffset } from '../services/budget/budgetContracts.js';
 import { computeAllocationBreakdown } from '../services/budget/budgetEngine.js';
 
 console.log('================================================================');
@@ -181,6 +181,44 @@ it('should verify Zero-Based formula Income - (Planned Allocations + Reserves) =
     assert.strictEqual(res.plannedTotal, 124000);
     assert.strictEqual(res.unallocated, 0);
     assert.strictEqual(res.isBalanced, true);
+});
+
+// 7. Period Resolution & Dynamic Now Handling (Plan 002 Section 1)
+console.log('\nGroup 7: Period Resolution & Dynamic Now Handling');
+it('should produce a period matching explicit now rather than September 2026 default', () => {
+    const explicitNow = new Date(2026, 10, 23); // Nov 23, 2026 (month index 10)
+    const dynamicVM = buildBudgetControlCenterViewModel({
+        selectedMonth: '2026-11',
+        now: explicitNow
+    });
+    assert.strictEqual(dynamicVM.period.year, 2026);
+    assert.strictEqual(dynamicVM.period.month, 11); // 1-indexed month
+    assert.strictEqual(dynamicVM.period.monthName, 'November');
+    assert.strictEqual(dynamicVM.period.daysInPeriod, 30);
+    assert.strictEqual(dynamicVM.period.daysElapsed, 23);
+    assert.strictEqual(dynamicVM.period.daysRemaining, 7);
+    assert.strictEqual(dynamicVM.period.status, 'ACTIVE');
+});
+
+it('should retain September 18, 2026 default when now is omitted for test backward compatibility', () => {
+    const defaultVM = buildBudgetControlCenterViewModel();
+    assert.strictEqual(defaultVM.period.year, 2026);
+    assert.strictEqual(defaultVM.period.month, 9); // 1-indexed September
+    assert.strictEqual(defaultVM.period.monthName, 'September');
+    assert.strictEqual(defaultVM.period.daysElapsed, 18);
+});
+
+it('should correctly compute Monday-first calendar weekday offsets across diverse months', () => {
+    // 1. Sep 2026 starts on Tuesday (offset = 1)
+    assert.strictEqual(computeCalendarWeekdayOffset(2026, 8), 1, 'Sep 2026 starts on Tuesday');
+    // 2. Feb 2026 starts on Sunday (offset = 6)
+    assert.strictEqual(computeCalendarWeekdayOffset(2026, 1), 6, 'Feb 2026 starts on Sunday');
+    // 3. Aug 2026 starts on Saturday (offset = 5)
+    assert.strictEqual(computeCalendarWeekdayOffset(2026, 7), 5, 'Aug 2026 starts on Saturday');
+    // 4. Jun 2026 starts on Monday (offset = 0)
+    assert.strictEqual(computeCalendarWeekdayOffset(2026, 5), 0, 'Jun 2026 starts on Monday');
+    // 5. Jan 2025 starts on Wednesday (offset = 2)
+    assert.strictEqual(computeCalendarWeekdayOffset(2025, 0), 2, 'Jan 2025 starts on Wednesday');
 });
 
 console.log(`\n================================================================`);

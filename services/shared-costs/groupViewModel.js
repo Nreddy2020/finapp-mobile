@@ -25,6 +25,11 @@ export const GroupViewModel = {
      * Get dashboard view data for the main Shared Costs screen
      */
     async getDashboardData(currentUserId = 'You') {
+        // Load the raw envelope first so we can tell "genuinely no groups yet" apart from
+        // "storage could not be read/verified" (checksum mismatch or parse error). The caller
+        // must never treat the latter as an invitation to reseed/clear real data — see
+        // docs/planning/004-group-expenses-followups.md Section 1.
+        const envelope = await GroupRepository.loadEnvelope();
         const groups = await GroupRepository.getAllGroups();
 
         // Calculate user summary
@@ -41,7 +46,12 @@ export const GroupViewModel = {
                 youAreOwedFormatted: toRupeesFormatted(userSummary.youAreOwedPaise),
                 netBalanceFormatted: toRupeesFormatted(userSummary.netBalancePaise)
             },
-            hasGroups: groups.length > 0
+            hasGroups: groups.length > 0,
+            // True only when the stored envelope failed checksum verification or failed to parse.
+            // An empty `groups` array with this false means the user genuinely has no groups yet —
+            // that is the ONLY case it is safe to treat as "first run".
+            storageQuarantined: !!envelope.quarantineReason,
+            quarantineReason: envelope.quarantineReason || null
         };
     },
 

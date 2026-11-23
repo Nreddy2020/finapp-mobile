@@ -126,12 +126,16 @@ export default function TransactionRow({ item, onPress }) {
                         isVoided && styles.amountVoided
                     ]}
                 >
-                    {isTransfer || isOpeningBalance || isAdjustment
-                        ? formattedAmount.replace('+', '').replace('-', '').trim()
-                        : isIncome
-                            ? (formattedAmount.startsWith('+') ? formattedAmount : `+ ${formattedAmount}`)
-                            : (formattedAmount.startsWith('-') ? formattedAmount : `- ${formattedAmount}`)
-                    }
+                    {(() => {
+                        const rawClean = formattedAmount.replace('+', '').replace('-', '').replace('₹', '').trim();
+                        if (isTransfer || isOpeningBalance || isAdjustment) {
+                            return `₹ ${rawClean}`;
+                        }
+                        if (isIncome) {
+                            return `+ ₹ ${rawClean}`;
+                        }
+                        return `- ₹ ${rawClean}`;
+                    })()}
                 </Text>
             </View>
         </TouchableOpacity>
