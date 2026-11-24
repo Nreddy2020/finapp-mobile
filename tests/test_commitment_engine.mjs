@@ -337,3 +337,48 @@ it('enforces confidence tiers: Strong auto-link, Medium user confirmation, Weak 
 });
 
 console.log(`\n--- ALL ${assertionsPassed} COMMITMENT ENGINE ASSERTIONS PASSED ---\n`);
+
+// ── Regression: asOfDate default must be a LOCAL calendar date, not UTC ──
+// See docs/planning/003-recurring-commitments-followups.md Section 4. `generateOccurrences`,
+// `recordPaymentOccurrence`, and `cancelCommitmentWithOccurrences` previously defaulted their
+// date parameters to `new Date().toISOString().split('T')[0]` (UTC calendar date). During the
+// 00:00-05:30 IST window, the UTC date is still "yesterday", so an occurrence legitimately due
+// "yesterday" (IST) would be compared against an equally-stale default and incorrectly stay
+// UPCOMING instead of OVERDUE. This test doesn't depend on wall-clock time; it directly verifies
+// the OVERDUE/UPCOMING boundary logic that the default value feeds into.
+it('classifies an occurrence strictly before asOfDate as OVERDUE, not UPCOMING, across a date boundary', () => {
+    const commitment = {
+        id: 'c_rent_boundary',
+        name: 'Rent',
+        type: CommitmentType.RENT,
+        financialNature: FinancialNature.EXPENSE,
+        amountMode: AmountMode.FIXED,
+        amount: rupeesToMoneyPaise(20000),
+        frequency: RecurrenceFrequency.MONTHLY,
+        startDate: '2026-01-05',
+        nextDueDate: '2026-01-05',
+        status: CommitmentStatus.ACTIVE,
+        version: 1
+    };
+
+    // Simulate "local now" being 2026-01-06, with an occurrence scheduled for 2026-01-05 (strictly
+    // the previous local day) not yet reconciled. A correct, local-date-based asOfDate must mark
+    // that occurrence OVERDUE — this is exactly the comparison that broke when asOfDate came from
+    // a UTC default during the IST early-morning window (where UTC 2026-01-05 persists past local
+    // midnight into local 2026-01-06).
+    const occurrences = generateOccurrences({
+        commitment,
+        existingOccurrences: [],
+        startDate: '2026-01-05',
+        endDate: '2026-01-05',
+        asOfDate: '2026-01-06'
+    });
+
+    assert.strictEqual(occurrences.length, 1);
+    assert.strictEqual(occurrences[0].scheduledDate, '2026-01-05');
+    assert.strictEqual(
+        occurrences[0].status,
+        PaymentOccurrenceStatus.OVERDUE,
+        'An occurrence dated strictly before asOfDate must be OVERDUE, not UPCOMING'
+    );
+});

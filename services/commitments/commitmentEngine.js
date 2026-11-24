@@ -21,6 +21,12 @@ import {
     validateCommitment
 } from './commitmentContracts.js';
 import { getNextOccurrenceDate, parseISODate } from './commitmentDateUtils.js';
+// Reuse the project's established local-date helper instead of `new Date().toISOString()`, which
+// is UTC-based: during the 00:00-05:30 IST window, the UTC calendar date is still "yesterday",
+// so an occurrence due "yesterday" (IST) would be compared against an equally-stale asOfDate and
+// incorrectly stay UPCOMING instead of OVERDUE. See
+// docs/planning/003-recurring-commitments-followups.md Section 4.
+import { todayLocal } from '../cashbook/cashbookDates.js';
 
 /**
  * Deterministically generates payment occurrences for a commitment within a target date range.
@@ -38,7 +44,7 @@ export function generateOccurrences({
     existingOccurrences = [],
     startDate,
     endDate,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 }) {
     validateCommitment(commitment);
     
@@ -158,7 +164,7 @@ export function recordPaymentOccurrence(occurrence, paymentDetails = {}) {
         throw new Error(`Occurrence ${occurrence.id} has already been paid with transaction ${occurrence.cashbookTransactionId || occurrence.transactionId}`);
     }
 
-    const actualPaidDate = paymentDetails.actualPaidDate || new Date().toISOString().split('T')[0];
+    const actualPaidDate = paymentDetails.actualPaidDate || todayLocal();
     const actualAmount = paymentDetails.actualAmount ? 
         createMoneyPaise(paymentDetails.actualAmount.paise) : 
         occurrence.expectedAmount;
@@ -263,7 +269,7 @@ export function skipPaymentOccurrence(occurrence, reason = '') {
  * @param {string} asOfDate YYYY-MM-DD
  * @returns {{ updatedCommitment: object, updatedOccurrences: Array<object> }}
  */
-export function cancelCommitmentWithOccurrences(commitment, occurrences = [], asOfDate = new Date().toISOString().split('T')[0]) {
+export function cancelCommitmentWithOccurrences(commitment, occurrences = [], asOfDate = todayLocal()) {
     validateCommitment(commitment);
 
     const updatedCommitment = {

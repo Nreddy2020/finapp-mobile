@@ -127,8 +127,22 @@ verifies rather than assumes Section 1 was the only place this pattern exists.
 
 (Fill this in as each section is implemented — one line per section.)
 
-- Section 1:
-- Section 2:
+- Section 1: Done. `loadData()` no longer calls `seedMockupDemoData()` as an automatic fallback.
+  `GroupViewModel.getDashboardData()` now reads the raw envelope first and returns
+  `storageQuarantined`/`quarantineReason` so the screen can tell "genuinely empty" apart from
+  "corrupted" and show a non-destructive notice instead of silently wiping data. The "Reset Demo
+  Data" button is gated behind `__DEV__` and its confirmation text now explicitly states it will
+  delete real data. Verified with a new test, `tests/shared-costs/test_sc12_no_destructive_autoseed.mjs`
+  (added to `run_all_shared_costs_tests.mjs`): confirms a genuinely-empty store is not flagged as
+  quarantined, confirms a real group/expense loads correctly, confirms storage corruption IS
+  flagged, and — the critical assertion — confirms `getDashboardData()` never mutates or clears the
+  underlying storage key as a side effect of reading it. All 12 shared-costs suites pass.
+- Section 2: Done. Enumerated every `GroupRepository.clearStore()` call site in the
+  repo: exactly one live call, inside `seedMockupDemoData()`, now only reachable via the
+  `__DEV__`-gated Reset Demo Data button (Section 1). The orphaned legacy facade
+  `services/groups.js` (and its only caller `components/expense/SplitwiseView.js`) containing the old
+  auto-seed pattern have been completely deleted from the repo. No un-gated or unconfirmed `clearStore`
+  calls remain anywhere.
 
 ---
 

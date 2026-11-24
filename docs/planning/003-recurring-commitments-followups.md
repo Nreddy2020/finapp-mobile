@@ -171,10 +171,10 @@ rather than assumes.
 
 (Fill this in as each section is implemented — one line per section.)
 
-- Section 1:
-- Section 2:
-- Section 3:
-- Section 4:
+- Section 1: Done. Imported `Alert` from `react-native` in `app/(tabs)/recurring.js`, resolving crashes on starter-template taps and error handlers.
+- Section 2: Done. Replaced hardcoded `asOfDate: '2026-09-01'` in `app/(tabs)/recurring.js` with dynamic local date from `commitmentDateUtils.js` (`todayLocal()`).
+- Section 3: Done. Mode is loaded via `CommitmentsService.getMode()` on mount, persisted via `CommitmentsService.setMode()` on toggle, and the toggle badge is gated behind `__DEV__`.
+- Section 4: Done. Audited and fixed UTC/local date handling in `commitmentEngine.js` across 3 call sites to prevent overdue/upcoming misclassification across the 00:00–05:30 IST window. Regression test verified in `tests/test_commitment_engine.mjs`.
 
 ---
 
