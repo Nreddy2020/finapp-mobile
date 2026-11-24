@@ -14,6 +14,7 @@
  * - Single loan ledger: Repayments derive exclusively from authoritative loan contracts.
  */
 
+import { toLocalDateString } from '../cashbook/cashbookDates.js';
 import { BankingService } from '../bankingService.js';
 import { LoanViewModel } from '../loans/loanViewModel.js';
 import { LoanRepository } from '../loans/loanRepository.js';
@@ -39,7 +40,9 @@ export const BankingCreditViewModel = {
      */
     async getUnifiedOverview(options = {}) {
         const asOf = options.asOfDate ? new Date(options.asOfDate) : new Date();
-        const asOfDateStr = asOf.toISOString().split('T')[0];
+        const asOfDateStr = (typeof options.asOfDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(options.asOfDate))
+            ? options.asOfDate
+            : toLocalDateString(asOf);
 
         let bankingData = null;
         let loanOverview = null;

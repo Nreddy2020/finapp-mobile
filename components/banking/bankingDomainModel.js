@@ -5,6 +5,7 @@
  * double-entry journal schemas, and isolated demo fixtures.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 // ── MONETARY PRIMITIVES & VALIDATION ─────────────────────────────────────────
 
 export const MONEY_VALIDITY = {
@@ -272,7 +273,7 @@ export function createBankLoan({
     interestRate = 0,
     interestMethod = INTEREST_METHOD.AMORTIZED,
     tenureMonths = 12,
-    startDate = new Date().toISOString().split('T')[0],
+    startDate = todayLocal(),
     maturityDate = null,
     paymentFrequency = REPAYMENT_FREQUENCY.MONTHLY,
     repaymentAccountId = '',
@@ -311,7 +312,7 @@ export function createBankLoan({
         interestRate: Number(interestRate) || 0,
         interestMethod: INTEREST_METHOD[interestMethod] || INTEREST_METHOD.AMORTIZED,
         tenureMonths: finalTenure,
-        startDate: startDate || new Date().toISOString().split('T')[0],
+        startDate: startDate || todayLocal(),
         maturityDate: maturityDate || null,
         paymentFrequency: REPAYMENT_FREQUENCY[paymentFrequency] || REPAYMENT_FREQUENCY.MONTHLY,
         repaymentAccountId: repaymentAccountId ? String(repaymentAccountId).trim() : '',
@@ -411,7 +412,7 @@ export function createLoanRateRevision({
     return {
         id: finalId,
         loanId,
-        effectiveDate: effectiveDate || new Date().toISOString().split('T')[0],
+        effectiveDate: effectiveDate || todayLocal(),
         annualRate: Number(annualRate) || 0,
         rateType: rateType || 'FLOATING',
         benchmark: benchmark || 'REPO',
@@ -432,7 +433,7 @@ export function createBankingDocument({
     documentType = BANKING_DOCUMENT_TYPE.OTHER,
     title = '',
     storageReference = '',
-    documentDate = new Date().toISOString().split('T')[0],
+    documentDate = todayLocal(),
     validityDate = null,
     notes = '',
     createdAt = new Date().toISOString()
@@ -511,8 +512,8 @@ export function createBankingJournalEntry({
     id = null,
     operationId = '',
     eventType = '',
-    eventDate = new Date().toISOString().split('T')[0],
-    effectiveDate = new Date().toISOString().split('T')[0],
+    eventDate = todayLocal(),
+    effectiveDate = todayLocal(),
     entityType = 'BANK_LOAN',
     entityId = '',
     lines = [],

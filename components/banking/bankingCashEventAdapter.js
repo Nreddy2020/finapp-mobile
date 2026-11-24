@@ -6,6 +6,7 @@
  * debt-service tagging (isDebtService: true), and deterministic idempotency (BANK-33).
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { fromPaise } from './bankingDomainModel.js';
 
 /**
@@ -16,7 +17,7 @@ export function convertBankingJournalEntryToMoneyFlowTransactions(journalEntry, 
 
     const transactions = [];
     const entryId = journalEntry.id;
-    const date = journalEntry.eventDate || journalEntry.effectiveDate || new Date().toISOString().split('T')[0];
+    const date = journalEntry.eventDate || journalEntry.effectiveDate || todayLocal();
 
     const bank = banksMap[journalEntry.metadata?.bankId] || null;
     const loan = loansMap[journalEntry.entityId] || null;

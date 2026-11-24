@@ -4,6 +4,7 @@
  * Computes complete foreclosure settlement quote and commits closing journal entry.
  */
 
+import { todayLocal } from '../../../services/cashbook/cashbookDates.js';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { X, ShieldAlert, CheckCircle2 } from 'lucide-react-native';
@@ -22,7 +23,7 @@ export default function ForeclosureModal({
 }) {
     const [accruedInterest, setAccruedInterest] = useState('0');
     const [waiver, setWaiver] = useState('0');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(todayLocal());
     const [loading, setLoading] = useState(false);
 
     if (!visible || !loan) return null;

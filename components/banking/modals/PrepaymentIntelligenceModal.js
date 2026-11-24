@@ -57,12 +57,15 @@ export default function PrepaymentIntelligenceModal({
 
         setLoading(true);
         try {
-            await BankingService.recordPrincipalPrepayment({
+            // BankingService has no recordPrincipalPrepayment; the real method is prepayPrincipal and
+            // its parameters are bankAccountId / penaltyFeePaise (it falls back to the loan's
+            // repayment account when no account is given).
+            await BankingService.prepayPrincipal({
                 loanId: loan.id,
                 prepaymentAmountPaise: prepayPaise,
                 strategy: selectedStrategy === 'OPTION_A' ? 'REDUCE_TENURE' : 'REDUCE_EMI',
-                sourceAccountId: loan.disbursedToAccountId,
-                prepaymentPenaltyPaise: simulation?.penaltyPaise || 0
+                bankAccountId: loan.repaymentAccountId || loan.disbursedToAccountId || null,
+                penaltyFeePaise: simulation?.penaltyPaise || 0
             });
             Alert.alert('Prepayment Recorded', `Successfully prepaid ${formatPaise(prepayPaise)} principal on ${loan.loanName}.`);
             onSuccess();

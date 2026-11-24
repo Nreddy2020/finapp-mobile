@@ -5,6 +5,7 @@
  * relationship graphs, CFO insights, and Indian currency formatters.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { fromPaise } from './bankingDomainModel.js';
 import { calculatePrepaymentIntelligence } from './bankingAccountingEngine.js';
 
@@ -80,7 +81,7 @@ export function computeBankRelationshipHealth({
     accounts = [],
     loans = [],
     projection = null,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 }) {
     if (!bank) return null;
 
@@ -231,7 +232,7 @@ export function computeBankingOverviewMetrics({
     accounts = [],
     loans = [],
     projection = null,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 }) {
     const accProj = projection?.accounts || {};
     const loanProj = projection?.loans || {};
@@ -445,7 +446,7 @@ export function computeBankRelationshipScorecard({
     accounts = [],
     loans = [],
     projection = null,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 }) {
     if (!bank) return null;
 

@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert } from 'react-native';
 import { Landmark, CreditCard, Calendar, TrendingUp, Plus, ChevronRight, Activity, Bell, FileText, Wallet, ArrowUpRight } from 'lucide-react-native';
 import { BankingService } from '../../services/bankingService';
 import { formatPaise, computeBankingOverviewMetrics } from './bankingPresentationAdapter';
@@ -38,15 +38,54 @@ export default function BankingMainView({ onBack = null }) {
     const [addAccountVisible, setAddAccountVisible] = useState(false);
     const [addLoanVisible, setAddLoanVisible] = useState(false);
 
+    // True when saved banking data exists but could not be read. Adding is blocked so a new record
+    // can't overwrite the unreadable-but-recoverable store.
+    const [storageUnreadable, setStorageUnreadable] = useState(false);
+
+    const guardedOpen = (setter) => {
+        if (storageUnreadable) {
+            Alert.alert('Saved data unreadable', 'Adding is disabled until your saved banking data can be read. Pull down to retry.');
+            return;
+        }
+        setter(true);
+    };
+
+    // DEV ONLY. Overwrites ALL banking data with a demo fixture; confirmed first.
+    const handleLoadDemoData = () => {
+        Alert.alert(
+            'Replace banking data with demo?',
+            'This permanently deletes ALL banks, accounts, loans, schedules and journal entries, then loads sample data. This cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete & Load Demo',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await BankingService.resetToDemoFixture();
+                        await loadData();
+                    }
+                }
+            ]
+        );
+    };
+
+    // NEVER seeds or resets data here. An empty read is not proof the user has no data: non-strict
+    // reads return [] on any decrypt/parse/IO failure, and the old auto-seed wiped real banking
+    // data on such a failure.
     const loadData = async () => {
         try {
-            const data = await BankingService.loadAllBankingData();
-            if (data.banks.length === 0 && data.loans.length === 0) {
-                const seeded = await BankingService.resetToDemoFixture();
-                setBankingData(seeded);
+            const health = await BankingService.probeStorage();
+            if (health.unreadable.length > 0) {
+                setStorageUnreadable(true);
+                Alert.alert(
+                    'Banking data could not be read',
+                    'Your saved banking records are present but unreadable right now. Nothing has been deleted or changed. Adding is disabled to protect them. Pull down to retry, or restart the app.'
+                );
             } else {
-                setBankingData(data);
+                setStorageUnreadable(false);
             }
+            const data = await BankingService.loadAllBankingData();
+            setBankingData(data);
         } catch (error) {
             console.error('[Banking Main View] Error loading data:', error);
         } finally {
@@ -205,11 +244,34 @@ export default function BankingMainView({ onBack = null }) {
                     <View style={styles.calmSection}>
                         <View style={styles.sectionHeaderRow}>
                             <Text style={styles.sectionLabel}>YOUR BANK RELATIONSHIPS</Text>
-                            <TouchableOpacity style={styles.addLink} onPress={() => setAddBankVisible(true)}>
+                        </View>
+
+                        {/* Entry points. Account and loan creation were previously unreachable from the UI. */}
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginBottom: 12 }}>
+                            <TouchableOpacity style={styles.addLink} onPress={() => guardedOpen(setAddBankVisible)}>
                                 <Plus size={13} color="#818CF8" />
                                 <Text style={styles.addLinkText}>Add Bank</Text>
                             </TouchableOpacity>
+                            <TouchableOpacity style={styles.addLink} onPress={() => guardedOpen(setAddAccountVisible)}>
+                                <Plus size={13} color="#818CF8" />
+                                <Text style={styles.addLinkText}>Add Account</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.addLink} onPress={() => guardedOpen(setAddLoanVisible)}>
+                                <Plus size={13} color="#818CF8" />
+                                <Text style={styles.addLinkText}>Add Loan</Text>
+                            </TouchableOpacity>
+                            {__DEV__ && (
+                                <TouchableOpacity style={styles.addLink} onPress={handleLoadDemoData}>
+                                    <Text style={[styles.addLinkText, { color: '#F87171' }]}>DEMO (dev)</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
+
+                        {bankingData.banks.length === 0 && (
+                            <Text style={{ color: '#71717A', fontSize: 12, marginBottom: 12 }}>
+                                No banks yet. Tap Add Bank to start, then add accounts and loans.
+                            </Text>
+                        )}
 
                         <View style={{ gap: 14 }}>
                             {overview.bankRelationships.map(b => {

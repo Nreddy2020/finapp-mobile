@@ -2,6 +2,7 @@
  * FinLife Banking Relationship Intelligence — Add Bank Loan Modal
  */
 
+import { todayLocal } from '../../../services/cashbook/cashbookDates.js';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import { X, DollarSign, Calendar } from 'lucide-react-native';
@@ -15,7 +16,7 @@ export default function AddBankLoanModal({ visible, banks = [], accounts = [], o
     const [rate, setRate] = useState('9.99');
     const [tenure, setTenure] = useState('60');
     const [penalty, setPenalty] = useState('2.0');
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [startDate, setStartDate] = useState(todayLocal());
     const [loading, setLoading] = useState(false);
 
     const handleSave = async () => {

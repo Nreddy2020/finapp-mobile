@@ -1,13 +1,13 @@
 {
-  "testedCommitSha": "0df7ebd3f012dead76df05969f7bf41c45fafdfe",
-  "testedTreeSha": "a4c105494c7d1b351ad333f376043b64278da39b",
+  "testedCommitSha": "ac5c171839cb7dd170b764581d6a929a4dda54ba",
+  "testedTreeSha": "852b62690be44e685e4dce144aa572723b5c7f40",
   "provenancePolicy": "EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED",
   "provenanceNote": "The release commit directly inherits verified test results from testedTreeSha. Automated test suites execute on a clean working tree; the release commit seals the certification report and documentation without altering application logic.",
   "provenanceProof": {
-    "releaseCommit": "0df7ebd3f012dead76df05969f7bf41c45fafdfe",
-    "releaseParentCommit": "b4a8dbe9224262fdc484ecc8fc56949c7afe6d40",
-    "releaseTree": "a4c105494c7d1b351ad333f376043b64278da39b",
-    "releaseParentTree": "c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c",
+    "releaseCommit": "ac5c171839cb7dd170b764581d6a929a4dda54ba",
+    "releaseParentCommit": "0df7ebd3f012dead76df05969f7bf41c45fafdfe",
+    "releaseTree": "852b62690be44e685e4dce144aa572723b5c7f40",
+    "releaseParentTree": "a4c105494c7d1b351ad333f376043b64278da39b",
     "workingTreeClean": false,
     "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
   },
@@ -19,13 +19,13 @@
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-11-24T03:32:07.686Z",
+  "timestamp": "2026-11-24T04:56:11.952Z",
   "exitCode": 0,
   "overallStatus": "PASS",
-  "totalSuites": 28,
-  "passedSuites": 28,
-  "totalAssertions": 520,
-  "passedAssertions": 520,
+  "totalSuites": 30,
+  "passedSuites": 30,
+  "totalAssertions": 531,
+  "passedAssertions": 531,
   "deviceVerification": {
     "emulatorSerial": "emulator-5554",
     "platform": "Android 16 (API 36)",
@@ -115,8 +115,8 @@
       "status": "PASS"
     },
     "banking": {
-      "passed": 238,
-      "total": 238,
+      "passed": 249,
+      "total": 249,
       "status": "PASS"
     },
     "smartBudgets": {
@@ -294,6 +294,24 @@
       "file": "test_banking_visual_truth.mjs",
       "passed": 8,
       "total": 8,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking Non-Destructive Storage Invariants",
+      "file": "test_banking_no_destructive_autoseed.mjs",
+      "passed": 7,
+      "total": 7,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "Banking Platform",
+      "name": "Banking Local-Date Default Invariants",
+      "file": "test_banking_local_date_defaults.mjs",
+      "passed": 4,
+      "total": 4,
       "status": "PASS",
       "error": null
     },

@@ -4,6 +4,7 @@
  * Obligation-first chronological debt calendar with 30-day cash planning summary.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Calendar as CalendarIcon, ChevronRight, CheckCircle2, Clock, AlertTriangle, ShieldCheck } from 'lucide-react-native';
@@ -14,7 +15,7 @@ export default function EMICalendarView({
     loans = [],
     banks = [],
     totalCashPaise = 0,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 }) {
     const [selectedMonth, setSelectedMonth] = useState('ALL');
 

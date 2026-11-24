@@ -6,6 +6,7 @@
  */
 
 import { loadData, saveData, STORAGE_KEYS } from './storage';
+import { todayLocal, toLocalDateString } from './cashbook/cashbookDates.js';
 import {
     BANKING_JOURNAL_EVENT_TYPES,
     BANK_LOAN_STATUS,
@@ -28,48 +29,80 @@ import {
     validateBankingFinancialTruth
 } from '../components/banking/bankingProjectionEngine';
 
+/**
+ * Strict read for read-modify-write paths.
+ *
+ * The public getters below use non-strict loadData(), which returns the empty default on ANY
+ * read/decrypt/parse failure. Every mutation reads the current array, appends, and writes the
+ * whole array back, so a masked failure would silently overwrite the recoverable store with just
+ * the new record (for the journal, which drives every balance, that destroys the ledger).
+ * Mutations therefore read through this helper and fail loudly instead.
+ */
+const readStrict = async (key, fallback) => {
+    try {
+        const value = await loadData(key, fallback, { strict: true });
+        return value === null || value === undefined ? fallback : value;
+    } catch (cause) {
+        const err = new Error(
+            '[Banking Service] Saved banking data could not be read, so this change was NOT saved and nothing was overwritten. ' +
+            'Restart the app or restore from a backup, then try again.'
+        );
+        err.code = 'BANKING_STORAGE_UNREADABLE';
+        err.storageKey = key;
+        err.cause = cause;
+        throw err;
+    }
+};
+
 export const BankingService = {
     // ── READ ENTITIES ────────────────────────────────────────────────────────
 
-    getBanks: async () => {
+    getBanks: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_BANKS, []);
         return await loadData(STORAGE_KEYS.BANKING_BANKS, []) || [];
     },
 
-    getAccounts: async () => {
+    getAccounts: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_ACCOUNTS, []);
         return await loadData(STORAGE_KEYS.BANKING_ACCOUNTS, []) || [];
     },
 
-    getLoans: async () => {
+    getLoans: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_LOANS, []);
         return await loadData(STORAGE_KEYS.BANKING_LOANS, []) || [];
     },
 
-    getJournal: async () => {
+    getJournal: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
         return await loadData(STORAGE_KEYS.BANKING_JOURNAL, []) || [];
     },
 
-    getSchedules: async () => {
+    getSchedules: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_SCHEDULES, {});
         return await loadData(STORAGE_KEYS.BANKING_SCHEDULES, {}) || {};
     },
 
-    getDocuments: async () => {
+    getDocuments: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_DOCUMENTS, []);
         return await loadData(STORAGE_KEYS.BANKING_DOCUMENTS, []) || [];
     },
 
-    getOperations: async () => {
+    getOperations: async (options = {}) => {
+        if (options?.strict) return await readStrict(STORAGE_KEYS.BANKING_OPERATIONS, []);
         return await loadData(STORAGE_KEYS.BANKING_OPERATIONS, []) || [];
     },
 
     // ── MASTER DATA & PROJECTION LOADER ──────────────────────────────────────
 
-    loadAllBankingData: async () => {
+    loadAllBankingData: async (options = {}) => {
         const [banks, accounts, loans, journal, schedules, documents, operations] = await Promise.all([
-            BankingService.getBanks(),
-            BankingService.getAccounts(),
-            BankingService.getLoans(),
-            BankingService.getJournal(),
-            BankingService.getSchedules(),
-            BankingService.getDocuments(),
-            BankingService.getOperations()
+            BankingService.getBanks(options),
+            BankingService.getAccounts(options),
+            BankingService.getLoans(options),
+            BankingService.getJournal(options),
+            BankingService.getSchedules(options),
+            BankingService.getDocuments(options),
+            BankingService.getOperations(options)
         ]);
 
         const projection = rebuildBankingProjectionsFromJournal({
@@ -105,7 +138,7 @@ export const BankingService = {
     // ── ENTITY CRUD MUTATIONS ────────────────────────────────────────────────
 
     saveBank: async (bank) => {
-        const banks = await BankingService.getBanks();
+        const banks = await readStrict(STORAGE_KEYS.BANKING_BANKS, []);
         const existingIdx = banks.findIndex(b => b.id === bank.id);
         const updated = existingIdx >= 0
             ? banks.map(b => b.id === bank.id ? { ...b, ...bank, updatedAt: new Date().toISOString() } : b)
@@ -116,7 +149,7 @@ export const BankingService = {
     },
 
     saveAccount: async (account, initialBalancePaise = 0) => {
-        const accounts = await BankingService.getAccounts();
+        const accounts = await readStrict(STORAGE_KEYS.BANKING_ACCOUNTS, []);
         const existingIdx = accounts.findIndex(a => a.id === account.id);
         const isNew = existingIdx === -1;
 
@@ -133,9 +166,9 @@ export const BankingService = {
                 bankId: account.bankId,
                 bankAccountId: account.id,
                 amountPaise: initialBalancePaise,
-                date: account.createdAt ? account.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+                date: account.createdAt ? toLocalDateString(new Date(account.createdAt)) : todayLocal()
             });
-            const journal = await BankingService.getJournal();
+            const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
             await saveData(STORAGE_KEYS.BANKING_JOURNAL, [...journal, entry]);
         }
 
@@ -143,7 +176,7 @@ export const BankingService = {
     },
 
     saveLoan: async (loan) => {
-        const loans = await BankingService.getLoans();
+        const loans = await readStrict(STORAGE_KEYS.BANKING_LOANS, []);
         const isNew = !loans.some(l => l.id === loan.id);
 
         const updatedLoans = isNew
@@ -155,7 +188,7 @@ export const BankingService = {
         // If new loan, generate initial schedule & commit loan disbursement journal entry
         if (isNew) {
             const initialSchedule = generateBankLoanSchedule(loan);
-            const schedules = await BankingService.getSchedules();
+            const schedules = await readStrict(STORAGE_KEYS.BANKING_SCHEDULES, {});
             schedules[loan.id] = initialSchedule;
             await saveData(STORAGE_KEYS.BANKING_SCHEDULES, schedules);
 
@@ -167,7 +200,7 @@ export const BankingService = {
                 amountPaise: loan.originalPrincipalPaise,
                 date: loan.startDate
             });
-            const journal = await BankingService.getJournal();
+            const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
             await saveData(STORAGE_KEYS.BANKING_JOURNAL, [...journal, disbEntry]);
         }
 
@@ -188,10 +221,10 @@ export const BankingService = {
         feePaise = 0,
         penaltyPaise = 0,
         bankAccountId = null,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         note = ''
     }) => {
-        const loans = await BankingService.getLoans();
+        const loans = await readStrict(STORAGE_KEYS.BANKING_LOANS, []);
         const loan = loans.find(l => l.id === loanId);
         if (!loan) throw new Error(`[Banking Service] Loan ${loanId} not found.`);
 
@@ -209,7 +242,7 @@ export const BankingService = {
             metadata: { installmentId, note }
         });
 
-        const journal = await BankingService.getJournal();
+        const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
         const updatedJournal = [...journal, entry];
         await saveData(STORAGE_KEYS.BANKING_JOURNAL, updatedJournal);
 
@@ -225,10 +258,10 @@ export const BankingService = {
         penaltyFeePaise = 0,
         bankAccountId = null,
         strategy = 'REDUCE_TENURE',
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         note = ''
     }) => {
-        const loans = await BankingService.getLoans();
+        const loans = await readStrict(STORAGE_KEYS.BANKING_LOANS, []);
         const loan = loans.find(l => l.id === loanId);
         if (!loan) throw new Error(`[Banking Service] Loan ${loanId} not found.`);
 
@@ -244,7 +277,7 @@ export const BankingService = {
             metadata: { strategy, note }
         });
 
-        const journal = await BankingService.getJournal();
+        const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
         const updatedJournal = [...journal, entry];
         await saveData(STORAGE_KEYS.BANKING_JOURNAL, updatedJournal);
 
@@ -260,7 +293,7 @@ export const BankingService = {
         prepaymentPenaltyPct = 0,
         waiverPaise = 0,
         bankAccountId = null,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         note = ''
     }) => {
         const { projection, loans } = await BankingService.loadAllBankingData();
@@ -288,7 +321,7 @@ export const BankingService = {
             metadata: { note, quote }
         });
 
-        const journal = await BankingService.getJournal();
+        const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
         const updatedJournal = [...journal, entry];
         await saveData(STORAGE_KEYS.BANKING_JOURNAL, updatedJournal);
 
@@ -299,7 +332,7 @@ export const BankingService = {
      * Reversal of any Banking Journal Entry (BANK-31)
      */
     reverseJournalEntry: async ({ journalEntryId, reason = 'User requested reversal' }) => {
-        const journal = await BankingService.getJournal();
+        const journal = await readStrict(STORAGE_KEYS.BANKING_JOURNAL, []);
         const origEntry = journal.find(j => j.id === journalEntryId);
         if (!origEntry) throw new Error(`[Banking Service] Journal entry ${journalEntryId} not found.`);
 
@@ -314,7 +347,40 @@ export const BankingService = {
         return await BankingService.loadAllBankingData();
     },
 
-    // ── SEEDING & RESET TO DEMO FIXTURE ──────────────────────────────────────
+    // ── STORAGE HEALTH PROBE ─────────────────────────────────────────────────
+
+    /**
+     * Distinguishes "genuinely empty" from "unreadable" banking storage. Read-only.
+     * Callers must never treat an empty read as licence to seed or reset.
+     *
+     * @returns {Promise<{ hasData: boolean, unreadable: string[], isGenuinelyEmpty: boolean }>}
+     */
+    probeStorage: async () => {
+        const keys = [
+            STORAGE_KEYS.BANKING_BANKS,
+            STORAGE_KEYS.BANKING_ACCOUNTS,
+            STORAGE_KEYS.BANKING_LOANS,
+            STORAGE_KEYS.BANKING_JOURNAL,
+            STORAGE_KEYS.BANKING_SCHEDULES,
+            STORAGE_KEYS.BANKING_DOCUMENTS,
+            STORAGE_KEYS.BANKING_OPERATIONS
+        ];
+        const unreadable = [];
+        let hasData = false;
+        for (const key of keys) {
+            try {
+                const value = await loadData(key, null, { strict: true });
+                if (Array.isArray(value) ? value.length > 0 : (value && Object.keys(value).length > 0)) hasData = true;
+            } catch (e) {
+                unreadable.push(key);
+            }
+        }
+        return { hasData, unreadable, isGenuinelyEmpty: !hasData && unreadable.length === 0 };
+    },
+
+    // ── RESET TO DEMO FIXTURE (DESTRUCTIVE, DEV ONLY) ────────────────────────
+    // Overwrites banks, accounts, loans, schedules, journal, documents and operations.
+    // Never call from a data-load path; only from an explicit, confirmed, __DEV__-gated action.
 
     resetToDemoFixture: async () => {
         const fixture = getHDFCBankDemoFixture();

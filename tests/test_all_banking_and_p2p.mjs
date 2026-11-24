@@ -38,6 +38,8 @@ const SUITES = [
     { group: 'Banking Platform', name: 'Banking UI Financial Truth (UX-01..20)', file: 'test_banking_ui_truth.mjs' },
     { group: 'Banking Platform', name: 'Banking Financial Corruption Detector', file: 'test_banking_validation.mjs' },
     { group: 'Banking Platform', name: 'Banking Visual Truth & Calm Gates', file: 'test_banking_visual_truth.mjs' },
+    { group: 'Banking Platform', name: 'Banking Non-Destructive Storage Invariants', file: 'test_banking_no_destructive_autoseed.mjs' },
+    { group: 'Banking Platform', name: 'Banking Local-Date Default Invariants', file: 'test_banking_local_date_defaults.mjs' },
 
     // ── MONEY FLOW PLATFORM (CASH ONLY) ──
     { group: 'Money Flow Platform', name: 'Money Flow Cash Truth & Neutrality', file: 'test_ax2_money_flow_cash_truth.mjs' },

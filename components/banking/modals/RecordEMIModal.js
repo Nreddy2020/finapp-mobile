@@ -5,6 +5,7 @@
  * and fee breakdown committed to the immutable double-entry journal.
  */
 
+import { todayLocal } from '../../../services/cashbook/cashbookDates.js';
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { X, CheckCircle2, DollarSign, Calendar } from 'lucide-react-native';
@@ -23,7 +24,7 @@ export default function RecordEMIModal({
     const [amount, setAmount] = useState('');
     const [principal, setPrincipal] = useState('');
     const [interest, setInterest] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(todayLocal());
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {

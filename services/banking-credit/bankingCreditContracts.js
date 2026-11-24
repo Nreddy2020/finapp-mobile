@@ -12,6 +12,7 @@
  * - Canonical route-resolution contract
  */
 
+import { toLocalDateString } from '../cashbook/cashbookDates.js';
 export const BANKING_CREDIT_TABS = Object.freeze({
     OVERVIEW: 'overview',
     ACCOUNTS: 'accounts',
@@ -231,7 +232,9 @@ export function isEligibleDepositAccount(account) {
  * - Overdue repayments contract: dueDate < asOfDate && unpaid
  */
 export function evaluateRepaymentStatus({ dueDate, status, paidTotalPaise = 0n, expectedTotalPaise = 0n, asOfDate = new Date() }) {
-    const todayStr = (asOfDate instanceof Date ? asOfDate : new Date(asOfDate)).toISOString().split('T')[0];
+    const todayStr = (typeof asOfDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(asOfDate))
+        ? asOfDate
+        : toLocalDateString(asOfDate instanceof Date ? asOfDate : new Date(asOfDate));
     const expected = toBigIntPaise(expectedTotalPaise);
     const paid = toBigIntPaise(paidTotalPaise);
     const remainingPaise = expected > paid ? expected - paid : 0n;

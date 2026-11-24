@@ -5,6 +5,7 @@
  * rate revisions, prepayment decision intelligence, foreclosure quotes, and balanced double-entry journals.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import {
     toPaise,
     fromPaise,
@@ -20,7 +21,7 @@ import {
 // ── DATE UTILITIES ───────────────────────────────────────────────────────────
 
 export function addMonthsToDate(dateStr, monthsToAdd) {
-    if (!dateStr) return new Date().toISOString().split('T')[0];
+    if (!dateStr) return todayLocal();
     const [y, m, d] = dateStr.split('-').map(Number);
     const targetDate = new Date(Date.UTC(y, (m - 1) + monthsToAdd, d));
     return targetDate.toISOString().split('T')[0];
@@ -88,7 +89,7 @@ export function generateBankLoanSchedule(loan) {
     let currentOpeningPaise = originalPrincipalPaise;
     const r = annualRate / 1200;
 
-    const startDate = loan.startDate || new Date().toISOString().split('T')[0];
+    const startDate = loan.startDate || todayLocal();
 
     for (let i = 1; i <= tenure; i++) {
         const pStart = addMonthsToDate(startDate, i - 1);
@@ -161,7 +162,7 @@ export function applyRateRevisionToSchedule({ loan, schedule = [], rateRevision 
         throw new Error('[Banking Engine] Valid rateRevision is required.');
     }
 
-    const effectiveDate = rateRevision.effectiveDate || new Date().toISOString().split('T')[0];
+    const effectiveDate = rateRevision.effectiveDate || todayLocal();
     const newRate = Number(rateRevision.annualRate) || 0;
     const rNew = newRate / 1200;
 
@@ -264,7 +265,7 @@ export function recalculateScheduleAfterEMIPayment({
     schedule = [],
     installmentId = null,
     paymentAmountPaise = 0,
-    paymentDate = new Date().toISOString().split('T')[0]
+    paymentDate = todayLocal()
 }) {
     const targetIdx = installmentId
         ? schedule.findIndex(s => s.id === installmentId)
@@ -429,7 +430,7 @@ export function applyPrepaymentToSchedule({
     loan,
     schedule = [],
     prepaymentAmountPaise = 0,
-    prepaymentDate = new Date().toISOString().split('T')[0],
+    prepaymentDate = todayLocal(),
     strategy = 'REDUCE_TENURE' // 'REDUCE_TENURE' | 'REDUCE_EMI'
 }) {
     const prepay = Math.round(Number(prepaymentAmountPaise) || 0);
@@ -566,7 +567,7 @@ export function createDoubleEntryBankingJournalForEvent({
     bankId,
     bankAccountId = null,
     loanId = null,
-    date = new Date().toISOString().split('T')[0],
+    date = todayLocal(),
     amountPaise = null,
     amount = null, // Convenience INR input
     principalPaise = null,
@@ -888,7 +889,7 @@ export function createDoubleEntryBankingJournalForEvent({
 export function createBankingReversalJournalEntry({
     originalJournalEntry,
     reversalReason = 'Correction / Cancellation',
-    date = new Date().toISOString().split('T')[0]
+    date = todayLocal()
 }) {
     if (!originalJournalEntry || !Array.isArray(originalJournalEntry.lines) || originalJournalEntry.lines.length === 0) {
         throw new Error('[Banking Journal] Valid original journal entry is required for reversal.');
