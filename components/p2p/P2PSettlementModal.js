@@ -1,3 +1,4 @@
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { X, CheckCircle, AlertTriangle } from 'lucide-react-native';
@@ -15,7 +16,7 @@ export default function P2PSettlementModal({
     if (!loan) return null;
 
     const [waiverInput, setWaiverInput] = useState('0');
-    const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
+    const [dateInput, setDateInput] = useState(todayLocal());
     const [accountInput, setAccountInput] = useState(loan.accountId || 'HDFC Savings Account');
     const [noteInput, setNoteInput] = useState('Full settlement & closure');
 

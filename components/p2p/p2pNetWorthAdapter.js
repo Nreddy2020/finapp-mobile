@@ -9,11 +9,12 @@
  * [P2P-INV-23] Isolated Projection Read-Only Boundary: Never mutates core ledger or storage state.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { P2PService } from '../../services/p2pService.js';
 import { computeP2POverviewMetrics } from './p2pPresentationAdapter.js';
 import { formatPaiseToINR, paiseToRupees } from './p2pContracts.js';
 
-export async function getP2PNetWorthBalanceSheetProjection(asOfDate = new Date().toISOString().split('T')[0]) {
+export async function getP2PNetWorthBalanceSheetProjection(asOfDate = todayLocal()) {
     const [loans, advances, repayments] = await Promise.all([
         P2PService.getLoans(),
         P2PService.getAdvances(),

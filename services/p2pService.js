@@ -5,6 +5,7 @@
  * Person Relationship Netting, and Zero-Burn Money Flow Synchronization.
  */
 
+import { todayLocal } from './cashbook/cashbookDates.js';
 import { saveData, loadData, STORAGE_KEYS } from './storage';
 import {
     LOAN_DIRECTION,
@@ -266,7 +267,7 @@ export const P2PService = {
         loanId,
         amount,
         amountPaise,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         effectiveDate = null,
         accountId,
         note = '',
@@ -359,7 +360,7 @@ export const P2PService = {
         loanId,
         amount,
         amountPaise,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId,
         note = '',
         scheduleItemId = null,
@@ -480,7 +481,7 @@ export const P2PService = {
     skipInstallment: async ({
         loanId,
         installmentNumber = 1,
-        date = new Date().toISOString().split('T')[0]
+        date = todayLocal()
     }) => {
         const loans = await P2PService.getLoans();
         const loan = loans.find(l => l.id === loanId);
@@ -502,7 +503,7 @@ export const P2PService = {
         loanId,
         installmentNumber = 1,
         paymentAmount = null,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId
     }) => {
         const opId = `p2p_op_advance_${Date.now()}`;
@@ -567,7 +568,7 @@ export const P2PService = {
     prepayPrincipal: async ({
         loanId,
         amount,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId,
         note = ''
     }) => {
@@ -624,7 +625,7 @@ export const P2PService = {
     markAsPaid: async ({
         loanId,
         installmentNumber = 1,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId,
         isExternalAcknowledgment = false
     }) => {
@@ -659,7 +660,7 @@ export const P2PService = {
     settleLoan: async ({
         loanId,
         waiverAmount = 0,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId,
         note = '',
         idempotencyKey = null
@@ -746,7 +747,7 @@ export const P2PService = {
     settlePersonRelationship: async ({
         personId,
         waiverAmount = 0,
-        date = new Date().toISOString().split('T')[0],
+        date = todayLocal(),
         accountId = 'HDFC Savings Account',
         note = '',
         idempotencyKey = null
@@ -832,7 +833,7 @@ export const P2PService = {
         journalEntryId,
         reversalReason = 'User correction',
         reversedBy = 'FINLIFE_USER',
-        date = new Date().toISOString().split('T')[0]
+        date = todayLocal()
     }) => {
         const journal = await P2PService.getJournalEntries();
         const originalEntry = journal.find(j => j.id === journalEntryId || j.journalEntryId === journalEntryId);
@@ -1012,7 +1013,44 @@ export const P2PService = {
         await saveData(STORAGE_KEYS.P2P_OPERATIONS, serializeP2PData(updated));
     },
 
+    // ── 9b. STORAGE HEALTH PROBE ───────────────────────────────────────────────
+    /**
+     * Distinguishes "genuinely empty" from "unreadable" storage.
+     *
+     * The regular getters use non-strict loadData(), which returns the empty
+     * default on ANY read/decrypt/parse failure, so a corrupted store is
+     * indistinguishable from a new user. Callers must never treat an empty
+     * read as licence to seed or reset; they should consult this probe first.
+     *
+     * Read-only: never writes, never touches the memory cache.
+     *
+     * @returns {Promise<{ hasData: boolean, unreadable: string[], isGenuinelyEmpty: boolean }>}
+     */
+    probeStorage: async () => {
+        const keys = [
+            STORAGE_KEYS.P2P_PERSONS,
+            STORAGE_KEYS.P2P_LOANS,
+            STORAGE_KEYS.P2P_ADVANCES,
+            STORAGE_KEYS.P2P_REPAYMENTS,
+            STORAGE_KEYS.P2P_JOURNAL
+        ];
+        const unreadable = [];
+        let hasData = false;
+        for (const key of keys) {
+            try {
+                const value = await loadData(key, [], { strict: true });
+                if (Array.isArray(value) && value.length > 0) hasData = true;
+            } catch (e) {
+                unreadable.push(key);
+            }
+        }
+        return { hasData, unreadable, isGenuinelyEmpty: !hasData && unreadable.length === 0 };
+    },
+
     // ── 10. DEMO FIXTURE LOADER (ISOLATED DEV ACTION) ──────────────────────────
+    // DESTRUCTIVE: wipes all P2P data via resetToCleanState(). Never call this
+    // from a data-load path; it is only reachable from an explicit, confirmed,
+    // __DEV__-gated action in the P2P screen.
     loadDemoFixtures: async () => {
         await P2PService.resetToCleanState();
 
@@ -1085,7 +1123,7 @@ export const P2PService = {
         await saveData(STORAGE_KEYS.TRANSACTIONS, nonP2PTx);
     },
 
-    getNetWorthProjection: async (asOfDate = new Date().toISOString().split('T')[0]) => {
+    getNetWorthProjection: async (asOfDate = todayLocal()) => {
         const [loans, advances, repayments] = await Promise.all([
             P2PService.getLoans(),
             P2PService.getAdvances(),

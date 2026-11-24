@@ -4,6 +4,7 @@
  * allocation policies, dynamic schedule recalculation, relationship netting, and journal projection replay.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import {
     LOAN_DIRECTION,
     LOAN_TYPES,
@@ -52,7 +53,7 @@ export {
  * Helper to add calendar months to a YYYY-MM-DD date string
  */
 export function addMonthsToDate(dateStr, monthsToAdd) {
-    if (!dateStr) return new Date().toISOString().split('T')[0];
+    if (!dateStr) return todayLocal();
     const parts = dateStr.split('-');
     if (parts.length === 3) {
         const year = parseInt(parts[0], 10);
@@ -150,7 +151,7 @@ export function calculateLoanDNA(loan = {}) {
 export function generateInitialSchedule(loan = {}) {
     const loanId = loan.id || loan.loanId || `loan_${Date.now()}`;
     const dna = calculateLoanDNA(loan);
-    const startDate = loan.startDate || new Date().toISOString().split('T')[0];
+    const startDate = loan.startDate || todayLocal();
 
     const schedule = [];
     let currentOpeningPrincipalPaise = dna.principalPaise;
@@ -395,7 +396,7 @@ export function recalculateScheduleAfterPayment({
     paymentAmount = null,
     paymentDate = null,
     allocationPolicy = 'INTEREST_FIRST',
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 } = {}) {
     const rawSchedule = currentSchedule || existingSchedule || [];
     const updatedSchedule = rawSchedule.map(item => ({ ...item }));
@@ -513,7 +514,7 @@ export function recalculateScheduleAfterTopUp({
     loan = null,
     schedule = [],
     topUpAmount = 0,
-    topUpDate = new Date().toISOString().split('T')[0]
+    topUpDate = todayLocal()
 } = {}) {
     const rawSchedule = Array.isArray(schedule) ? schedule.map(s => ({ ...s })) : [];
     const topUp = Number(topUpAmount) || 0;
@@ -579,7 +580,7 @@ export function skipInstallmentInSchedule({
     loan = null,
     schedule = [],
     installmentNumber = 1,
-    skipDate = new Date().toISOString().split('T')[0]
+    skipDate = todayLocal()
 } = {}) {
     const rawSchedule = Array.isArray(schedule) ? schedule.map(s => ({ ...s })) : [];
     const targetIdx = rawSchedule.findIndex(s => s.installmentNumber === installmentNumber || s.id === installmentNumber);
@@ -635,7 +636,7 @@ export function payInstallmentInAdvanceInSchedule({
     installmentNumber = 1,
     paymentAmount = null,
     paymentAmountPaise = undefined,
-    paymentDate = new Date().toISOString().split('T')[0],
+    paymentDate = todayLocal(),
     advancePaymentDate = null
 } = {}) {
     const rawSchedule = Array.isArray(schedule) ? schedule.map(s => ({ ...s })) : [];
@@ -676,7 +677,7 @@ export function prepayPrincipalInSchedule({
     loan = null,
     schedule = [],
     prepaymentAmount = 0,
-    prepaymentDate = new Date().toISOString().split('T')[0]
+    prepaymentDate = todayLocal()
 } = {}) {
     const rawSchedule = Array.isArray(schedule) ? schedule.map(s => ({ ...s })) : [];
     const prepayAmt = Number(prepaymentAmount) || 0;
@@ -726,7 +727,7 @@ export function calculateInterestTimeline({
     advances = [],
     repayments = [],
     currentDate = null,
-    asOfDate = new Date().toISOString().split('T')[0]
+    asOfDate = todayLocal()
 } = {}) {
     const dna = calculateLoanDNA(loan);
     const monthsTimeline = [];
@@ -866,7 +867,7 @@ export function createDoubleEntryJournalForEvent({
     allocation = null,
     settlement = null,
     relationshipSettlement = null,
-    date = new Date().toISOString().split('T')[0],
+    date = todayLocal(),
     note = ''
 } = {}) {
     const resolvedEntityId = sourceEntityId || (loan ? loan.id : (relationshipSettlement ? relationshipSettlement.personId : 'unknown_entity'));
@@ -1234,7 +1235,7 @@ export function createReversalJournalEntry(firstArg, secondArg, thirdArg, fourth
     const originalJournalEntry = isObjectParam ? firstArg.originalJournalEntry : firstArg;
     const reversalReason = isObjectParam ? (firstArg.reversalReason || 'User correction') : (secondArg || 'User correction');
     const reversedBy = isObjectParam ? (firstArg.reversedBy || 'FINLIFE_USER') : (thirdArg || 'FINLIFE_USER');
-    const date = isObjectParam ? (firstArg.date || new Date().toISOString().split('T')[0]) : (fourthArg || new Date().toISOString().split('T')[0]);
+    const date = isObjectParam ? (firstArg.date || todayLocal()) : (fourthArg || todayLocal());
 
     if (!originalJournalEntry || !Array.isArray(originalJournalEntry.lines)) {
         throw new Error('Original journal entry with valid lines is required for reversal.');

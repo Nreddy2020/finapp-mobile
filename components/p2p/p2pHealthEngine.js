@@ -14,6 +14,7 @@
  * 4. Deterministic counterparty sorting: Risk desc -> Net balance desc -> Name asc.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { roundHalfUp, toBigIntPaise, P2P_STATE } from './p2pContracts.js';
 import { LOAN_STATUS } from './p2pDomainModel.js';
 
@@ -47,7 +48,7 @@ export const HEALTH_CATEGORY = Object.freeze({
  * @param {String} asOfDate - ISO date string YYYY-MM-DD
  * @returns {Object} Deterministic health report with score, state, and metrics
  */
-export function computePortfolioHealth(loans = [], repayments = [], schedules = {}, asOfDate = new Date().toISOString().split('T')[0]) {
+export function computePortfolioHealth(loans = [], repayments = [], schedules = {}, asOfDate = todayLocal()) {
     if (!loans || !Array.isArray(loans)) {
         return {
             state: P2P_STATE.SOURCE_UNAVAILABLE,

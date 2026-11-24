@@ -1,13 +1,13 @@
 {
-  "testedCommitSha": "1425008aa295816443550d6f9c391f4bd4ceab1b",
-  "testedTreeSha": "6f99c3c387de05f0f4bcd857b66edea6d439ebc6",
+  "testedCommitSha": "b4a8dbe9224262fdc484ecc8fc56949c7afe6d40",
+  "testedTreeSha": "c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c",
   "provenancePolicy": "EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED",
   "provenanceNote": "The release commit directly inherits verified test results from testedTreeSha. Automated test suites execute on a clean working tree; the release commit seals the certification report and documentation without altering application logic.",
   "provenanceProof": {
-    "releaseCommit": "1425008aa295816443550d6f9c391f4bd4ceab1b",
-    "releaseParentCommit": "77b21e841852b6d0e0a526f4e4887ce9cd9c4359",
-    "releaseTree": "6f99c3c387de05f0f4bcd857b66edea6d439ebc6",
-    "releaseParentTree": "3765c677392439550614252516d819503d110e29",
+    "releaseCommit": "b4a8dbe9224262fdc484ecc8fc56949c7afe6d40",
+    "releaseParentCommit": "846f0415e2c690109fd2140f702dea841b069cfd",
+    "releaseTree": "c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c",
+    "releaseParentTree": "7a5a35fed52539c3b2c89e823f56e799c338ca0c",
     "workingTreeClean": false,
     "contractEquivalence": "release.parent == testedCommitSha && tree(release.parent) == testedTreeSha"
   },
@@ -19,13 +19,13 @@
   "nodeVersion": "v24.14.1",
   "platform": "win32",
   "testCommand": "node tests/test_all_banking_and_p2p.mjs",
-  "timestamp": "2026-09-11T17:49:18.865Z",
+  "timestamp": "2026-11-24T03:15:52.806Z",
   "exitCode": 0,
   "overallStatus": "PASS",
-  "totalSuites": 26,
-  "passedSuites": 26,
-  "totalAssertions": 508,
-  "passedAssertions": 508,
+  "totalSuites": 28,
+  "passedSuites": 28,
+  "totalAssertions": 520,
+  "passedAssertions": 520,
   "deviceVerification": {
     "emulatorSerial": "emulator-5554",
     "platform": "Android 16 (API 36)",
@@ -120,8 +120,8 @@
       "status": "PASS"
     },
     "smartBudgets": {
-      "passed": 32,
-      "total": 32,
+      "passed": 35,
+      "total": 35,
       "status": "PASS"
     }
   },
@@ -244,6 +244,24 @@
       "error": null
     },
     {
+      "group": "P2P Release-Hardening Baseline",
+      "name": "P2P Non-Destructive Storage Invariants",
+      "file": "test_p2p_no_destructive_autoseed.mjs",
+      "passed": 5,
+      "total": 5,
+      "status": "PASS",
+      "error": null
+    },
+    {
+      "group": "P2P Release-Hardening Baseline",
+      "name": "P2P Local-Date Default Invariants",
+      "file": "test_p2p_local_date_defaults.mjs",
+      "passed": 3,
+      "total": 3,
+      "status": "PASS",
+      "error": null
+    },
+    {
       "group": "Banking Platform",
       "name": "Banking Core Accounting Invariants",
       "file": "test_banking_invariants.mjs",
@@ -319,8 +337,8 @@
       "group": "Smart Budgets Platform",
       "name": "Budget UI Truth & Reconciliation",
       "file": "test_budget_view_model_truth.mjs",
-      "passed": 13,
-      "total": 13,
+      "passed": 16,
+      "total": 16,
       "status": "PASS",
       "error": null
     },
@@ -328,8 +346,8 @@
       "group": "Recurring Commitments Platform",
       "name": "Commitment Invariants & Engine",
       "file": "test_commitment_engine.mjs",
-      "passed": 10,
-      "total": 10,
+      "passed": 11,
+      "total": 11,
       "status": "PASS",
       "error": null
     },

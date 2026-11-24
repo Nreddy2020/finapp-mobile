@@ -3,6 +3,7 @@
  * Computes authoritative position metrics, person aggregations, search filters, and formatting.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { LOAN_DIRECTION, LOAN_STATUS } from './p2pDomainModel.js';
 import { calculateLoanDNA, calculateInterestTimeline } from './p2pAccountingEngine.js';
 import { formatPaiseToINR, toBigIntPaise, rupeesToPaise, paiseToRupees } from './p2pContracts.js';
@@ -33,7 +34,7 @@ export function formatPercent(val) {
 /**
  * Computes global P2P position metrics across all loans
  */
-export function computeP2POverviewMetrics(loans = [], advances = [], repayments = [], schedules = {}, asOfDate = new Date().toISOString().split('T')[0]) {
+export function computeP2POverviewMetrics(loans = [], advances = [], repayments = [], schedules = {}, asOfDate = todayLocal()) {
     let totalReceivablePaise = 0n;
     let totalPayablePaise = 0n;
     let upcomingReceiptsPaise = 0n;
@@ -203,7 +204,7 @@ export { sortCounterpartiesDeterministically };
 /**
  * Computes aggregate summary for a single Person
  */
-export function computePersonP2PSummary(person, loans = [], advances = [], repayments = [], schedules = {}, asOfDate = new Date().toISOString().split('T')[0]) {
+export function computePersonP2PSummary(person, loans = [], advances = [], repayments = [], schedules = {}, asOfDate = todayLocal()) {
     const personLoans = loans.filter(l => l.personId === person.id);
     let totalGiven = 0;
     let totalTaken = 0;

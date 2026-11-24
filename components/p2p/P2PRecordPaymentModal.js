@@ -1,3 +1,4 @@
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { X, CheckCircle, ArrowRight, DollarSign, Calendar, Sliders } from 'lucide-react-native';
@@ -19,7 +20,7 @@ export default function P2PRecordPaymentModal({
         : String(loan.principal ? Number(((loan.principal / (loan.tenureMonths || 12)) + ((loan.principal * (loan.interestRate || 0)) / 1200)).toFixed(2)) : '0');
 
     const [amountInput, setAmountInput] = useState(defaultAmount);
-    const [dateInput, setDateInput] = useState(new Date().toISOString().split('T')[0]);
+    const [dateInput, setDateInput] = useState(todayLocal());
     const [accountInput, setAccountInput] = useState(loan.accountId || 'HDFC Savings Account');
     const [noteInput, setNoteInput] = useState('Monthly Installment Payment');
     const [allocationPolicy, setAllocationPolicy] = useState(loan.repaymentAllocation || REPAYMENT_ALLOCATION.INTEREST_FIRST);

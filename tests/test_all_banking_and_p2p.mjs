@@ -30,6 +30,8 @@ const SUITES = [
     { group: 'P2P Release-Hardening Baseline', name: 'P2P Persistence, Storage & Migration', file: 'test_p2p_persistence_and_migration.mjs' },
     { group: 'P2P Release-Hardening Baseline', name: 'P2P Fixed-Point Health Mathematics', file: 'test_p2p_health_mathematics.mjs' },
     { group: 'P2P Release-Hardening Baseline', name: 'P2P Adversarial & Negative Invariants', file: 'test_p2p_adversarial_and_negative.mjs' },
+    { group: 'P2P Release-Hardening Baseline', name: 'P2P Non-Destructive Storage Invariants', file: 'test_p2p_no_destructive_autoseed.mjs' },
+    { group: 'P2P Release-Hardening Baseline', name: 'P2P Local-Date Default Invariants', file: 'test_p2p_local_date_defaults.mjs' },
 
     // ── BANKING RELATIONSHIP PLATFORM ──
     { group: 'Banking Platform', name: 'Banking Core Accounting Invariants', file: 'test_banking_invariants.mjs' },

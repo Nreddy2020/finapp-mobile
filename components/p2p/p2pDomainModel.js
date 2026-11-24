@@ -3,6 +3,7 @@
  * Defines strongly-typed entities, validation rules, journal entry schemas, and demo fixtures.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import {
     toBigIntPaise,
     rupeesToPaise,
@@ -143,7 +144,7 @@ export function createPersonRelationship({
     netBalancePaise = undefined,
     pendingLoanIds = [],
     settledLoanIds = [],
-    lastActivityDate = new Date().toISOString().split('T')[0]
+    lastActivityDate = todayLocal()
 } = {}) {
     const gPaise = totalGivenPaise !== undefined ? toBigIntPaise(totalGivenPaise) : rupeesToPaise(totalGiven);
     const tPaise = totalTakenPaise !== undefined ? toBigIntPaise(totalTakenPaise) : rupeesToPaise(totalTaken);
@@ -181,7 +182,7 @@ export function createP2PLoan({
     interestMethod = INTEREST_METHOD.SIMPLE,
     interestAccrualBasis = INTEREST_ACCRUAL_BASIS.MONTHLY_FIXED,
     tenureMonths = 12,
-    startDate = new Date().toISOString().split('T')[0],
+    startDate = todayLocal(),
     accountId = 'HDFC Savings Account',
     cashAccountId = null,
     repaymentFrequency = REPAYMENT_FREQUENCY.MONTHLY,
@@ -227,7 +228,7 @@ export function createP2PLoan({
         interestMethod: interestMethod || INTEREST_METHOD.SIMPLE,
         interestAccrualBasis: interestAccrualBasis || INTEREST_ACCRUAL_BASIS.MONTHLY_FIXED,
         tenureMonths: Math.max(1, Number(tenureMonths) || 12),
-        startDate: startDate || new Date().toISOString().split('T')[0],
+        startDate: startDate || todayLocal(),
         accountId: accountId || cashAccountId || 'HDFC Savings Account',
         cashAccountId: cashAccountId || accountId || 'HDFC Savings Account',
         repaymentFrequency: repaymentFrequency || REPAYMENT_FREQUENCY.MONTHLY,
@@ -259,7 +260,7 @@ export function createLoanAdvance({
     loanId = '',
     amount = 0,
     amountPaise = undefined,
-    date = new Date().toISOString().split('T')[0],
+    date = todayLocal(),
     effectiveDate = null,
     interestRate = null,
     accountId = 'HDFC Savings Account',
@@ -309,7 +310,7 @@ export function createLoanRepayment({
     feeComponentPaise = undefined,
     penaltyComponent = 0,
     penaltyComponentPaise = undefined,
-    date = new Date().toISOString().split('T')[0],
+    date = todayLocal(),
     paymentDate = null,
     accountId = 'HDFC Savings Account',
     cashAccountId = null,
@@ -352,8 +353,8 @@ export function createLoanRepayment({
         interestPaid: paiseToRupees(iPaise),
         feeComponent: paiseToRupees(fPaise),
         penaltyComponent: paiseToRupees(penPaise),
-        date: date || paymentDate || new Date().toISOString().split('T')[0],
-        paymentDate: paymentDate || date || new Date().toISOString().split('T')[0],
+        date: date || paymentDate || todayLocal(),
+        paymentDate: paymentDate || date || todayLocal(),
         accountId: acc,
         cashAccountId: acc,
         note: note || notes || '',
@@ -376,7 +377,7 @@ export function createRepaymentScheduleItem({
     installmentNumber = 1,
     periodStart = '',
     periodEnd = '',
-    dueDate = new Date().toISOString().split('T')[0],
+    dueDate = todayLocal(),
     openingPrincipal = 0,
     openingPrincipalPaise = undefined,
     expectedPrincipal = 0,
@@ -522,7 +523,7 @@ export function createJournalEntry({
     journalEntryId = null,
     operationId = null,
     eventType = JOURNAL_EVENT_TYPES.P2P_LOAN_GIVEN,
-    eventDate = new Date().toISOString().split('T')[0],
+    eventDate = todayLocal(),
     effectiveDate = null,
     entityType = 'LOAN', // 'LOAN' | 'PERSON_RELATIONSHIP'
     entityId = '',
@@ -547,7 +548,7 @@ export function createJournalEntry({
 } = {}) {
     const finalId = id || journalEntryId || `je_p2p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const finalEntityId = entityId || sourceEntityId || '';
-    const finalEffectiveDate = effectiveDate || eventDate || new Date().toISOString().split('T')[0];
+    const finalEffectiveDate = effectiveDate || eventDate || todayLocal();
 
     let finalLines = [];
     if (Array.isArray(lines) && lines.length > 0) {
@@ -709,7 +710,7 @@ export function createSettlementRecord({
     id = `settle_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     loanId = '',
     personId = '',
-    settlementDate = new Date().toISOString().split('T')[0],
+    settlementDate = todayLocal(),
     principalOutstanding = 0,
     interestOutstanding = 0,
     feesOutstanding = 0,

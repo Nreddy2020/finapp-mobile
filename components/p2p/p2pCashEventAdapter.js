@@ -4,6 +4,7 @@
  * Enforces zero-burn asset swap tagging, composite-key idempotency, and semantic financial classification.
  */
 
+import { todayLocal } from '../../services/cashbook/cashbookDates.js';
 import { JOURNAL_EVENT_TYPES, LOAN_DIRECTION } from './p2pDomainModel.js';
 import { toBigIntPaise, rupeesToPaise, paiseToRupees } from './p2pContracts.js';
 
@@ -22,7 +23,7 @@ export function convertJournalEntryToMoneyFlowTransactions(journalEntry, persons
         ? (journalEntry.entityId || journalEntry.sourceEntityId)
         : (loan.personId || journalEntry.entityId);
     const person = personsMap[personId] || { name: 'P2P Counterparty' };
-    const dateStr = journalEntry.eventDate || (journalEntry.timestamp || '').split('T')[0] || new Date().toISOString().split('T')[0];
+    const dateStr = journalEntry.eventDate || (journalEntry.timestamp || '').split('T')[0] || todayLocal();
 
     const transactions = [];
 

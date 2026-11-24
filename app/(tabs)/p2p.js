@@ -34,6 +34,7 @@ import {
     Menu, 
     ArrowLeft, 
     Plus, 
+    RefreshCw,
     Search, 
     ChevronRight, 
     Clock, 
@@ -48,7 +49,7 @@ import {
 
 import { useDrawer } from './_layout';
 import { P2PService } from '../../services/p2pService';
-import { P2P_TABS } from '../../components/p2p/p2pContracts';
+import { P2P_TABS, formatPaiseToINR, rupeesToPaise } from '../../components/p2p/p2pContracts';
 import { LOAN_DIRECTION, LOAN_STATUS } from '../../components/p2p/p2pDomainModel';
 import { computeP2POverviewMetrics, computePersonP2PSummary, formatINR } from '../../components/p2p/p2pPresentationAdapter';
 
@@ -110,37 +111,14 @@ export default function P2PScreen() {
                 P2PService.getJournalEntries()
             ]);
 
-            let activePersons = p;
-            let activeLoans = l;
-            let activeAdvances = a;
-            let activeRepayments = r;
-            let activeJournal = j;
-
-            // Seed demo fixtures if completely empty
-            if (p.length === 0 && l.length === 0) {
-                await P2PService.loadDemoFixtures();
-                const [p2, l2, a2, r2, j2] = await Promise.all([
-                    P2PService.getPersons(),
-                    P2PService.getLoans(),
-                    P2PService.getAdvances(),
-                    P2PService.getRepayments(),
-                    P2PService.getJournalEntries()
-                ]);
-                activePersons = p2;
-                activeLoans = l2;
-                activeAdvances = a2;
-                activeRepayments = r2;
-                activeJournal = j2;
-            }
-
-            setPersons(activePersons);
-            setLoans(activeLoans);
-            setAdvances(activeAdvances);
-            setRepayments(activeRepayments);
-            setJournal(activeJournal);
+            setPersons(p);
+            setLoans(l);
+            setAdvances(a);
+            setRepayments(r);
+            setJournal(j);
 
             const schedObj = {};
-            for (const loan of activeLoans) {
+            for (const loan of l) {
                 schedObj[loan.id] = await P2PService.getSchedule(loan.id);
             }
             setSchedules(schedObj);
@@ -170,6 +148,31 @@ export default function P2PScreen() {
         setRefreshing(true);
         await loadAllData();
     };
+
+    const handleLoadDemoData = useCallback(() => {
+        Alert.alert(
+            'Reset Demo Data?',
+            'This will permanently delete all existing P2P records and load sample counterparties and loans for testing.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Reset Demo',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setLoading(true);
+                        try {
+                            await P2PService.loadDemoFixtures();
+                            await loadAllData();
+                        } catch (err) {
+                            Alert.alert('Error', err.message);
+                        } finally {
+                            setLoading(false);
+                        }
+                    }
+                }
+            ]
+        );
+    }, [loadAllData]);
 
     // Two-Tier Back Navigation Contract
     const handleBack = useCallback(() => {
@@ -319,6 +322,15 @@ export default function P2PScreen() {
                 </View>
 
                 <View style={styles.appBarRight}>
+                    {__DEV__ && (
+                        <TouchableOpacity 
+                            style={[styles.addQuickHeaderBtn, { marginRight: 8, backgroundColor: '#27272A' }]}
+                            onPress={handleLoadDemoData}
+                            accessibilityLabel="Reset Demo Data"
+                        >
+                            <RefreshCw size={16} color="#A1A1AA" />
+                        </TouchableOpacity>
+                    )}
                     <TouchableOpacity 
                         style={styles.addQuickHeaderBtn}
                         onPress={() => {
@@ -499,7 +511,8 @@ export default function P2PScreen() {
                                                 ? item.person.netBalancePaise 
                                                 : BigInt(Math.round((item.netOutstanding || 0) * 100));
                                             const isPositive = netPaise >= 0n;
-                                            const formattedNet = `${isPositive ? '+' : '-'}${formatINR(Math.abs(Number(netPaise) / 100), true)}`;
+                                            const absPaise = netPaise < 0n ? -netPaise : netPaise;
+                                            const formattedNet = `${isPositive ? '+' : '-'}${formatPaiseToINR(absPaise, { compact: true })}`;
 
                                             return (
                                                 <TouchableOpacity
@@ -594,7 +607,7 @@ export default function P2PScreen() {
                                                         </View>
                                                     </View>
                                                     <View style={styles.settledCardFooter}>
-                                                        <Text style={styles.settledPrincipal}>Principal: {formatINR(loan.principal)}</Text>
+                                                        <Text style={styles.settledPrincipal}>Principal: {formatPaiseToINR(loan.principalPaise !== undefined ? loan.principalPaise : rupeesToPaise(loan.principal || 0))}</Text>
                                                         <Text style={styles.settledDate}>{loan.settledAt || 'Completed'}</Text>
                                                     </View>
                                                 </TouchableOpacity>
