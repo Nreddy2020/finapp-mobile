@@ -149,6 +149,7 @@ export function computeCategoryRunRate({
         projectedPercentage,
         overspendAmount,
         daysUntilBudgetExhausted,
+        daysElapsed: elapsed,
         daysRemaining: remainingDays,
         riskLevel,
         confidence,

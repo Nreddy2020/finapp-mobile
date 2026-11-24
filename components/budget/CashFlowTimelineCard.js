@@ -88,7 +88,7 @@ export default function CashFlowTimelineCard({ cashFlow, onSelectLowBalance, onS
                     activeOpacity={0.8}
                 >
                     <AlertCircle size={18} color="#F59E0B" />
-                    <Text style={styles.lowBalanceText}>{cashFlow.lowBalancePeriodLabel || 'Low balance period: 12-18 Sep'}</Text>
+                    <Text style={styles.lowBalanceText}>{cashFlow.lowBalancePeriodLabel || 'Low balance risk window'}</Text>
                     <ChevronRight size={16} color="#F59E0B" />
                 </TouchableOpacity>
             )}
@@ -105,8 +105,10 @@ export default function CashFlowTimelineCard({ cashFlow, onSelectLowBalance, onS
             <View style={styles.commitmentsList}>
                 {(cashFlow.commitments || []).map((c, i) => {
                     const IconComp = COMMITMENT_ICONS[c.title] || Wallet;
-                    const dateParts = c.dueDate ? c.dueDate.split('-') : ['2026', '09', '05'];
-                    const dayNum = String(c.day || dateParts[2]).padStart(2, '0');
+                    const dateParts = c.dueDate ? c.dueDate.split('-') : [];
+                    const monthNum = dateParts[1] ? parseInt(dateParts[1], 10) - 1 : new Date().getMonth();
+                    const monthAbbr = new Date(2000, monthNum, 1).toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                    const dayNum = String(c.day || dateParts[2] || new Date().getDate()).padStart(2, '0');
 
                     return (
                         <TouchableOpacity
@@ -116,7 +118,7 @@ export default function CashFlowTimelineCard({ cashFlow, onSelectLowBalance, onS
                             activeOpacity={0.7}
                         >
                             <View style={styles.dateBadge}>
-                                <Text style={styles.dateMonthText}>SEP</Text>
+                                <Text style={styles.dateMonthText}>{c.monthText || monthAbbr}</Text>
                                 <Text style={styles.dateDayText}>{dayNum}</Text>
                             </View>
 

@@ -33,12 +33,18 @@ export default function BudgetCalendarModal({
     onNextMonth
 }) {
     const insets = useSafeAreaInsets();
-    const [selectedDay, setSelectedDay] = useState(5);
+    const [selectedDay, setSelectedDay] = useState(() => Math.min(new Date().getDate(), calendarData?.period?.daysInPeriod || 31));
     const [viewMode, setViewMode] = useState('Calendar'); // 'Calendar' | 'Summary'
 
     if (!visible || !calendarData) return null;
 
-    const period = calendarData.period || { monthName: 'September', year: 2026, month: 9, daysInPeriod: 30 };
+    const nowFallback = new Date();
+    const period = calendarData.period || {
+        monthName: nowFallback.toLocaleDateString('en-IN', { month: 'long' }),
+        year: nowFallback.getFullYear(),
+        month: nowFallback.getMonth() + 1,
+        daysInPeriod: new Date(nowFallback.getFullYear(), nowFallback.getMonth() + 1, 0).getDate()
+    };
     const eventsByDay = calendarData.eventsByDay || {};
 
     const monthIndex = (period.month || 1) - 1;

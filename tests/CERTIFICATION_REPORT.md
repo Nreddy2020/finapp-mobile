@@ -1,11 +1,11 @@
 # FinLife Automated Master Certification Report
 
-- **Tested Commit SHA:** `b4a8dbe9224262fdc484ecc8fc56949c7afe6d40`
-- **Tested Tree SHA:** `c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c`
+- **Tested Commit SHA:** `0df7ebd3f012dead76df05969f7bf41c45fafdfe`
+- **Tested Tree SHA:** `a4c105494c7d1b351ad333f376043b64278da39b`
 - **Provenance Policy:** `EXACT_PARENT_AUDIT_INHERITANCE_CERTIFIED`
 - **Node Version:** `v24.14.1`
 - **Platform:** `win32`
-- **Execution Timestamp:** `2026-11-24T03:15:52.806Z`
+- **Execution Timestamp:** `2026-11-24T03:32:07.686Z`
 - **Exit Code:** `0`
 - **Overall Certification Status:** **PASS**
 - **Assertion Coverage:** **520 / 520 (100%)** across **28 test suites**
@@ -36,10 +36,10 @@
 - **Legacy Migration:** Automatic re-encryption of legacy FL_ENC_V1 records to FL_AES_GCM_V1 on read with atomic SharedPreferences commit
 
 ## Provenance Contract Proof
-- **Release Commit:** `b4a8dbe9224262fdc484ecc8fc56949c7afe6d40`
-- **Parent Implementation Commit:** `846f0415e2c690109fd2140f702dea841b069cfd`
-- **Parent Tree SHA:** `7a5a35fed52539c3b2c89e823f56e799c338ca0c`
-- **Release Tree SHA:** `c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c`
+- **Release Commit:** `0df7ebd3f012dead76df05969f7bf41c45fafdfe`
+- **Parent Implementation Commit:** `b4a8dbe9224262fdc484ecc8fc56949c7afe6d40`
+- **Parent Tree SHA:** `c1bf48d0ef1f5feaea1c9cb9c207c084cd39cf0c`
+- **Release Tree SHA:** `a4c105494c7d1b351ad333f376043b64278da39b`
 - **Clean Working Tree:** `false`
 - **Equivalence Contract:** `release.parent == testedCommitSha && tree(release.parent) == testedTreeSha`
 

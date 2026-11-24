@@ -465,7 +465,7 @@ export function buildBudgetControlCenterViewModel({
         cashFlow: {
             timelineBuckets,
             events: cashFlowEvents,
-            lowBalancePeriodLabel: 'Low balance period: 12-18 Sep',
+            lowBalancePeriodLabel: `Low balance period: 12-18 ${period.monthName ? period.monthName.slice(0, 3) : 'Sep'}`,
             hasLowBalanceRisk: true,
             commitments: activeCommitments,
             totalCommitted
@@ -482,7 +482,7 @@ export function buildBudgetControlCenterViewModel({
             formattedProjectedSpent: formatCurrency(projectedMonthEndSpent),
             variancePercentage: forecastVariancePct,
             confidence: 'MEDIUM',
-            confidenceReason: 'Based on 18 days of current-month data and scheduled bills.',
+            confidenceReason: `Based on ${period.daysElapsed} days of current-month data and scheduled bills.`,
             recommendations: topRecommendations
         },
 

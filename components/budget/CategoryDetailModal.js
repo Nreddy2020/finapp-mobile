@@ -31,12 +31,17 @@ export default function CategoryDetailModal({ visible, category, onClose, onAdju
     const IconComp = CATEGORY_ICONS[activeCat.category] || Car;
     const runRate = activeCat.runRate || {};
 
+    const now = new Date();
+    const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysElapsed = runRate.daysElapsed !== undefined ? runRate.daysElapsed : Math.max(1, now.getDate());
+    const daysRemaining = runRate.daysRemaining !== undefined ? runRate.daysRemaining : Math.max(0, daysInCurrentMonth - now.getDate());
+
     const insight = generateExplainableCategoryInsight({
         category: activeCat.category,
         spent: activeCat.spent,
         budgetLimit: activeCat.limit,
-        daysElapsed: 18,
-        daysRemaining: runRate.daysRemaining || 12,
+        daysElapsed,
+        daysRemaining,
         recentSurgePct: 46
     });
 
@@ -130,24 +135,24 @@ export default function CategoryDetailModal({ visible, category, onClose, onAdju
 
                         <View style={styles.tableRow}>
                             <Text style={styles.tableLabel}>Daily average (so far)</Text>
-                            <Text style={styles.tableValue}>₹{Math.round(runRate.dailyAverage || 410).toLocaleString('en-IN')}</Text>
+                            <Text style={styles.tableValue}>{formatCurrency(runRate.dailyAverage ?? (daysElapsed > 0 ? activeCat.spent / daysElapsed : 0))}</Text>
                         </View>
                         <View style={styles.tableRow}>
                             <Text style={styles.tableLabel}>Allowed daily average</Text>
-                            <Text style={styles.tableValue}>₹{Math.round(runRate.allowedDailyAverage || 92).toLocaleString('en-IN')}</Text>
+                            <Text style={styles.tableValue}>{formatCurrency(runRate.allowedDailyAverage ?? (daysRemaining > 0 ? Math.max(0, activeCat.limit - activeCat.spent) / daysRemaining : 0))}</Text>
                         </View>
                         <View style={styles.tableRow}>
                             <Text style={styles.tableLabel}>Days remaining</Text>
-                            <Text style={styles.tableValue}>{runRate.daysRemaining || 12}</Text>
+                            <Text style={styles.tableValue}>{daysRemaining}</Text>
                         </View>
                         <View style={styles.tableRow}>
                             <Text style={styles.tableLabel}>Projected month-end</Text>
-                            <Text style={styles.tableValue}>₹{Math.round(runRate.projectedSpend || 11700).toLocaleString('en-IN')}</Text>
+                            <Text style={styles.tableValue}>{formatCurrency(runRate.projectedSpend ?? (activeCat.spent + (runRate.dailyAverage || 0) * daysRemaining))}</Text>
                         </View>
                         <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                             <Text style={styles.tableLabel}>Likely overspend</Text>
                             <Text style={[styles.tableValue, { color: '#EF4444' }]}>
-                                ₹{Math.round(runRate.overspendAmount || 1700).toLocaleString('en-IN')}
+                                {formatCurrency(runRate.overspendAmount || Math.max(0, (runRate.projectedSpend || activeCat.spent) - activeCat.limit))}
                             </Text>
                         </View>
                     </View>
